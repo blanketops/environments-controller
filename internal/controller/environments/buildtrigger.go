@@ -20,12 +20,14 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	buildtriggerv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // BuildTriggerReconciler reconciles a BuildTrigger object
@@ -54,9 +56,87 @@ type BuildTriggerReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *BuildTriggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
 
-	// TODO(user): your logic here
+	log := r.Log.WithValues(
+		"controller", "buildtrigger",
+		"namespace", req.Namespace,
+		"name", req.Name,
+	)
+
+	log.Info("reconcile start")
+
+	// ------------------------------------------------
+	// Fetch Build
+	// ------------------------------------------------
+	var buildtrigger buildtriggerv1alpha1.BuildTrigger
+	if err := r.Get(ctx, req.NamespacedName, &buildtrigger); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			log.Info("reconcile exit: buildtrigger not found (deleted)")
+			return ctrl.Result{}, nil
+		}
+
+		log.Error(err, "failed to fetch buildtrigger")
+		return ctrl.Result{}, err
+	}
+
+	log.Info(
+		"buildtrigger fetched",
+		"generation", buildtrigger.Generation,
+		"resourceVersion", buildtrigger.ResourceVersion,
+	)
+
+	// ------------------------------------------------
+	// Construct core command
+	// ------------------------------------------------
+	cmd := core.Command{
+		GVK:  buildtriggerv1alpha1.GroupVersion.WithKind("BuildTrigger"),
+		Type: core.CmdUpdate,
+		Obj:  &buildtrigger,
+	}
+
+	log.Info(
+		"routing buildtrigger to core engine",
+		"gvk", cmd.GVK.String(),
+		"command", cmd.Type,
+	)
+
+	// ------------------------------------------------
+	// Execute domain logic via engine
+	// ------------------------------------------------
+	if err := r.Engine.Execute(ctx, cmd); err != nil {
+		log.Error(err, "engine execution failed")
+
+		r.Recorder.Event(
+			&buildtrigger,
+			corev1.EventTypeWarning,
+			"EngineFailure",
+			err.Error(),
+		)
+
+		log.Info("reconcile exit: engine error")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("engine execution completed")
+
+	// ------------------------------------------------
+	// Persist status (retry-on-conflict)
+	// ------------------------------------------------
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var latest buildtriggerv1alpha1.BuildTrigger
+		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+			return err
+		}
+
+		latest.Status = buildtrigger.Status
+		return r.Status().Update(ctx, &latest)
+	}); err != nil {
+		log.Error(err, "failed to update buildtrigger status")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("buildtrigger status updated successfully")
+	log.Info("reconcile done")
 
 	return ctrl.Result{}, nil
 }

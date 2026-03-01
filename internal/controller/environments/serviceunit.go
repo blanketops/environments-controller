@@ -20,12 +20,14 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	serviceunitv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // ServiceUnitReconciler reconciles a ServiceUnit object
@@ -54,9 +56,86 @@ type ServiceUnitReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
+	log := r.Log.WithValues(
+		"controller", "serviceunit",
+		"namespace", req.Namespace,
+		"name", req.Name,
+	)
 
-	// TODO(user): your logic here
+	log.Info("reconcile start")
+
+	// ------------------------------------------------
+	// Fetch ServiceUnit
+	// ------------------------------------------------
+	var serviceunit serviceunitv1alpha1.ServiceUnit
+	if err := r.Get(ctx, req.NamespacedName, &serviceunit); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			log.Info("reconcile exit: build not found (deleted)")
+			return ctrl.Result{}, nil
+		}
+
+		log.Error(err, "failed to fetch serviceunit")
+		return ctrl.Result{}, err
+	}
+
+	log.Info(
+		"build fetched",
+		"generation", serviceunit.Generation,
+		"resourceVersion", serviceunit.ResourceVersion,
+	)
+
+	// ------------------------------------------------
+	// Construct core command
+	// ------------------------------------------------
+	cmd := core.Command{
+		GVK:  serviceunitv1alpha1.GroupVersion.WithKind("ServiceUnit"),
+		Type: core.CmdUpdate,
+		Obj:  &serviceunit,
+	}
+
+	log.Info(
+		"routing serviceunit to core engine",
+		"gvk", cmd.GVK.String(),
+		"command", cmd.Type,
+	)
+
+	// ------------------------------------------------
+	// Execute domain logic via engine
+	// ------------------------------------------------
+	if err := r.Engine.Execute(ctx, cmd); err != nil {
+		log.Error(err, "engine execution failed")
+
+		r.Recorder.Event(
+			&serviceunit,
+			corev1.EventTypeWarning,
+			"EngineFailure",
+			err.Error(),
+		)
+
+		log.Info("reconcile exit: engine error")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("engine execution completed")
+
+	// ------------------------------------------------
+	// Persist status (retry-on-conflict)
+	// ------------------------------------------------
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var latest serviceunitv1alpha1.ServiceUnit
+		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+			return err
+		}
+
+		latest.Status = serviceunit.Status
+		return r.Status().Update(ctx, &latest)
+	}); err != nil {
+		log.Error(err, "failed to update build status")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("build status updated successfully")
+	log.Info("reconcile done")
 
 	return ctrl.Result{}, nil
 }

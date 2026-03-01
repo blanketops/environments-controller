@@ -19,8 +19,12 @@ package environments
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/go-logr/logr"
+	buildv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/build"
+
 	buildclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 
 	"github.com/ntlaletsi70/blanketops-environments/core"
@@ -28,9 +32,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // BuildReconciler reconciles a Build object
@@ -63,9 +67,86 @@ type BuildReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
+	log := r.Log.WithValues(
+		"controller", "build",
+		"namespace", req.Namespace,
+		"name", req.Name,
+	)
 
-	// TODO(user): your logic here
+	log.Info("reconcile start")
+
+	// ------------------------------------------------
+	// Fetch Build
+	// ------------------------------------------------
+	var build buildv1alpha1.Build
+	if err := r.Get(ctx, req.NamespacedName, &build); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			log.Info("reconcile exit: build not found (deleted)")
+			return ctrl.Result{}, nil
+		}
+
+		log.Error(err, "failed to fetch build")
+		return ctrl.Result{}, err
+	}
+
+	log.Info(
+		"build fetched",
+		"generation", build.Generation,
+		"resourceVersion", build.ResourceVersion,
+	)
+
+	// ------------------------------------------------
+	// Construct core command
+	// ------------------------------------------------
+	cmd := core.Command{
+		GVK:  buildv1alpha1.GroupVersion.WithKind("Build"),
+		Type: core.CmdUpdate,
+		Obj:  &build,
+	}
+
+	log.Info(
+		"routing build to core engine",
+		"gvk", cmd.GVK.String(),
+		"command", cmd.Type,
+	)
+
+	// ------------------------------------------------
+	// Execute domain logic via engine
+	// ------------------------------------------------
+	if err := r.Engine.Execute(ctx, cmd); err != nil {
+		log.Error(err, "engine execution failed")
+
+		r.Recorder.Event(
+			&build,
+			corev1.EventTypeWarning,
+			"EngineFailure",
+			err.Error(),
+		)
+
+		log.Info("reconcile exit: engine error")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("engine execution completed")
+
+	// ------------------------------------------------
+	// Persist status (retry-on-conflict)
+	// ------------------------------------------------
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var latest buildv1alpha1.Build
+		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+			return err
+		}
+
+		latest.Status = build.Status
+		return r.Status().Update(ctx, &latest)
+	}); err != nil {
+		log.Error(err, "failed to update build status")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("build status updated successfully")
+	log.Info("reconcile done")
 
 	return ctrl.Result{}, nil
 }
