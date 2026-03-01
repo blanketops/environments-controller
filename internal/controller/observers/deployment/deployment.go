@@ -16,10 +16,10 @@ import (
 	"time"
 
 	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	deploymentResolution "github.com/ntlaletsi70/blanketops-environments-mvp/internal/resolution/deployment"
+	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
 
-	"github.com/ntlaletsi70/blanketops-environments-mvp/pkg/deployment/application"
-	"github.com/ntlaletsi70/blanketops-environments-mvp/pkg/deployment/domain"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/domain"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

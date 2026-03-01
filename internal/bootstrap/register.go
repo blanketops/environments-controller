@@ -51,9 +51,9 @@ import (
 
 	kappctrlv1alpha1 "carvel.dev/kapp-controller/pkg/apis/kappctrl/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/sources"
-	buildapi "github.com/ntlaletsi70/blanketops-environments-controller/pkg/build/api"
-	"github.com/ntlaletsi70/blanketops-environments-controller/pkg/build/application"
-	buildapp "github.com/ntlaletsi70/blanketops-environments-controller/pkg/build/application"
+	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/build/api"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
+	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 )
 
 func RegisterSchemes(scheme *runtime.Scheme) {
@@ -250,12 +250,12 @@ func RegisterControllers(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err := (&environments.RouteReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		return err
-	}
+	// if err := (&environments.RouteReconciler{
+	// 	Client: mgr.GetClient(),
+	// 	Scheme: mgr.GetScheme(),
+	// }).SetupWithManager(mgr); err != nil {
+	// 	return err
+	// }
 	if err := (&environments.PackageReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
