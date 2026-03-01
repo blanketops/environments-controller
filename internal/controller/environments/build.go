@@ -19,7 +19,15 @@ package environments
 import (
 	"context"
 
+	"github.com/go-logr/logr"
+	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/build"
+	buildclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
+
+	"github.com/ntlaletsi70/blanketops-environments/core"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -28,7 +36,17 @@ import (
 // BuildReconciler reconciles a Build object
 type BuildReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	KubeClient    kubernetes.Interface
+	BuildClient   buildclientset.Interface
+	BuildService  *application.BuildService
+	Scheme        *runtime.Scheme
+	BuildMediator *build.Mediator
+	Log           logr.Logger
+	Recorder      record.EventRecorder
+	Cache         *core.Cache
+	Events        *core.EventRecorder
+	Registry      *core.Registry
+	Engine        *core.Engine
 }
 
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=builds,verbs=get;list;watch;create;update;patch;delete
