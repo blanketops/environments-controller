@@ -31,7 +31,7 @@ jobs:
             - name: Login to Registry
               uses: docker/login-action@v3
               with:
-                  registry: your.registry.com
+                  registry: ${{ secrets.REGISTRY_URL }}
                   username: ${{ secrets.REGISTRY_USERNAME }}
                   password: ${{ secrets.REGISTRY_PASSWORD }}
 
@@ -44,5 +44,5 @@ jobs:
                   ssh: default
                   platforms: linux/amd64,linux/arm64
                   tags: |
-                      your.registry.com/blanketops-environments-controller:latest
-                      your.registry.com/blanketops-environments-controller:${{ github.ref_name }}
+                      ${{ secrets.REGISTRY_URL }}/${{ secrets.REGISTRY_USERNAME }}/blanketops-environments-controller:latest
+                      ${{ secrets.REGISTRY_URL }}/${{ secrets.REGISTRY_USERNAME }}/blanketops-environments-controller:${{ github.ref_name }}
