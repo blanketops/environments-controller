@@ -142,6 +142,21 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ServiceUnitReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	//---------------------------------------------------------------------
+	// Logging & events
+	//---------------------------------------------------------------------
+	r.Log = ctrl.Log.WithName("controllers").WithName("ServiceUnit")
+	r.Recorder = mgr.GetEventRecorderFor("serviceunit-controller")
+
+	//---------------------------------------------------------------------
+	// Core infrastructure
+	//---------------------------------------------------------------------
+	r.Cache = core.NewCache(mgr, nil)
+	r.Events = core.NewEventRecorder(r.Recorder)
+	r.Registry = core.NewRegistry()
+	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+
 	return ctrl.NewControllerManagedBy(mgr).
 		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
 		// For().

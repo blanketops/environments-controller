@@ -145,6 +145,21 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	//---------------------------------------------------------------------
+	// Logging & events
+	//---------------------------------------------------------------------
+	r.Log = ctrl.Log.WithName("controllers").WithName("GitHubEvent")
+	r.Recorder = mgr.GetEventRecorderFor("githubevent-controller")
+
+	//---------------------------------------------------------------------
+	// Core infrastructure
+	//---------------------------------------------------------------------
+	r.Cache = core.NewCache(mgr, nil)
+	r.Events = core.NewEventRecorder(r.Recorder)
+	r.Registry = core.NewRegistry()
+	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+
 	return ctrl.NewControllerManagedBy(mgr).
 		//For(&eventsv1alpha1.GitHubEvent{}).
 		Named("events-githubevent").

@@ -143,6 +143,21 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	//---------------------------------------------------------------------
+	// Logging & events
+	//---------------------------------------------------------------------
+	r.Log = ctrl.Log.WithName("controllers").WithName("GitRepository")
+	r.Recorder = mgr.GetEventRecorderFor("gitrepository-controller")
+
+	//---------------------------------------------------------------------
+	// Core infrastructure
+	//---------------------------------------------------------------------
+	r.Cache = core.NewCache(mgr, nil)
+	r.Events = core.NewEventRecorder(r.Recorder)
+	r.Registry = core.NewRegistry()
+	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+
 	return ctrl.NewControllerManagedBy(mgr).
 		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
 		// For().
