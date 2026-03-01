@@ -80,7 +80,7 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	log.Info(
-		"build fetched",
+		"package fetched",
 		"generation", packages.Generation,
 		"resourceVersion", packages.ResourceVersion,
 	)
@@ -89,13 +89,13 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Construct core command
 	// ------------------------------------------------
 	cmd := core.Command{
-		GVK:  packagev1alpha1.GroupVersion.WithKind("Build"),
+		GVK:  packagev1alpha1.GroupVersion.WithKind("Package"),
 		Type: core.CmdUpdate,
 		Obj:  &packages,
 	}
 
 	log.Info(
-		"routing build to core engine",
+		"routing package to core engine",
 		"gvk", cmd.GVK.String(),
 		"command", cmd.Type,
 	)

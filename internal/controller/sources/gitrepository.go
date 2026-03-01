@@ -19,13 +19,16 @@ package sources
 import (
 	"context"
 
+	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/go-logr/logr"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // GitRepositoryReconciler reconciles a GitRepository object
@@ -54,9 +57,86 @@ type GitRepositoryReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
+	log := r.Log.WithValues(
+		"controller", "gitrepository",
+		"namespace", req.Namespace,
+		"name", req.Name,
+	)
 
-	// TODO(user): your logic here
+	log.Info("reconcile start")
+
+	// ------------------------------------------------
+	// Fetch GitRepository
+	// ------------------------------------------------
+	var gitrepository sourcesv1alpha1.GitRepository
+	if err := r.Get(ctx, req.NamespacedName, &gitrepository); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			log.Info("reconcile exit: gitrepository not found (deleted)")
+			return ctrl.Result{}, nil
+		}
+
+		log.Error(err, "failed to fetch gitrepository")
+		return ctrl.Result{}, err
+	}
+
+	log.Info(
+		"gitrepository fetched",
+		"generation", gitrepository.Generation,
+		"resourceVersion", gitrepository.ResourceVersion,
+	)
+
+	// ------------------------------------------------
+	// Construct core command
+	// ------------------------------------------------
+	cmd := core.Command{
+		GVK:  sourcesv1alpha1.GroupVersion.WithKind("GitRepository"),
+		Type: core.CmdUpdate,
+		Obj:  &gitrepository,
+	}
+
+	log.Info(
+		"routing gitrepository to core engine",
+		"gvk", cmd.GVK.String(),
+		"command", cmd.Type,
+	)
+
+	// ------------------------------------------------
+	// Execute domain logic via engine
+	// ------------------------------------------------
+	if err := r.Engine.Execute(ctx, cmd); err != nil {
+		log.Error(err, "engine execution failed")
+
+		r.Recorder.Event(
+			&gitrepository,
+			corev1.EventTypeWarning,
+			"EngineFailure",
+			err.Error(),
+		)
+
+		log.Info("reconcile exit: engine error")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("engine execution completed")
+
+	// ------------------------------------------------
+	// Persist status (retry-on-conflict)
+	// ------------------------------------------------
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var latest sourcesv1alpha1.GitRepository
+		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+			return err
+		}
+
+		latest.Status = gitrepository.Status
+		return r.Status().Update(ctx, &latest)
+	}); err != nil {
+		log.Error(err, "failed to update gitrepository status")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("gitrepository status updated successfully")
+	log.Info("reconcile done")
 
 	return ctrl.Result{}, nil
 }

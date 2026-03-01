@@ -20,13 +20,16 @@ import (
 	"context"
 
 	//eventsv1alpha1 "k8s.io/api/events/v1alpha1"
+	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/go-logr/logr"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // GitHubEventReconciler reconciles a GitHubEvent object
@@ -55,9 +58,87 @@ type GitHubEventReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
 
-	// TODO(user): your logic here
+	log := r.Log.WithValues(
+		"controller", "build",
+		"namespace", req.Namespace,
+		"name", req.Name,
+	)
+
+	log.Info("reconcile start")
+
+	// ------------------------------------------------
+	// Fetch GitHubEvent
+	// ------------------------------------------------
+	var githubevent eventsv1alpha1.GitHubEvent
+	if err := r.Get(ctx, req.NamespacedName, &githubevent); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			log.Info("reconcile exit: githubevent not found (deleted)")
+			return ctrl.Result{}, nil
+		}
+
+		log.Error(err, "failed to fetch githubevent")
+		return ctrl.Result{}, err
+	}
+
+	log.Info(
+		"githubevent fetched",
+		"generation", githubevent.Generation,
+		"resourceVersion", githubevent.ResourceVersion,
+	)
+
+	// ------------------------------------------------
+	// Construct core command
+	// ------------------------------------------------
+	cmd := core.Command{
+		GVK:  eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"),
+		Type: core.CmdUpdate,
+		Obj:  &githubevent,
+	}
+
+	log.Info(
+		"routing build to core engine",
+		"gvk", cmd.GVK.String(),
+		"command", cmd.Type,
+	)
+
+	// ------------------------------------------------
+	// Execute domain logic via engine
+	// ------------------------------------------------
+	if err := r.Engine.Execute(ctx, cmd); err != nil {
+		log.Error(err, "engine execution failed")
+
+		r.Recorder.Event(
+			&githubevent,
+			corev1.EventTypeWarning,
+			"EngineFailure",
+			err.Error(),
+		)
+
+		log.Info("reconcile exit: engine error")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("engine execution completed")
+
+	// ------------------------------------------------
+	// Persist status (retry-on-conflict)
+	// ------------------------------------------------
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var latest eventsv1alpha1.GitHubEvent
+		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+			return err
+		}
+
+		latest.Status = githubevent.Status
+		return r.Status().Update(ctx, &latest)
+	}); err != nil {
+		log.Error(err, "failed to update build status")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("build status updated successfully")
+	log.Info("reconcile done")
 
 	return ctrl.Result{}, nil
 }

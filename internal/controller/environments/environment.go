@@ -58,7 +58,7 @@ type EnvironmentReconciler struct {
 func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
 	log := r.Log.WithValues(
-		"controller", "build",
+		"controller", "environment",
 		"namespace", req.Namespace,
 		"name", req.Name,
 	)
@@ -95,7 +95,7 @@ func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	log.Info(
-		"routing build to core engine",
+		"routing environment to core engine",
 		"gvk", cmd.GVK.String(),
 		"command", cmd.Type,
 	)
