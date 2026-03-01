@@ -113,8 +113,8 @@ github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee h1:W5t00kpgFd
 github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
-github.com/ntlaletsi70/blanketops-environments v0.0.8 h1:tvSiFMy632CHBFvCcvpztaZTfL878eqI9SByKzPNCLQ=
-github.com/ntlaletsi70/blanketops-environments v0.0.8/go.mod h1:u6EC4b6ovn0UV4VCFLi0kIp/i4Kcqg9KMaBLDeRpjys=
+github.com/ntlaletsi70/blanketops-environments v0.0.9 h1:VxYAyRomo1H8FAHxYUMRmcTX5NX7fJpnAL6Z7KCfaf0=
+github.com/ntlaletsi70/blanketops-environments v0.0.9/go.mod h1:u6EC4b6ovn0UV4VCFLi0kIp/i4Kcqg9KMaBLDeRpjys=
 github.com/ntlaletsi70/blanketops-environments-api v0.0.8 h1:uBvUAXaf8CQxHDAm60KsSTFEefmroUvkiJ/sybaPMi8=
 github.com/ntlaletsi70/blanketops-environments-api v0.0.8/go.mod h1:mC14Rb6ytbYyxXbrf69/y7zcglCtsSKEt5cM7wZuKj8=
 github.com/ntlaletsi70/blanketops-environments-contract v0.0.8 h1:EM1agrOq5CvA9fIYcYRgmYRKB1yT81v4KtozyGnygEs=
