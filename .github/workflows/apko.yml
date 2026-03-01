@@ -1,0 +1,27 @@
+name: Wolfi Image
+
+on:
+    workflow_dispatch:
+
+jobs:
+    wolfi:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install apko
+              run: |
+                  curl -L https://github.com/chainguard-dev/apko/releases/latest/download/apko_linux_amd64.tar.gz | tar xz
+                  sudo mv apko /usr/local/bin/
+
+            - name: Install melange
+              run: |
+                  curl -L https://github.com/chainguard-dev/melange/releases/latest/download/melange_linux_amd64.tar.gz | tar xz
+                  sudo mv melange /usr/local/bin/
+
+            - name: Build package
+              run: melange build melange.yaml
+
+            - name: Build image
+              run: apko build apko.yaml controller:latest controller.tar
