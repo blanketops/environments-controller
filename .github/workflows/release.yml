@@ -1,0 +1,53 @@
+name: Release
+
+on:
+    push:
+        tags:
+            - "v*"
+
+permissions:
+    contents: write
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout tag
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Install git-cliff
+              run: |
+                  curl -L https://github.com/orhun/git-cliff/releases/download/v2.4.0/git-cliff-2.4.0-x86_64-unknown-linux-gnu.tar.gz -o cliff.tar.gz
+                  tar -xzf cliff.tar.gz
+                  sudo mv git-cliff-2.4.0/git-cliff /usr/local/bin/git-cliff
+
+            # 🔥 Switch to main branch before committing
+            - name: Checkout main
+              run: |
+                  git checkout main
+                  git pull origin main
+
+            # 🔥 Generate full changelog
+            - name: Generate CHANGELOG.md
+              run: git-cliff --config .cliff.toml --output CHANGELOG.md
+
+            - name: Commit changelog
+              run: |
+                  git config user.name "github-actions"
+                  git config user.email "actions@github.com"
+                  git add CHANGELOG.md
+                  git commit -m "chore(release): update changelog for ${{ github.ref_name }}" || echo "No changes"
+                  git push origin main
+
+            - name: Generate release notes
+              run: git-cliff --config .cliff.toml --latest --output RELEASE_NOTES.md
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  body_path: RELEASE_NOTES.md
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
