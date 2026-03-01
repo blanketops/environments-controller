@@ -6,9 +6,9 @@ import (
 	"strconv"
 
 	buildv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	buildresolution "github.com/ntlaletsi70/blanketops-environments-mvp/internal/resolution/build"
-	"github.com/ntlaletsi70/blanketops-environments-mvp/pkg/build/application"
-	"github.com/ntlaletsi70/blanketops-environments-mvp/pkg/build/domain"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/build/domain"
+	buildresolution "github.com/ntlaletsi70/blanketops-environments/resolution/build"
 
 	corev1 "k8s.io/api/core/v1"
 

@@ -19,16 +19,27 @@ package environments
 import (
 	"context"
 
+	"github.com/go-logr/logr"
+	environmentv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	"github.com/ntlaletsi70/blanketops-environments/core"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // EnvironmentReconciler reconciles a Environment object
 type EnvironmentReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Log      logr.Logger
+	Recorder record.EventRecorder
+	Cache    *core.Cache
+	Events   *core.EventRecorder
+	Registry *core.Registry
+	Engine   *core.Engine
 }
 
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=environments,verbs=get;list;watch;create;update;patch;delete
@@ -45,15 +56,108 @@ type EnvironmentReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
 
-	// TODO(user): your logic here
+	log := r.Log.WithValues(
+		"controller", "environment",
+		"namespace", req.Namespace,
+		"name", req.Name,
+	)
+
+	log.Info("reconcile start")
+
+	// ------------------------------------------------
+	// Fetch Environment
+	// ------------------------------------------------
+	var environment environmentv1alpha1.Environment
+	if err := r.Get(ctx, req.NamespacedName, &environment); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			log.Info("reconcile exit: environment not found (deleted)")
+			return ctrl.Result{}, nil
+		}
+
+		log.Error(err, "failed to fetch environment")
+		return ctrl.Result{}, err
+	}
+
+	log.Info(
+		"environment fetched",
+		"generation", environment.Generation,
+		"resourceVersion", environment.ResourceVersion,
+	)
+
+	// ------------------------------------------------
+	// Construct core command
+	// ------------------------------------------------
+	cmd := core.Command{
+		GVK:  environmentv1alpha1.GroupVersion.WithKind("Environment"),
+		Type: core.CmdUpdate,
+		Obj:  &environment,
+	}
+
+	log.Info(
+		"routing environment to core engine",
+		"gvk", cmd.GVK.String(),
+		"command", cmd.Type,
+	)
+
+	// ------------------------------------------------
+	// Execute domain logic via engine
+	// ------------------------------------------------
+	if err := r.Engine.Execute(ctx, cmd); err != nil {
+		log.Error(err, "engine execution failed")
+
+		r.Recorder.Event(
+			&environment,
+			corev1.EventTypeWarning,
+			"EngineFailure",
+			err.Error(),
+		)
+
+		log.Info("reconcile exit: engine error")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("engine execution completed")
+
+	// ------------------------------------------------
+	// Persist status (retry-on-conflict)
+	// ------------------------------------------------
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var latest environmentv1alpha1.Environment
+		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+			return err
+		}
+
+		latest.Status = environment.Status
+		return r.Status().Update(ctx, &latest)
+	}); err != nil {
+		log.Error(err, "failed to update environment status")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("environment status updated successfully")
+	log.Info("reconcile done")
 
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *EnvironmentReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	//---------------------------------------------------------------------
+	// Logging & events
+	//---------------------------------------------------------------------
+	r.Log = ctrl.Log.WithName("controllers").WithName("Environment")
+	r.Recorder = mgr.GetEventRecorderFor("environment-controller")
+
+	//---------------------------------------------------------------------
+	// Core infrastructure
+	//---------------------------------------------------------------------
+	r.Cache = core.NewCache(mgr, nil)
+	r.Events = core.NewEventRecorder(r.Recorder)
+	r.Registry = core.NewRegistry()
+	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+
 	return ctrl.NewControllerManagedBy(mgr).
 		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
 		// For().

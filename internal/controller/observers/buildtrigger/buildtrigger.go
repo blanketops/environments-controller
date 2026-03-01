@@ -4,7 +4,7 @@ import (
 	"context"
 
 	buildtriggerv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	"github.com/ntlaletsi70/blanketops-environments-mvp/pkg/build/application"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"

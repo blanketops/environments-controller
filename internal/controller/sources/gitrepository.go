@@ -14,13 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package events
+package sources
 
 import (
 	"context"
 
-	//eventsv1alpha1 "k8s.io/api/events/v1alpha1"
-	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
+	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/go-logr/logr"
@@ -32,8 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// GitHubEventReconciler reconciles a GitHubEvent object
-type GitHubEventReconciler struct {
+// GitRepositoryReconciler reconciles a GitRepository object
+type GitRepositoryReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
@@ -44,23 +43,22 @@ type GitHubEventReconciler struct {
 	Engine   *core.Engine
 }
 
-// +kubebuilder:rbac:groups=events.k8s.io,resources=githubevents,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=events.k8s.io,resources=githubevents/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=events.k8s.io,resources=githubevents/finalizers,verbs=update
+// +kubebuilder:rbac:groups=sources.blanketops.dev,resources=gitrepositories,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=sources.blanketops.dev,resources=gitrepositories/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=sources.blanketops.dev,resources=gitrepositories/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the GitHubEvent object against the actual cluster state, and then
+// the GitRepository object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
-func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
+func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues(
-		"controller", "build",
+		"controller", "gitrepository",
 		"namespace", req.Namespace,
 		"name", req.Name,
 	)
@@ -68,36 +66,36 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
-	// Fetch GitHubEvent
+	// Fetch GitRepository
 	// ------------------------------------------------
-	var githubevent eventsv1alpha1.GitHubEvent
-	if err := r.Get(ctx, req.NamespacedName, &githubevent); err != nil {
+	var gitrepository sourcesv1alpha1.GitRepository
+	if err := r.Get(ctx, req.NamespacedName, &gitrepository); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			log.Info("reconcile exit: githubevent not found (deleted)")
+			log.Info("reconcile exit: gitrepository not found (deleted)")
 			return ctrl.Result{}, nil
 		}
 
-		log.Error(err, "failed to fetch githubevent")
+		log.Error(err, "failed to fetch gitrepository")
 		return ctrl.Result{}, err
 	}
 
 	log.Info(
-		"githubevent fetched",
-		"generation", githubevent.Generation,
-		"resourceVersion", githubevent.ResourceVersion,
+		"gitrepository fetched",
+		"generation", gitrepository.Generation,
+		"resourceVersion", gitrepository.ResourceVersion,
 	)
 
 	// ------------------------------------------------
 	// Construct core command
 	// ------------------------------------------------
 	cmd := core.Command{
-		GVK:  eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"),
+		GVK:  sourcesv1alpha1.GroupVersion.WithKind("GitRepository"),
 		Type: core.CmdUpdate,
-		Obj:  &githubevent,
+		Obj:  &gitrepository,
 	}
 
 	log.Info(
-		"routing build to core engine",
+		"routing gitrepository to core engine",
 		"gvk", cmd.GVK.String(),
 		"command", cmd.Type,
 	)
@@ -109,7 +107,7 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		log.Error(err, "engine execution failed")
 
 		r.Recorder.Event(
-			&githubevent,
+			&gitrepository,
 			corev1.EventTypeWarning,
 			"EngineFailure",
 			err.Error(),
@@ -125,32 +123,32 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// Persist status (retry-on-conflict)
 	// ------------------------------------------------
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var latest eventsv1alpha1.GitHubEvent
+		var latest sourcesv1alpha1.GitRepository
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
 			return err
 		}
 
-		latest.Status = githubevent.Status
+		latest.Status = gitrepository.Status
 		return r.Status().Update(ctx, &latest)
 	}); err != nil {
-		log.Error(err, "failed to update build status")
+		log.Error(err, "failed to update gitrepository status")
 		return ctrl.Result{}, err
 	}
 
-	log.Info("build status updated successfully")
+	log.Info("gitrepository status updated successfully")
 	log.Info("reconcile done")
 
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	//---------------------------------------------------------------------
 	// Logging & events
 	//---------------------------------------------------------------------
-	r.Log = ctrl.Log.WithName("controllers").WithName("GitHubEvent")
-	r.Recorder = mgr.GetEventRecorderFor("githubevent-controller")
+	r.Log = ctrl.Log.WithName("controllers").WithName("GitRepository")
+	r.Recorder = mgr.GetEventRecorderFor("gitrepository-controller")
 
 	//---------------------------------------------------------------------
 	// Core infrastructure
@@ -161,7 +159,8 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
 
 	return ctrl.NewControllerManagedBy(mgr).
-		//For(&eventsv1alpha1.GitHubEvent{}).
-		Named("events-githubevent").
+		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
+		// For().
+		Named("sources-gitrepository").
 		Complete(r)
 }
