@@ -1,0 +1,20 @@
+contents:
+  repositories:
+  - https://packages.wolfi.dev/os
+  packages:
+  - blanketops-environments-controller
+  - ca-certificates-bundle
+
+entrypoint:
+  command: /usr/bin/manager
+
+accounts:
+  users:
+  - username: nonroot
+    uid: 65532
+  groups:
+  - groupname: nonroot
+    gid: 65532
+
+archs:
+- x86_64
