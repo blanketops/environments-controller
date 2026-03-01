@@ -1,27 +1,62 @@
 name: Wolfi Image
 
 on:
-    workflow_dispatch:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
-    wolfi:
-        runs-on: ubuntu-latest
+  wolfi:
+    runs-on: ubuntu-latest
 
-        steps:
-            - uses: actions/checkout@v4
+    steps:
+      # ----------------------------
+      # Checkout
+      # ----------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
 
-            - name: Install apko
-              run: |
-                  curl -L https://github.com/chainguard-dev/apko/releases/latest/download/apko_linux_amd64.tar.gz | tar xz
-                  sudo mv apko /usr/local/bin/
+      # ----------------------------
+      # Setup Melange
+      # ----------------------------
+      - name: Setup Melange
+        uses: chainguard-dev/setup-melange@v1
 
-            - name: Install melange
-              run: |
-                  curl -L https://github.com/chainguard-dev/melange/releases/latest/download/melange_linux_amd64.tar.gz | tar xz
-                  sudo mv melange /usr/local/bin/
+      # ----------------------------
+      # Setup Apko
+      # ----------------------------
+      - name: Setup Apko
+        uses: chainguard-dev/setup-apko@v1
 
-            - name: Build package
-              run: melange build melange.yaml
+      # ----------------------------
+      # Build Wolfi Package
+      # ----------------------------
+      - name: Build package
+        run: melange build melange.yaml
 
-            - name: Build image
-              run: apko build apko.yaml controller:latest controller.tar
+      # ----------------------------
+      # Login to your registry
+      # ----------------------------
+      - name: Login to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      # ----------------------------
+      # Build and Push Image
+      # ----------------------------
+      - name: Build and push image
+        run: |
+          IMAGE="${{ secrets.REGISTRY_URL }}/${{ github.repository }}:${{ github.ref_name }}"
+
+          apko build apko.yaml "$IMAGE" image.tar
+
+          docker load < image.tar
+          docker push "$IMAGE"
