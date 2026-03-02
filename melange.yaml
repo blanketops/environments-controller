@@ -1,6 +1,6 @@
 package:
   name: blanketops-environments-controller
-  version: 0.0.0
+  version: 0.0.5
   epoch: 0
   description: "BlanketOps Environments Kubernetes Controller"
   target-architecture:
@@ -13,15 +13,33 @@ environment:
     packages:
     - busybox
     - ca-certificates-bundle
+    - go
+    - git
+    - openssh-client
+  environment:
+    GOPRIVATE: github.com/ntlaletsi70/*
+    GONOSUMDB: github.com/ntlaletsi70/*
+    GOPROXY: direct
+    CGO_ENABLED: "0"
 
 pipeline:
+- uses: git-checkout
+  with:
+    repository: https://github.com/ntlaletsi70/blanketops-environments-controller
+    tag: ${{package.version}}
+    expected-commit: ""
+
+- name: Configure SSH for private modules
+  runs: |
+    mkdir -p /root/.ssh
+    chmod 700 /root/.ssh
+    ssh-keyscan github.com >> /root/.ssh/known_hosts
+    git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
+
 - uses: go/build
   with:
     packages: ./cmd/main.go
     output: manager
+    ldflags: -s -w
 
 - uses: strip
-
-- uses: go/install
-  with:
-    binaries: "manager"
