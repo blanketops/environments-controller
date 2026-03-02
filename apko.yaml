@@ -1,9 +1,14 @@
 contents:
   repositories:
   - https://packages.wolfi.dev/os
+  - "@local /github/workspace/packages"
+  keyring:
+  - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  - "@local /github/workspace/melange-keyring/melange.rsa.pub"
   packages:
-  - blanketops-environments-controller
+  - wolfi-baselayout
   - ca-certificates-bundle
+  - blanketops-environments-controller@local
 
 entrypoint:
   command: /usr/bin/manager
