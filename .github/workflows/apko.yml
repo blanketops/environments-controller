@@ -1,5 +1,4 @@
 name: Wolfi Image
-
 on:
   workflow_dispatch:
   push:
@@ -12,29 +11,30 @@ permissions:
 jobs:
   wolfi:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      # 🔥 Setup melange
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Setup melange
         uses: chainguard-dev/actions/setup-melange@eab208ef2d05b13404296a5e194a6b237e8bb213
         with:
           version: latest-release
 
-      # 🔥 Setup apko
       - name: Setup apko
         uses: chainguard-dev/actions/setup-apko@eab208ef2d05b13404296a5e194a6b237e8bb213
 
-      # 🔥 Build package
       - name: Build package
         uses: chainguard-dev/actions/melange-build@eab208ef2d05b13404296a5e194a6b237e8bb213
         with:
           config: melange.yaml
           archs: x86_64
           sign-with-temporary-key: true
+          source-dir: ${{ github.workspace }}
 
-      # 🔥 Build image
       - name: Build image
         uses: chainguard-dev/actions/apko-build@eab208ef2d05b13404296a5e194a6b237e8bb213
         with:
