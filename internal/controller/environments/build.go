@@ -19,19 +19,17 @@ package environments
 import (
 	"context"
 
-	corev1 "k8s.io/api/core/v1"
-
 	"github.com/go-logr/logr"
 	buildv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/build"
-
 	buildclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,7 +44,7 @@ type BuildReconciler struct {
 	Scheme        *runtime.Scheme
 	BuildMediator *build.Mediator
 	Log           logr.Logger
-	Recorder      record.EventRecorder
+	Recorder      events.EventRecorder
 	Cache         *core.Cache
 	Events        *core.EventRecorder
 	Registry      *core.Registry
@@ -117,11 +115,14 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	if err := r.Engine.Execute(ctx, cmd); err != nil {
 		log.Error(err, "engine execution failed")
 
-		r.Recorder.Event(
-			&build,
+		r.Recorder.Eventf(
+			&build, // regarding
+			nil,    // related (none)
 			corev1.EventTypeWarning,
-			"EngineFailure",
-			err.Error(),
+			"EngineFailure", // reason
+			"Execute",       // action (short verb)
+			"%v",            // note (format)
+			err,             // args
 		)
 
 		log.Info("reconcile exit: engine error")
@@ -159,7 +160,7 @@ func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Logging & events
 	//---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("Build")
-	r.Recorder = mgr.GetEventRecorderFor("build-controller")
+	r.Recorder = mgr.GetEventRecorder("build-controller")
 
 	//---------------------------------------------------------------------
 	// Core infrastructure

@@ -1,0 +1,99 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - environments.blanketops.dev
+  resources:
+  - builds
+  - buildtriggers
+  - deployments
+  - environments
+  - packages
+  - serviceunits
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - environments.blanketops.dev
+  resources:
+  - builds/finalizers
+  - buildtriggers/finalizers
+  - deployments/finalizers
+  - environments/finalizers
+  - packages/finalizers
+  - serviceunits/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - environments.blanketops.dev
+  resources:
+  - builds/status
+  - buildtriggers/status
+  - deployments/status
+  - environments/status
+  - packages/status
+  - serviceunits/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - githubevents
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - githubevents/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - githubevents/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - sources.blanketops.dev
+  resources:
+  - gitrepositories
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - sources.blanketops.dev
+  resources:
+  - gitrepositories/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - sources.blanketops.dev
+  resources:
+  - gitrepositories/status
+  verbs:
+  - get
+  - patch
+  - update
