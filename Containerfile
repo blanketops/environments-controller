@@ -19,12 +19,18 @@ ENV GOPRIVATE=github.com/ntlaletsi70/*
 ENV GONOSUMDB=github.com/ntlaletsi70/*
 ENV GOPROXY=direct
 
+# Rewrite HTTPS to SSH for private org
+RUN git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
+
 # Copy go mod files first (better layer caching)
 COPY go.mod go.sum ./
+
+
 
 # 👇 Use SSH mount for private repo access
 RUN --mount=type=ssh \
     go mod download
+
 
 # Copy source
 COPY cmd/ cmd/
