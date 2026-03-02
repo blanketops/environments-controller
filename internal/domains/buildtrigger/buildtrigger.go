@@ -61,7 +61,12 @@ func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error
 	// ------------------------------------------------
 	resolved, err := buildtriggerResolution.ResolveBuildTrigger(triggerCR)
 	if err != nil {
-		d.events.FromError(triggerCR, "BuildTriggerResolveFailed", err)
+		d.events.FromError(
+			triggerCR,
+			"BuildTriggerResolveFailed", // reason
+			"BuildTrigger",              // action
+			err,
+		)
 
 		core.SetCondition(
 			&triggerCR.Status.Conditions,
@@ -86,7 +91,12 @@ func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error
 	// 2. Ensure prerequisites (noop today, but real boundary)
 	// ------------------------------------------------
 	if err := d.mediator.EnsurePrerequisites(ctx, resolved); err != nil {
-		d.events.FromError(triggerCR, "BuildTriggerPrerequisitesFailed", err)
+		d.events.FromError(
+			triggerCR,
+			"BuildTriggerPrerequisitesFailed", // reason
+			"BuildTrigger",                    // action
+			err,
+		)
 
 		core.SetCondition(
 			&triggerCR.Status.Conditions,
@@ -111,8 +121,12 @@ func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error
 	// 3. Evaluate trigger intent (DECISION ONLY)
 	// ------------------------------------------------
 	if err := d.service.Evaluate(ctx, resolved); err != nil {
-		d.events.FromError(triggerCR, "BuildTriggerEvaluationFailed", err)
-
+		d.events.FromError(
+			triggerCR,
+			"BuildTriggerEvaluationFailed", // reason
+			"BuildTrigger",                 // action
+			err,
+		)
 		core.SetCondition(
 			&triggerCR.Status.Conditions,
 			"BuildTriggerEvaluated",

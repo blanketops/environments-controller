@@ -49,15 +49,15 @@ func (d *PackageDomain) GVK() schema.GroupVersionKind {
 }
 
 func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
-	pkg, ok := cmd.Obj.(*environmentv1.Package)
-	if !ok || pkg == nil {
+	packageCR, ok := cmd.Obj.(*environmentv1.Package)
+	if !ok || packageCR == nil {
 		return fmt.Errorf("invalid object passed to PackageDomain: %T", cmd.Obj)
 	}
 
 	d.log.Info(
 		"handling package command",
 		"type", cmd.Type,
-		"name", pkg.Name,
+		"name", packageCR.Name,
 	)
 
 	// ------------------------------------------------
@@ -66,7 +66,7 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	if cmd.Type == core.CmdDelete {
 		d.log.Info(
 			"package deletion observed (no cleanup implemented)",
-			"name", pkg.Name,
+			"name", packageCR.Name,
 		)
 		return nil
 	}
@@ -74,12 +74,17 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	// ------------------------------------------------
 	// 1. Resolve package contract (AUTHORITATIVE)
 	// ------------------------------------------------
-	resolved, err := pkgResolution.ResolvePackage(pkg)
+	resolved, err := pkgResolution.ResolvePackage(packageCR)
 	if err != nil {
-		d.events.FromError(pkg, "PackageResolveFailed", err)
+		d.events.FromError(
+			packageCR,
+			"PackageResolveFailed", // reason
+			"Package",              // action
+			err,
+		)
 
 		core.SetCondition(
-			&pkg.Status.Conditions,
+			&packageCR.Status.Conditions,
 			"PackageResolved",
 			core.ConditionFalse,
 			"InvalidSpec",
@@ -90,7 +95,7 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	}
 
 	core.SetCondition(
-		&pkg.Status.Conditions,
+		&packageCR.Status.Conditions,
 		"PackageResolved",
 		core.ConditionTrue,
 		"Resolved",
@@ -101,10 +106,15 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	// 2. Ensure prerequisites (secrets, repos, identity)
 	// ------------------------------------------------
 	if err := d.packageMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-		d.events.FromError(pkg, "PackagePrerequisitesFailed", err)
+		d.events.FromError(
+			packageCR,
+			"PackagePrerequisitesFailed", // reason
+			"Package",                    // action
+			err,
+		)
 
 		core.SetCondition(
-			&pkg.Status.Conditions,
+			&packageCR.Status.Conditions,
 			"PackagePrerequisitesReady",
 			core.ConditionFalse,
 			"PrerequisitesFailed",
@@ -115,7 +125,7 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	}
 
 	core.SetCondition(
-		&pkg.Status.Conditions,
+		&packageCR.Status.Conditions,
 		"PackagePrerequisitesReady",
 		core.ConditionTrue,
 		"PrerequisitesReady",
@@ -127,10 +137,15 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	// ------------------------------------------------
 	intent, err := pkgIntent.BuildPackageIntent(resolved)
 	if err != nil {
-		d.events.FromError(pkg, "PackageIntentBuildFailed", err)
+		d.events.FromError(
+			packageCR,
+			"PackageIntentBuildFailed", // reason
+			"Package",                  // action
+			err,
+		)
 
 		core.SetCondition(
-			&pkg.Status.Conditions,
+			&packageCR.Status.Conditions,
 			"PackageTriggered",
 			core.ConditionFalse,
 			"IntentBuildFailed",
@@ -144,10 +159,15 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	// 4. Trigger execution (authoritative service)
 	// ------------------------------------------------
 	if err := d.packageService.Reconcile(ctx, resolved, intent); err != nil {
-		d.events.FromError(pkg, "PackageTriggerFailed", err)
+		d.events.FromError(
+			packageCR,
+			"PackageTriggerFailed", // reason
+			"Package",              // action
+			err,
+		)
 
 		core.SetCondition(
-			&pkg.Status.Conditions,
+			&packageCR.Status.Conditions,
 			"PackageTriggered",
 			core.ConditionFalse,
 			"TriggerFailed",
@@ -161,7 +181,7 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	// 5. Execution requested (NOT completed)
 	// ------------------------------------------------
 	core.SetCondition(
-		&pkg.Status.Conditions,
+		&packageCR.Status.Conditions,
 		"PackageTriggered",
 		core.ConditionTrue,
 		"ExecutionRequested",

@@ -70,22 +70,6 @@ func RegisterSchemes(scheme *runtime.Scheme) {
 	utilruntime.Must(kustomizev1.AddToScheme(scheme))
 }
 
-func getAsset(name string) []byte {
-	// TODO: Replace with actual asset loading logic, e.g., from embedded files or filesystem
-	// For now, return an empty byte slice to avoid compile errors
-	return []byte{}
-}
-
-func Register(ctx context.Context, cfg *rest.Config, log logr.Logger) error {
-	if err := Apply(ctx, cfg, getAsset("crds.yaml")); err != nil {
-		return err
-	}
-	if err := Apply(ctx, cfg, getAsset("rbac.yaml")); err != nil {
-		return err
-	}
-	return EnsureServiceAccount(ctx, cfg)
-}
-
 func EnsureServiceAccount(ctx context.Context, cfg *rest.Config) error {
 	client, err := kubernetes.NewForConfig(cfg)
 	if err != nil {

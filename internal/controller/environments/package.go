@@ -151,7 +151,7 @@ func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Logging & events
 	//---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("Package")
-	r.Recorder = mgr.GetEventRecorderFor("package-controller")
+	r.Recorder = mgr.GetEventRecorder("package-controller")
 
 	//---------------------------------------------------------------------
 	// Core infrastructure
@@ -161,9 +161,12 @@ func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Registry = core.NewRegistry()
 	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
 
+	// ---------------------------------------------------------------------
+	// Controller registration
+	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
-		Named("package").
+		For(&packagev1alpha1.Package{}).
+		Named("environments-package").
+		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }

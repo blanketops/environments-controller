@@ -61,7 +61,12 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 	// ------------------------------------------------
 	resolved, err := buildResolution.ResolveBuild(buildCR)
 	if err != nil {
-		d.events.FromError(buildCR, "BuildResolveFailed", err)
+		d.events.FromError(
+			buildCR,
+			"BuildResolveFailed", // reason
+			"Build",              // action
+			err,
+		)
 
 		core.SetCondition(
 			&buildCR.Status.Conditions,
@@ -86,7 +91,12 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 	// 2. Ensure prerequisites
 	// ------------------------------------------------
 	if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-		d.events.FromError(buildCR, "PrerequisitesFailed", err)
+		d.events.FromError(
+			buildCR,
+			"PrerequisitesFailed", // reason
+			"Build",               // action
+			err,
+		)
 
 		core.SetCondition(
 			&buildCR.Status.Conditions,
@@ -111,8 +121,12 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 	// 3. Trigger execution (INTENT ONLY)
 	// ------------------------------------------------
 	if err := d.BuildService.Reconcile(ctx, resolved); err != nil {
-		d.events.FromError(buildCR, "BuildTriggerFailed", err)
-
+		d.events.FromError(
+			buildCR,
+			"BuildServiceReconFailed", // reason
+			"Build",                   // action
+			err,
+		)
 		core.SetCondition(
 			&buildCR.Status.Conditions,
 			"BuildTriggered",
