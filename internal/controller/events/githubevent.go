@@ -26,7 +26,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,7 +37,7 @@ type GitHubEventReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 	Cache    *core.Cache
 	Events   *core.EventRecorder
 	Registry *core.Registry
@@ -108,11 +108,14 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if err := r.Engine.Execute(ctx, cmd); err != nil {
 		log.Error(err, "engine execution failed")
 
-		r.Recorder.Event(
-			&githubevent,
+		r.Recorder.Eventf(
+			&githubevent, // regarding
+			nil,          // related (none)
 			corev1.EventTypeWarning,
-			"EngineFailure",
-			err.Error(),
+			"EngineFailure", // reason
+			"Execute",       // action (short verb)
+			"%v",            // note (format)
+			err,             // args
 		)
 
 		log.Info("reconcile exit: engine error")

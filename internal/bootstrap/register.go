@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -34,25 +33,20 @@ import (
 
 	environmentsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
-
-	//resultsv1 "github.com/ntlaletsi70/blanketops-environments-controller/api/results/v1"
 	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
+
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/environments"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/events"
-
-	//externalsecretsv1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1"
-	//externalsecretsv1beta1 "github.com/external-secrets/external-secrets/apis/externalsecrets/v1beta1"
 
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildrun"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildtrigger"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/deployment"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/githubevent"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/gitrepository"
+	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/sources"
 
 	kappctrlv1alpha1 "carvel.dev/kapp-controller/pkg/apis/kappctrl/v1alpha1"
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/sources"
 	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/build/api"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 )
 
@@ -169,7 +163,7 @@ func Apply(ctx context.Context, cfg *rest.Config, manifest []byte) error {
 			},
 		)
 
-		if err != nil && !errors.IsAlreadyExists(err) {
+		if err != nil && !apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("apply %s/%s failed: %w",
 				obj.GetKind(), obj.GetName(), err)
 		}
@@ -184,7 +178,7 @@ func resourceName(kind string) string {
 }
 
 func RegisterObservers(mgr ctrl.Manager) error {
-	statusWriter := application.NewStatusWriter(mgr.GetClient(), mgr.GetLogger().WithName("buildrun-status-writer"))
+	statusWriter := buildapp.NewStatusWriter(mgr.GetClient(), mgr.GetLogger().WithName("buildrun-status-writer"))
 
 	if err := (&buildrun.Reconciler{
 		Client: mgr.GetClient(),
