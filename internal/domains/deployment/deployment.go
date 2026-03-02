@@ -83,7 +83,12 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// ------------------------------------------------
 		resolved, err := deploymentResolution.ResolveDeployment(deployCR)
 		if err != nil {
-			d.events.FromError(deployCR, "DeploymentResolutionFailed", err)
+			d.events.FromError(
+				deployCR,
+				"DeploymentResolutionFailed", // reason
+				"Deploy",                     // action
+				err,
+			)
 			return err
 		}
 
@@ -91,7 +96,12 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// 2. ENSURE PREREQUISITES (INFRA ONLY)
 		// ------------------------------------------------
 		if err := d.deployMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-			d.events.FromError(deployCR, "DeploymentPrerequisitesFailed", err)
+			d.events.FromError(
+				deployCR,
+				"DeploymentPrerequisitesFailed", // reason
+				"Deploy",                        // action
+				err,
+			)
 			return err
 		}
 
@@ -100,7 +110,12 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// ------------------------------------------------
 		serviceUnits, err := d.resolveServiceUnits(ctx, resolved)
 		if err != nil {
-			d.events.FromError(deployCR, "ServiceUnitResolutionFailed", err)
+			d.events.FromError(
+				deployCR,
+				"ServiceUnitResolutionFailed", // reason
+				"Deploy",                      // action
+				err,
+			)
 			return err
 		}
 
@@ -112,22 +127,29 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 				ctx,
 				resolved,
 				serviceUnits); err != nil {
-				d.events.FromError(deployCR, "DeploymentFailed", err)
+				d.events.FromError(
+					deployCR,
+					"DeploymentFailed", // reason
+					"Deploy",           // action
+					err,
+				)
 				return err
 			}
 		}
 
 		d.events.Info(
 			deployCR,
-			"DeploymentSucceeded",
-			"Deployment reconciliation completed successfully",
+			"DeploymentSucceeded", // reason
+			"Reconcile",           // action
+			"deployment reconciliation completed successfully",
 		)
 
 	case core.CmdDelete:
 		d.events.Info(
 			deployCR,
-			"DeploymentDeleted",
-			"Deployment cleanup not implemented yet",
+			"DeploymentDeleted", // reason
+			"Delete",            // action
+			"deployment cleanup not implemented yet",
 		)
 	}
 
