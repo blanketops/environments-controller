@@ -8,55 +8,35 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   wolfi:
     runs-on: ubuntu-latest
 
     steps:
-      # ----------------------------
-      # Checkout
-      # ----------------------------
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # ----------------------------
-      # Setup Melange
-      # ----------------------------
-      - name: Setup Melange
-        uses: chainguard-dev/setup-melange@v1
-
-      # ----------------------------
-      # Setup Apko
-      # ----------------------------
-      - name: Setup Apko
-        uses: chainguard-dev/setup-apko@v1
-
-      # ----------------------------
-      # Build Wolfi Package
-      # ----------------------------
-      - name: Build package
-        run: melange build melange.yaml
-
-      # ----------------------------
-      # Login to your registry
-      # ----------------------------
-      - name: Login to registry
-        uses: docker/login-action@v3
+      # 🔥 Setup melange
+      - name: Setup melange
+        uses: chainguard-dev/actions/setup-melange@eab208ef2d05b13404296a5e194a6b237e8bb213
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
+          version: latest-release
 
-      # ----------------------------
-      # Build and Push Image
-      # ----------------------------
-      - name: Build and push image
-        run: |
-          IMAGE="${{ secrets.REGISTRY_URL }}/${{ github.repository }}:${{ github.ref_name }}"
+      # 🔥 Setup apko
+      - name: Setup apko
+        uses: chainguard-dev/actions/setup-apko@eab208ef2d05b13404296a5e194a6b237e8bb213
 
-          apko build apko.yaml "$IMAGE" image.tar
+      # 🔥 Build package
+      - name: Build package
+        uses: chainguard-dev/actions/melange-build@eab208ef2d05b13404296a5e194a6b237e8bb213
+        with:
+          config: melange.yaml
+          archs: x86_64
+          sign-with-temporary-key: true
 
-          docker load < image.tar
-          docker push "$IMAGE"
+      # 🔥 Build image
+      - name: Build image
+        uses: chainguard-dev/actions/apko-build@eab208ef2d05b13404296a5e194a6b237e8bb213
+        with:
+          config: apko.yaml
+          tag: your.registry/controller:${{ github.ref_name }}

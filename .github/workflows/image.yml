@@ -1,25 +1,20 @@
 name: Image
-
 on:
     push:
         branches:
             - main
         tags:
             - "v*"
-
 permissions:
     contents: read
     packages: write
-
 jobs:
     build:
         runs-on: ubuntu-latest
-
         steps:
             - name: Checkout
               uses: actions/checkout@v4
 
-            # 🔐 Setup SSH Agent
             - name: Setup SSH
               uses: webfactory/ssh-agent@v0.9.0
               with:
@@ -41,8 +36,8 @@ jobs:
                   context: .
                   file: Containerfile
                   push: true
-                  ssh: default
+                  ssh: default=${{ env.SSH_AUTH_SOCK }}
                   platforms: linux/amd64,linux/arm64
                   tags: |
-                      ${{ secrets.REGISTRY_URL }}/${{ secrets.REGISTRY_USERNAME }}/blanketops-environments-controller:latest
-                      ${{ secrets.REGISTRY_URL }}/${{ secrets.REGISTRY_USERNAME }}/blanketops-environments-controller:${{ github.ref_name }}
+                      docker.io/nkanyezisolutions/blanketops-environments-controller:latest
+                      docker.io/nkanyezisolutions/blanketops-environments-controller:${{ github.ref_name }}
