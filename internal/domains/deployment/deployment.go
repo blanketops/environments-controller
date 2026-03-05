@@ -40,13 +40,7 @@ type DeployDomain struct {
 }
 
 // New constructs a new DeployDomain instance.
-func New(
-	deployMediator *deploymediator.Mediator,
-	deployService *deployapp.DeploymentService, // may be nil
-	cache *core.Cache,
-	events *core.EventRecorder,
-	log logr.Logger,
-) *DeployDomain {
+func New(deployMediator *deploymediator.Mediator, deployService *deployapp.DeploymentService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *DeployDomain {
 	return &DeployDomain{
 		deployMediator: deployMediator,
 		deployService:  deployService,
@@ -63,16 +57,12 @@ func (d *DeployDomain) GVK() schema.GroupVersionKind {
 
 // Handle executes core.Command operations routed by the Engine.
 func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
-	deployCR, ok := cmd.Obj.(*environmentv1.Deployment)
-	if !ok || deployCR == nil {
+	deploymentCR, ok := cmd.Obj.(*environmentv1.Deployment)
+	if !ok || deploymentCR == nil {
 		return fmt.Errorf("invalid object for Deployment domain: %T", cmd.Obj)
 	}
 
-	d.log.Info(
-		"Handling Deployment command",
-		"type", cmd.Type,
-		"name", deployCR.Name,
-	)
+	d.log.Info("handling deployment command", "type", cmd.Type, "name", deploymentCR.Name)
 
 	switch cmd.Type {
 
@@ -81,9 +71,9 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// ------------------------------------------------
 		// 1. RESOLVE (AUTHORITATIVE, ONCE)
 		// ------------------------------------------------
-		resolved, err := deploymentResolution.ResolveDeployment(deployCR)
+		resolved, err := deploymentResolution.ResolveDeployment(deploymentCR)
 		if err != nil {
-			d.events.FromError(deployCR, "DeploymentResolutionFailed", err)
+			d.events.FromError(deploymentCR, "DeploymentResolutionFailed", "ResolveContract", err)
 			return err
 		}
 
@@ -91,7 +81,8 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// 2. ENSURE PREREQUISITES (INFRA ONLY)
 		// ------------------------------------------------
 		if err := d.deployMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-			d.events.FromError(deployCR, "DeploymentPrerequisitesFailed", err)
+			d.events.FromError(deploymentCR, "DeploymentPrerequisitesFailed", "DeploymentMediator", err)
+
 			return err
 		}
 
@@ -100,7 +91,9 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// ------------------------------------------------
 		serviceUnits, err := d.resolveServiceUnits(ctx, resolved)
 		if err != nil {
-			d.events.FromError(deployCR, "ServiceUnitResolutionFailed", err)
+			d.events.FromError(deploymentCR, "ServiceUnitResolutionFailed", "ResolveServiceUnit", err)
+			// Conflict here, see to delegate this to ServiceUnit Actual Resolution, existing
+
 			return err
 		}
 
@@ -108,27 +101,17 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// 4. EXECUTE DEPLOYMENT (OPTIONAL)
 		// ------------------------------------------------
 		if d.deployService != nil {
-			if err := d.deployService.Reconcile(
-				ctx,
-				resolved,
-				serviceUnits); err != nil {
-				d.events.FromError(deployCR, "DeploymentFailed", err)
+			if err := d.deployService.Reconcile(ctx, resolved, serviceUnits); err != nil {
+				d.events.FromError(deploymentCR, "DeploymentFailed", "DeploymentService", err)
+
 				return err
 			}
 		}
 
-		d.events.Info(
-			deployCR,
-			"DeploymentSucceeded",
-			"Deployment reconciliation completed successfully",
-		)
+		d.events.Info(deploymentCR, "DeploymentSucceeded", "deployment reconciliation completed successfully")
 
 	case core.CmdDelete:
-		d.events.Info(
-			deployCR,
-			"DeploymentDeleted",
-			"Deployment cleanup not implemented yet",
-		)
+		d.events.Info(deploymentCR, "DeploymentDeleted", "deployment cleanup not implemented yet")
 	}
 
 	return nil

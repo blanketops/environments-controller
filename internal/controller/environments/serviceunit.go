@@ -149,7 +149,7 @@ func (r *ServiceUnitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Logging & events
 	//---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("ServiceUnit")
-	r.Recorder = mgr.GetEventRecorderFor("serviceunit-controller")
+	r.Recorder = mgr.GetEventRecorder("serviceunit-controller")
 
 	//---------------------------------------------------------------------
 	// Core infrastructure

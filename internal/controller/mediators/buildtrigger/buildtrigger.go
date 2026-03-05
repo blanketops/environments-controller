@@ -24,12 +24,7 @@ type Mediator struct {
 	Recorder record.EventRecorder
 }
 
-func New(
-	c client.Client,
-	scheme *runtime.Scheme,
-	log logr.Logger,
-	recorder record.EventRecorder,
-) *Mediator {
+func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder record.EventRecorder) *Mediator {
 	return &Mediator{
 		Client:   c,
 		Scheme:   scheme,
@@ -37,6 +32,12 @@ func New(
 		Recorder: recorder,
 	}
 }
+
+//
+// ==============================
+// ENTRY POINT , needs work
+// ==============================
+//
 
 func (m *Mediator) EnsurePrerequisites(
 	ctx context.Context,

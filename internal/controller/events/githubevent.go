@@ -153,7 +153,7 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Logging & events
 	//---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("GitHubEvent")
-	r.Recorder = mgr.GetEventRecorderFor("githubevent-controller")
+	r.Recorder = mgr.GetEventRecorder("githubevent-controller")
 
 	//---------------------------------------------------------------------
 	// Core infrastructure

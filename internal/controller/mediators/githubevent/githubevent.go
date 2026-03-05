@@ -1,4 +1,4 @@
-package githubevents
+package githubevent
 
 import (
 	"context"
@@ -25,12 +25,7 @@ type Mediator struct {
 	// EventSourceReconciler will come next
 }
 
-func New(
-	c client.Client,
-	scheme *runtime.Scheme,
-	log logr.Logger,
-	rec record.EventRecorder,
-) *Mediator {
+func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, rec record.EventRecorder) *Mediator {
 	return &Mediator{
 		Client:                        c,
 		Scheme:                        scheme,
@@ -40,21 +35,43 @@ func New(
 	}
 }
 
+//
+// ==============================
+// ENTRY POINT
+// ==============================
+//
+
 func (m *Mediator) EnsurePrerequisites(
 	ctx context.Context,
 	resolved *githubeventResolution.ResolvedGitHubEvent,
 ) error {
 
-	if resolved == nil || resolved.Event == nil || resolved.Spec == nil {
-		return fmt.Errorf("nil ResolvedGitHubEvent provided to mediator")
-	}
+	log := m.Log.WithValues(
+		"event", resolved.Event.Name,
+		"namespace", resolved.Event.Namespace,
+	)
 
-	// 1️⃣ GitHub webhook secret (Argo Events requirement)
+	log.Info("mediator start")
+
+	log.Info("ensuring github webhook secret")
+
 	if err := m.GitHubWebhookSecretReconciler.Reconcile(ctx, resolved); err != nil {
+		log.Error(err, "github webhook secret reconcile failed")
+
+		if m.Recorder != nil {
+			m.Recorder.Event(
+				resolved.Event,
+				corev1.EventTypeWarning,
+				"WebhookSecretFailed",
+				err.Error(),
+			)
+		}
+
 		return fmt.Errorf("github webhook secret: %w", err)
 	}
 
-	// Record Kubernetes Event against the CR (observability only)
+	log.Info("github webhook secret ensured")
+
 	if m.Recorder != nil {
 		m.Recorder.Event(
 			resolved.Event,
@@ -63,6 +80,8 @@ func (m *Mediator) EnsurePrerequisites(
 			"GitHubEvent prerequisites ensured",
 		)
 	}
+
+	log.Info("mediator done")
 
 	return nil
 }

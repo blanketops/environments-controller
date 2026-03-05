@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 
 	env1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/git"
@@ -46,10 +47,28 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, Recorder reco
 	}
 }
 
+//
+// ==============================
+// ENTRY POINT
+// ==============================
+//
+
 func (m *Mediator) EnsurePrerequisites(
 	ctx context.Context,
 	resolved *buildResolution.ResolvedBuild,
 ) error {
+
+	log := m.Log.WithValues(
+		"event", resolved.Build.Name,
+		"namespace", resolved.Build.Namespace,
+	)
+
+	log.Info("mediator start")
+
+	if resolved == nil || resolved.Spec == nil {
+		return fmt.Errorf("nil ResolvedBuild (resolver bug)")
+	}
+
 	// build := resolved.Build
 	// spec := resolved.Spec
 
@@ -63,18 +82,58 @@ func (m *Mediator) EnsurePrerequisites(
 	// -------------------------------------------------
 	// Prerequisites
 	// -------------------------------------------------
-
+	log.Info("ensuring build git ssh secret")
 	if err := m.BuildGitSSHSecretReconciler.Reconcile(ctx, resolved); err != nil {
-		return fmt.Errorf("reconcile git ssh secret: %w", err)
+		log.Error(err, "build git ssh secret reconcile failed")
+
+		if m.Recorder != nil {
+			m.Recorder.Event(
+				resolved.Build,
+				corev1.EventTypeWarning,
+				"BuildGitSSHSecretFailed",
+				err.Error(),
+			)
+		}
+
+		return fmt.Errorf("build git ssh secret: %w", err)
 	}
 
+	log.Info("build git ssh secret ensured")
+
+	log.Info("ensuring build registry secret")
 	if err := m.RegistryExternalSecretReconciler.Reconcile(ctx, resolved); err != nil {
-		return fmt.Errorf("reconcile registry secret: %w", err)
+		log.Error(err, "build registry secret reconcile failed")
+
+		if m.Recorder != nil {
+			m.Recorder.Event(
+				resolved.Build,
+				corev1.EventTypeWarning,
+				"BuildRegistrySecretFailed",
+				err.Error(),
+			)
+		}
+
+		return fmt.Errorf("build registry secret: %w", err)
 	}
 
+	log.Info("build registry secret ensured")
+
+	log.Info("ensuring build service account")
 	if err := m.ServiceAccountReconciler.Reconcile(ctx, resolved); err != nil {
-		return fmt.Errorf("reconcile service account: %w", err)
+		log.Error(err, "build service account reconcile failed")
+
+		if m.Recorder != nil {
+			m.Recorder.Event(
+				resolved.Build,
+				corev1.EventTypeWarning,
+				"BuildServiceAccountFailed",
+				err.Error(),
+			)
+		}
+
+		return fmt.Errorf("build service account: %w", err)
 	}
+	log.Info("build service account ensured")
 
 	return nil
 }

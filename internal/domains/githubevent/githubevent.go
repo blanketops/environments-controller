@@ -54,23 +54,23 @@ func (d *GitHubEventDomain) Handle(
 	cmd core.Command,
 ) error {
 
-	ev, ok := cmd.Obj.(*eventsv1alpha1.GitHubEvent)
-	if !ok || ev == nil {
+	githubeventCR, ok := cmd.Obj.(*eventsv1alpha1.GitHubEvent)
+	if !ok || githubeventCR == nil {
 		return fmt.Errorf("invalid object passed to GitHubEventDomain: %T", cmd.Obj)
 	}
 
 	d.log.Info(
 		"Handling GitHubEventDomain command",
 		"type", cmd.Type,
-		"name", ev.Name,
+		"name", githubeventCR.Name,
 	)
 
 	// ------------------------------------------------
 	// 1. Resolve GitHubEvent contract ONCE
 	// ------------------------------------------------
-	resolved, err := githubeventResolution.ResolveGitHubEvent(ev)
+	resolved, err := githubeventResolution.ResolveGitHubEvent(githubeventCR)
 	if err != nil {
-		d.events.FromError(ev, "GitHubEventResolveFailed", err)
+		d.events.FromError(githubeventCR, "GitHubEventResolveFailed", "ResolveContract", err)
 		return err
 	}
 
@@ -78,7 +78,8 @@ func (d *GitHubEventDomain) Handle(
 	// 2. Ensure prerequisites (secrets, webhooks, etc.)
 	// ------------------------------------------------
 	if err := d.Mediator.EnsurePrerequisites(ctx, resolved); err != nil {
-		d.events.FromError(ev, "GitHubEventPrerequisitesFailed", err)
+		d.events.FromError(githubeventCR, "GitHubEventPrerequisitesFailed", "GitHubEventMediator", err)
+
 		return err
 	}
 
@@ -86,7 +87,8 @@ func (d *GitHubEventDomain) Handle(
 	// 3. Domain application logic
 	// ------------------------------------------------
 	if err := d.Service.Reconcile(ctx, resolved); err != nil {
-		d.events.FromError(ev, "GitHubEventRejected", err)
+		d.events.FromError(githubeventCR, "GitHubEventRejected", "GitHubEventReconcile", err)
+
 		return err
 	}
 

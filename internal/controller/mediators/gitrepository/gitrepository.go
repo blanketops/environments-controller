@@ -27,11 +27,7 @@ type Mediator struct {
 	HookURLSecretReconciler        *github.HookURLExternalSecretReconciler
 }
 
-func New(
-	c client.Client,
-	scheme *runtime.Scheme,
-	log logr.Logger,
-	rec record.EventRecorder,
+func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, rec record.EventRecorder,
 ) *Mediator {
 	return &Mediator{
 		Client:   c,
@@ -45,33 +41,84 @@ func New(
 	}
 }
 
+// ==============================
+// ENTRY POINT
+// ==============================
+//
+
 func (m *Mediator) EnsurePrerequisites(
 	ctx context.Context,
 	resolved *gitrepoResolution.ResolvedGitRepository,
 ) error {
 
 	repo := resolved.Repository
+	log := m.Log.WithValues(
+		"event", resolved.Repository.Name,
+		"namespace", resolved.Repository.Namespace,
+	)
+
+	log.Info("mediator start")
+
+	if resolved == nil || resolved.Spec == nil {
+		return fmt.Errorf("nil ResolvedGitRepository (resolver bug)")
+	}
 
 	// ---------------------------------------------------------------------
 	// 1. GitHub provider credentials (ExternalSecret -> Secret)
 	// ---------------------------------------------------------------------
+	log.Info("ensuring github provider credentials")
 	if err := m.GitHubProviderSecretReconciler.Reconcile(ctx); err != nil {
+		log.Error(err, "ensuring github provider credentials reconcile failed")
+		if m.Recorder != nil {
+			m.Recorder.Event(
+				resolved.Repository,
+				corev1.EventTypeWarning,
+				"GitHubCrossplaneCredentialsFailed",
+				err.Error(),
+			)
+		}
+
 		return fmt.Errorf("github provider credentials: %w", err)
 	}
+	log.Info("github provider credentials ensured")
 
 	// ---------------------------------------------------------------------
 	// 2. GitHub ProviderConfig (binds provider to credentials)
 	// ---------------------------------------------------------------------
+	log.Info("ensuring github upjet provider")
 	if err := m.GitHubProviderConfigReconciler.Reconcile(ctx); err != nil {
+		log.Error(err, "ensuring github upjet provider reconcile failed")
+		if m.Recorder != nil {
+			m.Recorder.Event(
+				resolved.Repository,
+				corev1.EventTypeWarning,
+				"GitHubCrossplaneProviderFailed",
+				err.Error(),
+			)
+		}
 		return fmt.Errorf("github providerconfig: %w", err)
 	}
+
+	log.Info("github upjet provider ensured")
 
 	// ---------------------------------------------------------------------
 	// 3. Webhook URL secret (per GitRepository)
 	// ---------------------------------------------------------------------
+	log.Info("ensuring webhook url secret")
 	if err := m.HookURLSecretReconciler.Reconcile(ctx, repo); err != nil {
-		return fmt.Errorf("hookurl secret: %w", err)
+		log.Error(err, "ensuring webhook url reconcile failed")
+		if m.Recorder != nil {
+			m.Recorder.Event(
+				resolved.Repository,
+				corev1.EventTypeWarning,
+				"WebhookHookURLSecretFailed",
+				err.Error(),
+			)
+		}
+		return fmt.Errorf("webhook url secret: %w", err)
 	}
+
+	log.Info("webhook url secret ensured")
 
 	// ---------------------------------------------------------------------
 	// Events

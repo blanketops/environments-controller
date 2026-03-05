@@ -53,34 +53,69 @@ func (m *Mediator) EnsurePrerequisites(
 	resolved *deploymentResolution.ResolvedDeployment,
 ) error {
 
+	log := m.Log.WithValues(
+		"deployment", resolved.Deployment.Name,
+		"namespace", resolved.Deployment.Namespace,
+	)
+
+	log.Info("mediator start")
+
 	if resolved == nil || resolved.Spec == nil {
 		return fmt.Errorf("nil ResolvedDeployment (resolver bug)")
 	}
 
-	deploy := resolved.Deployment
 	spec := resolved.Spec
 
-	log := m.Log.WithValues(
-		"deployment", deploy.Name,
-		"namespace", deploy.Namespace,
-	)
-
-	log.Info("Ensuring deployment prerequisites")
+	log.Info("ensuring deployment git ssh secret")
 	if err := m.DeploymentGitSSHSecretReconciler.Reconcile(ctx, resolved); err != nil {
-		return fmt.Errorf("reconcile git ssh secret: %w", err)
+		log.Error(err, "deployment git ssh secret reconcile failed")
+		if m.Recorder != nil {
+			m.Recorder.Event(
+				resolved.Deployment,
+				corev1.EventTypeWarning,
+				"DeploymentGitSSHSecretFailed",
+				err.Error(),
+			)
+		}
+		return fmt.Errorf("deployment git ssh secret: %w", err)
 	}
 
+	log.Info("deployment git ssh secret ensured")
+
+	log.Info("ensuring deployment git fluxcd ssh secret")
 	if err := m.DeploymentFluxGitSSHSecretReconciler.Reconcile(ctx, resolved); err != nil {
-		return fmt.Errorf("reconcile fluxcd git ssh secret: %w", err)
+		log.Error(err, "deployment git fluxcd ssh secret reconcile failed")
+		if m.Recorder != nil {
+			m.Recorder.Event(
+				resolved.Deployment,
+				corev1.EventTypeWarning,
+				"DeploymentFluxGitSSHSecretFailed",
+				err.Error(),
+			)
+		}
+		return fmt.Errorf("reconcile git fluxcd ssh secret: %w", err)
 	}
 
+	log.Info("deployment git fluxcd ssh secret ensured")
 	// ------------------------------------------------
 	// GitOps manifests repo
 	// ------------------------------------------------
+	log.Info("ensuring manifets repo")
 	if spec.ManifestsRepo != nil {
 		if err := m.ensureManifestsRepo(ctx, resolved); err != nil {
+			log.Error(err, "manifests repoistory reconcile failed")
+
+			if m.Recorder != nil {
+				m.Recorder.Event(
+					resolved.Deployment,
+					corev1.EventTypeWarning,
+					"EnsureManifestsRepoFailed",
+					err.Error(),
+				)
+			}
 			return err
 		}
+		log.Info("manifests repoistory ensured")
 	}
 
 	// ------------------------------------------------

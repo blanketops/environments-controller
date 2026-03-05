@@ -151,7 +151,7 @@ func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Logging & events
 	//---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("GitRepository")
-	r.Recorder = mgr.GetEventRecorderFor("gitrepository-controller")
+	r.Recorder = mgr.GetEventRecorder("gitrepository-controller")
 
 	//---------------------------------------------------------------------
 	// Core infrastructure

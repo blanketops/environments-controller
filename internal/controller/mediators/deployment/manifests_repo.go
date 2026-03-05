@@ -23,12 +23,21 @@ func (m *Mediator) ensureManifestsRepo(
 	ctx context.Context,
 	resolved *deploymentResolution.ResolvedDeployment,
 ) error {
+
 	if resolved == nil || resolved.Spec == nil {
 		return fmt.Errorf("nil ResolvedDeployment (resolver bug)")
 	}
+
 	deploy := resolved.Deployment
 	spec := resolved.Spec
+
+	log := m.Log.WithValues(
+		"deployment", deploy.Name,
+		"namespace", deploy.Namespace,
+	)
+
 	if spec.ManifestsRepo == nil {
+		log.V(1).Info("Manifests repository not requested, skipping bootstrap")
 		return nil
 	}
 
@@ -37,40 +46,90 @@ func (m *Mediator) ensureManifestsRepo(
 		return fmt.Errorf("GITHUB_TOKEN must be set for private repo creation")
 	}
 
-	owner := resolved.Spec.GitOwner
+	owner := spec.GitOwner
 	repo := fmt.Sprintf("%s-manifests", deploy.Name)
-	sshURL := fmt.Sprintf("ssh://git@github.com/%s/%s.git", owner, repo)
-	localPath := filepath.Join(os.TempDir(), repo)
 	branch := "main"
 
-	fmt.Printf("[bootstrap] starting manifests bootstrap for %s/%s\n", owner, repo)
+	sshURL := fmt.Sprintf("ssh://git@github.com/%s/%s.git", owner, repo)
+	localPath := filepath.Join(os.TempDir(), repo)
 
-	// ------------------------------------------------
-	// 1. Ensure remote private repo exists
-	// ------------------------------------------------
+	log.Info("Starting manifests bootstrap", "repo", sshURL)
+
+	m.event(
+		deploy,
+		corev1.EventTypeNormal,
+		"BootstrapStarted",
+		fmt.Sprintf("Bootstrapping manifests repo %s/%s", owner, repo),
+	)
+
+	//------------------------------------------------
+	// Ensure GitHub repository exists
+	//------------------------------------------------
+
+	log.Info("Ensuring GitHub repository exists")
+
 	if err := ensureGitHubRepoPrivate(owner, repo, token); err != nil {
+
+		log.Error(err, "Failed ensuring GitHub repository")
+
+		m.event(
+			deploy,
+			corev1.EventTypeWarning,
+			"RepoEnsureFailed",
+			err.Error(),
+		)
+
 		return fmt.Errorf("ensure remote repo: %w", err)
 	}
 
-	// ------------------------------------------------
-	// 2. Ensure deploy key is registered on GitHub
-	//    MUST happen before any git operation
-	// ------------------------------------------------
+	m.event(
+		deploy,
+		corev1.EventTypeNormal,
+		"RepoEnsured",
+		"GitHub repository ensured",
+	)
+
+	//------------------------------------------------
+	// Ensure deploy key
+	//------------------------------------------------
+
+	log.Info("Ensuring deploy key")
+
 	publicKey, err := m.extractPublicKey(ctx, resolved)
 	if err != nil {
-		return fmt.Errorf("extract public key: %w", err)
+		return err
 	}
+
 	if err := ensureDeployKey(owner, repo, publicKey, token); err != nil {
+
+		log.Error(err, "Failed ensuring deploy key")
+
+		m.event(
+			deploy,
+			corev1.EventTypeWarning,
+			"DeployKeyFailed",
+			err.Error(),
+		)
+
 		return fmt.Errorf("ensure deploy key: %w", err)
 	}
 
-	// ------------------------------------------------
-	// 3. Write ephemeral SSH key to disk for git ops
-	// ------------------------------------------------
+	m.event(
+		deploy,
+		corev1.EventTypeNormal,
+		"DeployKeyEnsured",
+		"Deploy key registered",
+	)
+
+	//------------------------------------------------
+	// SSH key for git operations
+	//------------------------------------------------
+
 	sshKeyPath, cleanup, err := m.writeSSHKeyToDisk(ctx, resolved)
 	if err != nil {
-		return fmt.Errorf("write ssh key: %w", err)
+		return err
 	}
+
 	defer cleanup()
 
 	gitSSHCmd := fmt.Sprintf(
@@ -78,108 +137,147 @@ func (m *Mediator) ensureManifestsRepo(
 		sshKeyPath,
 	)
 
-	// ------------------------------------------------
-	// 4. Clone or initialize local repo
-	// ------------------------------------------------
+	//------------------------------------------------
+	// Clone or initialize repository
+	//------------------------------------------------
+
 	gitDir := filepath.Join(localPath, ".git")
+
 	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
-		fmt.Printf("[bootstrap] cloning remote repo %s -> %s\n", sshURL, localPath)
+
+		log.Info("Cloning repository", "repo", sshURL)
+
 		if _, err := utils.RunGitWithEnv(
-			"", []string{"GIT_SSH_COMMAND=" + gitSSHCmd},
+			"",
+			[]string{"GIT_SSH_COMMAND=" + gitSSHCmd},
 			"clone", sshURL, localPath,
 		); err != nil {
-			fmt.Printf("[bootstrap] remote empty, initializing new repo\n")
+
+			log.Info("Remote repo empty, initializing local repo")
+
 			if err := os.MkdirAll(localPath, 0755); err != nil {
-				return fmt.Errorf("mkdir failed: %w", err)
+				return err
 			}
+
 			utils.RunGit(localPath, "init")
 			utils.RunGit(localPath, "checkout", "-b", branch)
 			utils.RunGit(localPath, "remote", "add", "origin", sshURL)
 		}
+
 	} else {
-		fmt.Printf("[bootstrap] local path exists, syncing remote\n")
+
+		log.Info("Local repo exists, syncing")
+
 		utils.RunGitWithEnv(localPath,
 			[]string{"GIT_SSH_COMMAND=" + gitSSHCmd},
 			"fetch", "--all",
 		)
+
 		utils.RunGit(localPath, "checkout", branch)
+
 		utils.RunGitWithEnv(localPath,
 			[]string{"GIT_SSH_COMMAND=" + gitSSHCmd},
 			"pull", "--ff-only", "origin", branch,
 		)
 	}
 
-	// ------------------------------------------------
-	// 5. README
-	// ------------------------------------------------
-	readme := filepath.Join(localPath, "README.md")
-	if _, err := os.Stat(readme); os.IsNotExist(err) {
-		readmeContent := fmt.Sprintf("# %s\n\nManaged by BlanketOps.\n", repo)
-		if err := os.WriteFile(readme, []byte(readmeContent), 0644); err != nil {
-			return fmt.Errorf("write README.md: %w", err)
-		}
+	//------------------------------------------------
+	// Ensure base + overlays
+	//------------------------------------------------
+
+	log.Info("Ensuring base manifests and overlays")
+
+	basePath := filepath.Join(localPath, "base", "manifests")
+
+	if err := os.MkdirAll(basePath, 0755); err != nil {
+		return err
 	}
 
-	// ------------------------------------------------
-	// 6. Ensure base + overlays
-	// ------------------------------------------------
-	basePath := filepath.Join(localPath, "base", "manifests")
-	if err := os.MkdirAll(basePath, 0755); err != nil {
-		return fmt.Errorf("mkdir base failed: %w", err)
-	}
 	baseKust := filepath.Join(basePath, "kustomization.yaml")
+
 	if _, err := os.Stat(baseKust); os.IsNotExist(err) {
-		if err := os.WriteFile(baseKust, []byte(
+
+		os.WriteFile(baseKust, []byte(
 			"apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources: []\n",
-		), 0644); err != nil {
-			return fmt.Errorf("write base kustomization.yaml: %w", err)
-		}
+		), 0644)
 	}
 
 	for _, env := range overlayEnvs {
+
 		overlayPath := filepath.Join(localPath, "overlays", env)
-		if err := os.MkdirAll(overlayPath, 0755); err != nil {
-			return fmt.Errorf("mkdir overlay failed: %w", err)
-		}
+
+		os.MkdirAll(overlayPath, 0755)
+
 		kustFile := filepath.Join(overlayPath, "kustomization.yaml")
+
 		if _, err := os.Stat(kustFile); os.IsNotExist(err) {
-			if err := os.WriteFile(kustFile, []byte(
+
+			os.WriteFile(kustFile, []byte(
 				"apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - ../../base/manifests\n  - environment.yaml\n",
-			), 0644); err != nil {
-				return fmt.Errorf("write overlay kustomization.yaml: %w", err)
-			}
+			), 0644)
 		}
+
 		envFile := filepath.Join(overlayPath, "environment.yaml")
+
 		if _, err := os.Stat(envFile); os.IsNotExist(err) {
-			if err := os.WriteFile(envFile, []byte(fmt.Sprintf(
+
+			os.WriteFile(envFile, []byte(fmt.Sprintf(
 				"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: %s\ndata:\n  ENV: %s\n",
 				deploy.Name, env,
-			)), 0644); err != nil {
-				return fmt.Errorf("write environment.yaml: %w", err)
-			}
+			)), 0644)
 		}
 	}
 
-	// ------------------------------------------------
-	// 7. Commit & push
-	// ------------------------------------------------
+	//------------------------------------------------
+	// Commit & push
+	//------------------------------------------------
+
 	utils.RunGit(localPath, "add", ".")
+
 	if _, err := utils.RunGit(localPath, "diff", "--cached", "--quiet"); err != nil {
+
 		utils.RunGit(localPath, "config", "user.email", "ntlaletsi86@gmail.com")
-		utils.RunGit(localPath, "config", "user.name", "Neo Tlaletsi")
+		utils.RunGit(localPath, "config", "user.name", "BlanketOps")
+
 		utils.RunGit(localPath, "commit", "-m", "bootstrap: ensure base and overlays")
 	}
+
+	log.Info("Pushing manifests repository")
 
 	if out, err := utils.RunGitWithEnv(
 		localPath,
 		[]string{"GIT_SSH_COMMAND=" + gitSSHCmd},
 		"push", "-u", "origin", branch,
 	); err != nil {
+
+		log.Error(err, "Git push failed", "output", out)
+
+		m.event(
+			deploy,
+			corev1.EventTypeWarning,
+			"GitPushFailed",
+			string(out),
+		)
+
 		return fmt.Errorf("git push failed: %s", out)
 	}
 
-	fmt.Printf("[bootstrap] repository bootstrap complete: %s\n", sshURL)
+	m.event(
+		deploy,
+		corev1.EventTypeNormal,
+		"BootstrapComplete",
+		"Manifests repository bootstrapped",
+	)
+
+	log.Info("Manifests bootstrap complete", "repo", sshURL)
+
 	return nil
+}
+
+func (m *Mediator) event(obj client.Object, eventType, reason, message string) {
+	if m.Recorder != nil {
+		m.Recorder.Event(obj, eventType, reason, message)
+	}
 }
 
 // extractPublicKey reads identity.pub from the flux ssh secret.
