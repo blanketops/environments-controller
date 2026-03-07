@@ -26,13 +26,7 @@ type GitRepositoryDomain struct {
 }
 
 // New constructs a new GitRepositoryDomain.
-func New(
-	mediator *gitrepository.Mediator,
-	service *application.GitRepositoryService,
-	cache *core.Cache,
-	events *core.EventRecorder,
-	log logr.Logger,
-) *GitRepositoryDomain {
+func New(mediator *gitrepository.Mediator, service *application.GitRepositoryService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *GitRepositoryDomain {
 	return &GitRepositoryDomain{
 		Mediator: mediator,
 		Service:  service,

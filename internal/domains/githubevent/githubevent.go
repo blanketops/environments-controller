@@ -10,7 +10,7 @@ import (
 
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
 
-	"github.com/ntlaletsi70/blanketops-environments/core"
+	"github.com/ntlaletsi70/blanketops-environments-mvp/core"
 
 	githubeventMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/githubevent"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
@@ -29,13 +29,7 @@ type GitHubEventDomain struct {
 	log      logr.Logger
 }
 
-func New(
-	service *application.GitHubEventService,
-	mediator *githubeventMediator.Mediator,
-	events *core.EventRecorder,
-	cache *core.Cache,
-	log logr.Logger,
-) *GitHubEventDomain {
+func New(service *application.GitHubEventService, mediator *githubeventMediator.Mediator, events *core.EventRecorder, cache *core.Cache, log logr.Logger) *GitHubEventDomain {
 	return &GitHubEventDomain{
 		Service:  service,
 		Mediator: mediator,
@@ -49,9 +43,7 @@ func (d *GitHubEventDomain) GVK() schema.GroupVersionKind {
 	return eventsv1alpha1.GroupVersion.WithKind("GitHubEvent")
 }
 
-func (d *GitHubEventDomain) Handle(
-	ctx context.Context,
-	cmd core.Command,
+func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command,
 ) error {
 
 	eventCR, ok := cmd.Obj.(*eventsv1alpha1.GitHubEvent)
@@ -79,6 +71,10 @@ func (d *GitHubEventDomain) Handle(
 		return err
 	}
 
+	log.Info("githubevent resolved successfully")
+	d.events.Normal(githubeventCR, "GitHubEventResolved", "Build specification resolved successfully")
+	core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventResolved", core.ConditionTrue, "GitHubEventResolved", "GitHubEvent specification resolved successfully")
+
 	// ------------------------------------------------
 	// 2. Ensure prerequisites (secrets, webhooks, etc.)
 	// ------------------------------------------------
@@ -93,9 +89,12 @@ func (d *GitHubEventDomain) Handle(
 		return err
 	}
 
+	core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventPrerequisitesReady", core.ConditionTrue, "GitHubEventPrerequisitesReady", "All prerequisites created successfully")
+
 	// ------------------------------------------------
 	// 3. Domain application logic
 	// ------------------------------------------------
+
 	if err := d.Service.Reconcile(ctx, resolved); err != nil {
 		d.events.FromError(
 			eventCR,
@@ -105,6 +104,11 @@ func (d *GitHubEventDomain) Handle(
 		)
 		return err
 	}
+
+	// ------------------------------------------------
+	// 4. Execution requested
+	// ------------------------------------------------
+	core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventOrganized", core.ConditionTrue, "EventingStarted", "GitHubEvent execution has started")
 
 	return nil
 }

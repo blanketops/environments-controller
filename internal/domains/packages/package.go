@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	"github.com/ntlaletsi70/blanketops-environments/core"
+	"github.com/ntlaletsi70/blanketops-environments-mvp/core"
 
 	pkgMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/packages"
 	pkgApplication "github.com/ntlaletsi70/blanketops-environments/pkg/packages/application"
@@ -28,12 +28,7 @@ type PackageDomain struct {
 	log             logr.Logger
 }
 
-func New(
-	packageMediator *pkgMediator.Mediator,
-	packageService *pkgApplication.PackageService,
-	cache *core.Cache,
-	events *core.EventRecorder,
-	log logr.Logger,
+func New(packageMediator *pkgMediator.Mediator, packageService *pkgApplication.PackageService, cache *core.Cache, events *core.EventRecorder, log logr.Logger,
 ) *PackageDomain {
 	return &PackageDomain{
 		packageMediator: packageMediator,
@@ -105,6 +100,9 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	// ------------------------------------------------
 	// 2. Ensure prerequisites (secrets, repos, identity)
 	// ------------------------------------------------
+
+	log.Info("ensuring package prerequisites")
+
 	if err := d.packageMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 		d.events.FromError(
 			packageCR,

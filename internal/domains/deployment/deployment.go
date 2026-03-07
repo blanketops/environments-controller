@@ -21,7 +21,7 @@ import (
 
 	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	deploymediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/deployment"
-	"github.com/ntlaletsi70/blanketops-environments/core"
+	"github.com/ntlaletsi70/blanketops-environments-mvp/core"
 	deployapp "github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -40,13 +40,7 @@ type DeployDomain struct {
 }
 
 // New constructs a new DeployDomain instance.
-func New(
-	deployMediator *deploymediator.Mediator,
-	deployService *deployapp.DeploymentService, // may be nil
-	cache *core.Cache,
-	events *core.EventRecorder,
-	log logr.Logger,
-) *DeployDomain {
+func New(deployMediator *deploymediator.Mediator, deployService *deployapp.DeploymentService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *DeployDomain {
 	return &DeployDomain{
 		deployMediator: deployMediator,
 		deployService:  deployService,
@@ -63,25 +57,25 @@ func (d *DeployDomain) GVK() schema.GroupVersionKind {
 
 // Handle executes core.Command operations routed by the Engine.
 func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
+
 	deployCR, ok := cmd.Obj.(*environmentv1.Deployment)
 	if !ok || deployCR == nil {
-		return fmt.Errorf("invalid object for Deployment domain: %T", cmd.Obj)
+		return fmt.Errorf("invalid object passed to DeploymentDomain: %T", cmd.Obj)
 	}
 
-	d.log.Info(
-		"Handling Deployment command",
-		"type", cmd.Type,
-		"name", deployCR.Name,
-	)
+	log := d.log.WithValues("domain", "deployment", "name", deployCR.Name, "namespace", deployCR.Namespace)
+	d.log.Info("handling deployment command", "type", cmd.Type)
 
 	switch cmd.Type {
-
 	case core.CmdCreate, core.CmdUpdate:
 
-		// ------------------------------------------------
-		// 1. RESOLVE (AUTHORITATIVE, ONCE)
-		// ------------------------------------------------
+		//------------------------------------------------
+		// Stage 1: Resolve deployment contract
+		//------------------------------------------------
+
+		log.Info("resolving deployment contract")
 		resolved, err := deploymentResolution.ResolveDeployment(deployCR)
+
 		if err != nil {
 			d.events.FromError(
 				deployCR,
@@ -92,9 +86,16 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 			return err
 		}
 
-		// ------------------------------------------------
-		// 2. ENSURE PREREQUISITES (INFRA ONLY)
-		// ------------------------------------------------
+		log.Info("deployment resolved successfully")
+		d.events.Normal(deployCR, "DeploymentResolved", "Deployment specification resolved successfully")
+		core.SetCondition(&deployCR.Status.Conditions, "DeploymentResolved", core.ConditionTrue, "Resolved", "Deployment specification resolved successfully")
+
+		//------------------------------------------------
+		// Stage 2: Ensure prerequisites
+		//------------------------------------------------
+
+		log.Info("ensuring deployment prerequisites")
+
 		if err := d.deployMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			d.events.FromError(
 				deployCR,
@@ -104,6 +105,10 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 			)
 			return err
 		}
+
+		log.Info("deployment prerequisites ensured")
+		d.events.Normal(deployCR, "DeploymentPrerequisitesReady", "All deployment prerequisites created successfully")
+		core.SetCondition(&deployCR.Status.Conditions, "DeploymentPrerequisitesReady", core.ConditionTrue, "DeploymentPrerequisitesReady", "All deployment prerequisites satisfied")
 
 		// ------------------------------------------------
 		// 3. RESOLVE SERVICE UNITS (AUTHORITATIVE)
