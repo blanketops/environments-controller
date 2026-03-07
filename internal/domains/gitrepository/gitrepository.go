@@ -78,7 +78,7 @@ func (d *GitRepositoryDomain) Handle(
 	// ------------------------------------------------
 	// 2. Ensure prerequisites (secrets, etc.)
 	// ------------------------------------------------
-	log.Info("ensuring buigitrepositoryld prerequisites")
+	log.Info("ensuring gitrepository prerequisites")
 
 	if err := d.Mediator.EnsurePrerequisites(ctx, resolved); err != nil {
 
