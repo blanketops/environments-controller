@@ -159,11 +159,14 @@ func (r *EnvironmentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Cache = core.NewCache(mgr, nil)
 	r.Events = core.NewEventRecorder(r.Recorder)
 	r.Registry = core.NewRegistry()
-	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine-environment"))
 
+	// ---------------------------------------------------------------------
+	// Controller registration
+	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
-		Named("environment").
+		For(&environmentv1alpha1.Environment{}).
+		Named("environments").
+		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }

@@ -159,11 +159,11 @@ func (r *BuildTriggerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Cache = core.NewCache(mgr, nil)
 	r.Events = core.NewEventRecorder(r.Recorder)
 	r.Registry = core.NewRegistry()
-	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine-buildtrigger"))
 
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
-		Named("buildtrigger").
+		For(&buildtriggerv1alpha1.BuildTrigger{}).
+		WithEventFilter(core.MeaningfulChangePredicate()).
+		Named("environments-buildtrigger").
 		Complete(r)
 }

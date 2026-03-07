@@ -151,7 +151,7 @@ func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Logging & events
 	//---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("GitRepository")
-	r.Recorder = mgr.GetEventRecorderFor("gitrepository-controller")
+	r.Recorder = mgr.GetEventRecorder("gitrepository-controller")
 
 	//---------------------------------------------------------------------
 	// Core infrastructure
@@ -159,11 +159,14 @@ func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Cache = core.NewCache(mgr, nil)
 	r.Events = core.NewEventRecorder(r.Recorder)
 	r.Registry = core.NewRegistry()
-	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine-gitrepository"))
 
+	// ---------------------------------------------------------------------
+	// Controller registration
+	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
+		For(&sourcesv1alpha1.GitRepository{}).
 		Named("sources-gitrepository").
+		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }

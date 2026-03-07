@@ -164,11 +164,14 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Cache = core.NewCache(mgr, nil)
 	r.Events = core.NewEventRecorder(r.Recorder)
 	r.Registry = core.NewRegistry()
-	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine-deployment"))
 
+	// ---------------------------------------------------------------------
+	// Controller registration
+	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
-		Named("deployment").
+		For(&deploymentv1alpha1.Deployment{}).
+		Named("environments-deployment").
+		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }

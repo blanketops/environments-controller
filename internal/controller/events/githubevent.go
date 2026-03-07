@@ -153,7 +153,7 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Logging & events
 	//---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("GitHubEvent")
-	r.Recorder = mgr.GetEventRecorderFor("githubevent-controller")
+	r.Recorder = mgr.GetEventRecorder("githubevent-controller")
 
 	//---------------------------------------------------------------------
 	// Core infrastructure
@@ -161,10 +161,14 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Cache = core.NewCache(mgr, nil)
 	r.Events = core.NewEventRecorder(r.Recorder)
 	r.Registry = core.NewRegistry()
-	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine-githubevent"))
 
+	// ---------------------------------------------------------------------
+	// Controller registration
+	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		//For(&eventsv1alpha1.GitHubEvent{}).
+		For(&eventsv1alpha1.GitHubEvent{}).
 		Named("events-githubevent").
+		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }

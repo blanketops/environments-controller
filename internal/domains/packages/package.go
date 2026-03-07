@@ -19,7 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// PackageDomain implements authoritative domain logic for Package CRs.
+// PackageDomain handles Build CRs.
+// This represents a FACT INGESTION boundary.
 type PackageDomain struct {
 	packageMediator *pkgMediator.Mediator
 	packageService  *pkgApplication.PackageService
@@ -28,12 +29,7 @@ type PackageDomain struct {
 	log             logr.Logger
 }
 
-func New(
-	packageMediator *pkgMediator.Mediator,
-	packageService *pkgApplication.PackageService,
-	cache *core.Cache,
-	events *core.EventRecorder,
-	log logr.Logger,
+func New(packageMediator *pkgMediator.Mediator, packageService *pkgApplication.PackageService, cache *core.Cache, events *core.EventRecorder, log logr.Logger,
 ) *PackageDomain {
 	return &PackageDomain{
 		packageMediator: packageMediator,
@@ -44,129 +40,100 @@ func New(
 	}
 }
 
+// GVK tells the engine which CRD this domain handles.
 func (d *PackageDomain) GVK() schema.GroupVersionKind {
 	return environmentv1.GroupVersion.WithKind("Package")
 }
 
+// Handle executes core.Command operations routed by the Engine.
 func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
-	pkg, ok := cmd.Obj.(*environmentv1.Package)
-	if !ok || pkg == nil {
+
+	packageCR, ok := cmd.Obj.(*environmentv1.Package)
+	if !ok || packageCR == nil {
 		return fmt.Errorf("invalid object passed to PackageDomain: %T", cmd.Obj)
 	}
 
-	d.log.Info(
-		"handling package command",
-		"type", cmd.Type,
-		"name", pkg.Name,
-	)
+	log := d.log.WithValues("domain", "package", "name", packageCR.Name, "namespace", packageCR.Namespace)
+	log.Info("handling package command", "type", cmd.Type)
 
-	// ------------------------------------------------
-	// DELETE (observe only)
-	// ------------------------------------------------
-	if cmd.Type == core.CmdDelete {
-		d.log.Info(
-			"package deletion observed (no cleanup implemented)",
-			"name", pkg.Name,
-		)
-		return nil
-	}
+	//------------------------------------------------
+	// Stage 1: Resolve package contract
+	//------------------------------------------------
 
-	// ------------------------------------------------
-	// 1. Resolve package contract (AUTHORITATIVE)
-	// ------------------------------------------------
-	resolved, err := pkgResolution.ResolvePackage(pkg)
+	log.Info("resolving package contract")
+	resolved, err := pkgResolution.ResolvePackage(packageCR)
+
 	if err != nil {
-		d.events.FromError(pkg, "PackageResolveFailed", err)
 
-		core.SetCondition(
-			&pkg.Status.Conditions,
-			"PackageResolved",
-			core.ConditionFalse,
-			"InvalidSpec",
-			err.Error(),
-		)
+		log.Error(err, "package resolution failed")
+		d.events.FromError(packageCR, "PackageResolveFailed", err)
+		core.SetCondition(&packageCR.Status.Conditions, "PackageResolved", core.ConditionFalse, "InvalidSpec", err.Error())
 
 		return err
 	}
 
-	core.SetCondition(
-		&pkg.Status.Conditions,
-		"PackageResolved",
-		core.ConditionTrue,
-		"Resolved",
-		"Package specification resolved successfully",
-	)
+	log.Info("package resolved successfully")
+	d.events.Normal(packageCR, "PackageResolved", "Package specification resolved successfully")
+	core.SetCondition(&packageCR.Status.Conditions, "PackageResolved", core.ConditionTrue, "Resolved", "Package specification resolved successfully")
 
 	// ------------------------------------------------
 	// 2. Ensure prerequisites (secrets, repos, identity)
 	// ------------------------------------------------
+
+	log.Info("ensuring package prerequisites")
+
 	if err := d.packageMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-		d.events.FromError(pkg, "PackagePrerequisitesFailed", err)
 
-		core.SetCondition(
-			&pkg.Status.Conditions,
-			"PackagePrerequisitesReady",
-			core.ConditionFalse,
-			"PrerequisitesFailed",
-			err.Error(),
-		)
+		log.Error(err, "package prerequisites failed")
+		d.events.FromError(packageCR, "PackagePrerequisitesFailed", err)
+		core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionFalse, "PackagePrerequisitesFailed", err.Error())
 
 		return err
 	}
 
-	core.SetCondition(
-		&pkg.Status.Conditions,
-		"PackagePrerequisitesReady",
-		core.ConditionTrue,
-		"PrerequisitesReady",
-		"All package prerequisites created successfully",
-	)
+	log.Info("package prerequisites ensured")
+	d.events.Normal(packageCR, "PackagePrerequisitesReady", "All package prerequisites created successfully")
+	core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionTrue, "PackagePrerequisitesReady", "All package prerequisites created successfully")
 
-	// ------------------------------------------------
+	//------------------------------------------------------------------
 	// 3. Build execution intent (INTENT ONLY)
-	// ------------------------------------------------
+	//------------------------------------------------------------------
+
+	log.Info("build package intent execution")
+
 	intent, err := pkgIntent.BuildPackageIntent(resolved)
+
 	if err != nil {
-		d.events.FromError(pkg, "PackageIntentBuildFailed", err)
 
-		core.SetCondition(
-			&pkg.Status.Conditions,
-			"PackageTriggered",
-			core.ConditionFalse,
-			"IntentBuildFailed",
-			err.Error(),
-		)
+		log.Error(err, "package intent build execution failed")
+		d.events.FromError(packageCR, "PackageIntentBuildExecutionFailed", err)
+		core.SetCondition(&packageCR.Status.Conditions, "PackageIntentBuilt", core.ConditionFalse, "PackageIntentBuildFailed", err.Error())
 
 		return err
 	}
 
-	// ------------------------------------------------
+	log.Info("package intent execution completed")
+	d.events.Normal(packageCR, "PackageIntentBuildComplete", "Package intent built successfully")
+	core.SetCondition(&packageCR.Status.Conditions, "PackageIntentBuilt", core.ConditionTrue, "PackageBuildIntentReady", "Package intent build execution completed successfully")
+
+	// ----------------------------------------------------------------
 	// 4. Trigger execution (authoritative service)
-	// ------------------------------------------------
-	if err := d.packageService.Reconcile(ctx, resolved, intent); err != nil {
-		d.events.FromError(pkg, "PackageTriggerFailed", err)
+	// ----------------------------------------------------------------
+	log.Info("triggering package execution")
 
-		core.SetCondition(
-			&pkg.Status.Conditions,
-			"PackageTriggered",
-			core.ConditionFalse,
-			"TriggerFailed",
-			err.Error(),
-		)
+	if err := d.packageService.Reconcile(ctx, resolved, intent); err != nil {
+
+		log.Error(err, "package triggering failed")
+		d.events.FromError(packageCR, "PackageTriggerFailed", err)
+		core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
 
 		return err
 	}
 
-	// ------------------------------------------------
+	//-----------------------------------------------------------------
 	// 5. Execution requested (NOT completed)
-	// ------------------------------------------------
-	core.SetCondition(
-		&pkg.Status.Conditions,
-		"PackageTriggered",
-		core.ConditionTrue,
-		"ExecutionRequested",
-		"Package execution has been requested",
-	)
+	//-----------------------------------------------------------------
+	core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionTrue, "ExecutionRequested", "Package execution has been requested")
 
 	return nil
 }
