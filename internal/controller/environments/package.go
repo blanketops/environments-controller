@@ -151,7 +151,7 @@ func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Logging & events
 	//---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("Package")
-	r.Recorder = mgr.GetEventRecorderFor("package-controller")
+	r.Recorder = mgr.GetEventRecorder("package-controller")
 
 	//---------------------------------------------------------------------
 	// Core infrastructure

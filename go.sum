@@ -83,8 +83,8 @@ github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
 github.com/google/gofuzz v1.2.0 h1:xRy4A+RhZaiKjJ1bPfwQ8sedCA+YS2YcCHW6ec7JMi0=
 github.com/google/gofuzz v1.2.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
-github.com/google/pprof v0.0.0-20250820193118-f64d9cf942d6 h1:EEHtgt9IwisQ2AZ4pIsMjahcegHh6rmhqxzIRQIyepY=
-github.com/google/pprof v0.0.0-20250820193118-f64d9cf942d6/go.mod h1:I6V7YzU0XDpsHqbsyrghnFZLO1gwK6NPTNvmetQIk9U=
+github.com/google/pprof v0.0.0-20260115054156-294ebfa9ad83 h1:z2ogiKUYzX5Is6zr/vP9vJGqPwcdqsWjOt+V8J7+bTc=
+github.com/google/pprof v0.0.0-20260115054156-294ebfa9ad83/go.mod h1:MxpfABSjhmINe3F1It9d+8exIHFvUqtLIRCdOGNXqiI=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3 h1:NmZ1PKzSTQbuGHw9DGPFomqkkLWMC+vZCkfs+FHv1Vg=
@@ -121,12 +121,14 @@ github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee h1:W5t00kpgFd
 github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
-github.com/ntlaletsi70/blanketops-environments v0.1.1 h1:5Xrp1PZ4BiElcyHUrjCL/Ge8Gx6wNtQrhU4PZYt+TVA=
-github.com/ntlaletsi70/blanketops-environments v0.1.1/go.mod h1:u6EC4b6ovn0UV4VCFLi0kIp/i4Kcqg9KMaBLDeRpjys=
+github.com/ntlaletsi70/blanketops-environments v0.1.4 h1:QP4+pDNkM+3R9ZTJUlVjTKStHNL/kAHXbq+QM24DnVg=
+github.com/ntlaletsi70/blanketops-environments v0.1.4/go.mod h1:Y6qvltAqmSahcztfmyuD7Ei86fwY6yPv/nBBEPhYIME=
 github.com/ntlaletsi70/blanketops-environments-api v0.0.8 h1:uBvUAXaf8CQxHDAm60KsSTFEefmroUvkiJ/sybaPMi8=
 github.com/ntlaletsi70/blanketops-environments-api v0.0.8/go.mod h1:mC14Rb6ytbYyxXbrf69/y7zcglCtsSKEt5cM7wZuKj8=
 github.com/ntlaletsi70/blanketops-environments-contract v0.0.8 h1:EM1agrOq5CvA9fIYcYRgmYRKB1yT81v4KtozyGnygEs=
 github.com/ntlaletsi70/blanketops-environments-contract v0.0.8/go.mod h1:8cT3P22UtHIcF3N17T1ip1O6jZUXfSsFsDBj6B8ooik=
+github.com/ntlaletsi70/blanketops-environments-mvp v0.0.0-20260307105812-5cabde98ce84 h1:VPQ5S+4sXaikrU1iqHYHKluCki08rDtkkfWbeKUlmaw=
+github.com/ntlaletsi70/blanketops-environments-mvp v0.0.0-20260307105812-5cabde98ce84/go.mod h1:kRpqOe60efTsD4UvYyv4N1pa/OrJvudpn9l7fhPS5dQ=
 github.com/onsi/ginkgo v1.16.4 h1:29JGrr5oVBm5ulCWet69zQkzWipVXIol6ygQUe/EzNc=
 github.com/onsi/ginkgo/v2 v2.28.1 h1:S4hj+HbZp40fNKuLUQOYLDgZLwNUVn19N3Atb98NCyI=
 github.com/onsi/ginkgo/v2 v2.28.1/go.mod h1:CLtbVInNckU3/+gC8LzkGUb9oF+e8W8TdUsxPwvdOgE=
