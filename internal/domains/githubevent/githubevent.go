@@ -43,8 +43,7 @@ func (d *GitHubEventDomain) GVK() schema.GroupVersionKind {
 	return eventsv1alpha1.GroupVersion.WithKind("GitHubEvent")
 }
 
-func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command,
-) error {
+func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error {
 
 	githubeventCR, ok := cmd.Obj.(*eventsv1alpha1.GitHubEvent)
 	if !ok || githubeventCR == nil {
@@ -54,10 +53,13 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command,
 	log := d.log.WithValues("domain", "githubevent", "name", githubeventCR.Name, "namespace", githubeventCR.Namespace)
 	log.Info("handling githubevent command", "type", cmd.Type)
 
-	// ------------------------------------------------
+	// --------------------------------------------------------
 	// 1. Resolve GitHubEvent contract ONCE
-	// ------------------------------------------------
+	// --------------------------------------------------------
+
+	log.Info("resolving githubevent contract")
 	resolved, err := githubeventResolution.ResolveGitHubEvent(githubeventCR)
+
 	if err != nil {
 
 		log.Error(err, "githubevent resolution failed")
@@ -71,35 +73,47 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command,
 	d.events.Normal(githubeventCR, "GitHubEventResolved", "Build specification resolved successfully")
 	core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventResolved", core.ConditionTrue, "GitHubEventResolved", "GitHubEvent specification resolved successfully")
 
-	// ------------------------------------------------
+	// -----------------------------------------------------------
 	// 2. Ensure prerequisites (secrets, webhooks, etc.)
-	// ------------------------------------------------
+	// -----------------------------------------------------------
+	log.Info("ensuring githubevent prerequisites")
+
 	if err := d.Mediator.EnsurePrerequisites(ctx, resolved); err != nil {
 
+		log.Error(err, "githubevent prerequisites failed")
 		d.events.FromError(githubeventCR, "GitHubEventPrerequisitesFailed", err)
-
 		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventPrerequisitesReady", core.ConditionFalse, "GitHubEventPrerequisitesFailed", err.Error())
+
 		return err
 	}
 
+	log.Info("githubevent prerequisites ensured")
+	d.events.Normal(githubeventCR, "GitHubEventPrerequisitesReady", "all githubevent prerequisites created successfully")
 	core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventPrerequisitesReady", core.ConditionTrue, "GitHubEventPrerequisitesReady", "All prerequisites created successfully")
 
-	// ------------------------------------------------
+	// ---------------------------------------------------------
 	// 3. Domain application logic
-	// ------------------------------------------------
+	// ---------------------------------------------------------
+
+	log.Info("triggering githubevent execution")
 
 	if err := d.Service.Reconcile(ctx, resolved); err != nil {
 
+		log.Error(err, "triggering githubevent failed")
 		d.events.FromError(githubeventCR, "GitHubEventRejected", err)
 		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventOrganized", core.ConditionFalse, "GitHubEventRejected", err.Error())
 
 		return err
 	}
 
-	// ------------------------------------------------
+	// --------------------------------------------------------
 	// 4. Execution requested
-	// ------------------------------------------------
-	core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventOrganized", core.ConditionTrue, "EventingStarted", "GitHubEvent execution has started")
+	// --------------------------------------------------------
+
+	log.Info("githubevent execution requested")
+	d.events.Normal(githubeventCR, "GitHubEventOrganized", "GitHubEvent organization process  has started")
+	core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventOrganized", core.ConditionTrue, "EventingStarted", "GitHubEvent organization has started")
+	log.Info("githubevent domain handling complete")
 
 	return nil
 }
