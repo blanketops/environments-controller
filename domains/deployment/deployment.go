@@ -57,43 +57,64 @@ func (d *DeployDomain) GVK() schema.GroupVersionKind {
 
 // Handle executes core.Command operations routed by the Engine.
 func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
-	deploymentCR, ok := cmd.Obj.(*environmentv1.Deployment)
-	if !ok || deploymentCR == nil {
-		return fmt.Errorf("invalid object for Deployment domain: %T", cmd.Obj)
+
+	deployCR, ok := cmd.Obj.(*environmentv1.Deployment)
+	if !ok || deployCR == nil {
+		return fmt.Errorf("invalid object passed to DeploymentDomain: %T", cmd.Obj)
 	}
 
-	d.log.Info("handling deployment command", "type", cmd.Type, "name", deploymentCR.Name)
+	log := d.log.WithValues("domain", "deployment", "name", deployCR.Name, "namespace", deployCR.Namespace)
+	d.log.Info("handling deployment command", "type", cmd.Type)
 
 	switch cmd.Type {
-
 	case core.CmdCreate, core.CmdUpdate:
 
-		// ------------------------------------------------
-		// 1. RESOLVE (AUTHORITATIVE, ONCE)
-		// ------------------------------------------------
-		resolved, err := deploymentResolution.ResolveDeployment(deploymentCR)
+		//------------------------------------------------
+		// Stage 1: Resolve deployment contract
+		//------------------------------------------------
+
+		log.Info("resolving deployment contract")
+		resolved, err := deploymentResolution.ResolveDeployment(deployCR)
+
 		if err != nil {
-			d.events.FromError(deploymentCR, "DeploymentResolutionFailed", "ResolveContract", err)
+
+			log.Error(err, "deployment resolution failed")
+			d.events.FromError(deployCR, "DeploymentResolutionFailed", err)
+			core.SetCondition(&deployCR.Status.Conditions, "DeploymentResolved", core.ConditionFalse, "InvalidSpec", err.Error())
+
 			return err
 		}
 
-		// ------------------------------------------------
-		// 2. ENSURE PREREQUISITES (INFRA ONLY)
-		// ------------------------------------------------
+		log.Info("deployment resolved successfully")
+		d.events.Normal(deployCR, "DeploymentResolved", "Deployment specification resolved successfully")
+		core.SetCondition(&deployCR.Status.Conditions, "DeploymentResolved", core.ConditionTrue, "Resolved", "Deployment specification resolved successfully")
+
+		//------------------------------------------------
+		// Stage 2: Ensure prerequisites
+		//------------------------------------------------
+
+		log.Info("ensuring deployment prerequisites")
+
 		if err := d.deployMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-			d.events.FromError(deploymentCR, "DeploymentPrerequisitesFailed", "DeploymentMediator", err)
+			d.events.FromError(deployCR, "DeploymentPrerequisitesFailed", err)
+
+			log.Error(err, "deployment prerequisites failed")
+			d.events.FromError(deployCR, "DeploymentPrerequisitesFailed", err)
+			core.SetCondition(&deployCR.Status.Conditions, "DeploymentPrerequisitesReady", core.ConditionFalse, "DeploymentPrerequisitesFailed", err.Error())
 
 			return err
 		}
+
+		log.Info("deployment prerequisites ensured")
+		d.events.Normal(deployCR, "DeploymentPrerequisitesReady", "All deployment prerequisites created successfully")
+		core.SetCondition(&deployCR.Status.Conditions, "DeploymentPrerequisitesReady", core.ConditionTrue, "DeploymentPrerequisitesReady", "All deployment prerequisites satisfied")
 
 		// ------------------------------------------------
 		// 3. RESOLVE SERVICE UNITS (AUTHORITATIVE)
 		// ------------------------------------------------
 		serviceUnits, err := d.resolveServiceUnits(ctx, resolved)
 		if err != nil {
-			d.events.FromError(deploymentCR, "ServiceUnitResolutionFailed", "ResolveServiceUnit", err)
-			// Conflict here, see to delegate this to ServiceUnit Actual Resolution, existing
-
+			d.events.FromError(deployCR, "ServiceUnitResolutionFailed", err)
 			return err
 		}
 
@@ -102,16 +123,15 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// ------------------------------------------------
 		if d.deployService != nil {
 			if err := d.deployService.Reconcile(ctx, resolved, serviceUnits); err != nil {
-				d.events.FromError(deploymentCR, "DeploymentFailed", "DeploymentService", err)
-
+				d.events.FromError(deployCR, "DeploymentFailed", err)
 				return err
 			}
 		}
 
-		d.events.Info(deploymentCR, "DeploymentSucceeded", "deployment reconciliation completed successfully")
+		d.events.Info(deployCR, "DeploymentSucceeded", "Deployment reconciliation completed successfully")
 
 	case core.CmdDelete:
-		d.events.Info(deploymentCR, "DeploymentDeleted", "deployment cleanup not implemented yet")
+		d.events.Info(deployCR, "DeploymentDeleted", "Deployment cleanup not implemented yet")
 	}
 
 	return nil

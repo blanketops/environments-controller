@@ -8,7 +8,7 @@ import (
 	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	environmentv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 
 	pkgMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/packages"
@@ -28,12 +28,7 @@ type PackageDomain struct {
 	log             logr.Logger
 }
 
-func New(
-	packageMediator *pkgMediator.Mediator,
-	packageService *pkgApplication.PackageService,
-	cache *core.Cache,
-	events *core.EventRecorder,
-	log logr.Logger,
+func New(packageMediator *pkgMediator.Mediator, packageService *pkgApplication.PackageService, cache *core.Cache, events *core.EventRecorder, log logr.Logger,
 ) *PackageDomain {
 	return &PackageDomain{
 		packageMediator: packageMediator,
@@ -45,97 +40,63 @@ func New(
 }
 
 func (d *PackageDomain) GVK() schema.GroupVersionKind {
-	return environmentv1alpha1.GroupVersion.WithKind("Package")
+	return environmentv1.GroupVersion.WithKind("Package")
 }
 
 func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
-	packageCR, ok := cmd.Obj.(*environmentv1alpha1.Package)
+
+	packageCR, ok := cmd.Obj.(*environmentv1.Package)
 	if !ok || packageCR == nil {
 		return fmt.Errorf("invalid object passed to PackageDomain: %T", cmd.Obj)
 	}
 
-	d.log.Info(
-		"handling package command",
-		"type", cmd.Type,
-		"name", packageCR.Name,
-	)
+	log := d.log.WithValues("domain", "package", "name", packageCR.Name, "namespace", packageCR.Namespace)
+	log.Info("handling package command", "type", cmd.Type)
 
-	// ------------------------------------------------
-	// DELETE (observe only)
-	// ------------------------------------------------
-	if cmd.Type == core.CmdDelete {
-		d.log.Info(
-			"package deletion observed (no cleanup implemented)",
-			"name", packageCR.Name,
-		)
-		return nil
-	}
+	//------------------------------------------------
+	// Stage 1: Resolve package contract
+	//------------------------------------------------
 
-	// ------------------------------------------------
-	// 1. Resolve package contract (AUTHORITATIVE)
-	// ------------------------------------------------
+	log.Info("resolving package contract")
 	resolved, err := pkgResolution.ResolvePackage(packageCR)
-	if err != nil {
-		d.events.FromError(packageCR, "PackageResolveFailed", "ResolveContract", err)
 
-		core.SetCondition(
-			&packageCR.Status.Conditions,
-			"PackageResolved",
-			core.ConditionFalse,
-			"InvalidSpec",
-			err.Error(),
-		)
+	if err != nil {
+
+		log.Error(err, "package resolution failed")
+		d.events.FromError(packageCR, "PackageResolveFailed", err)
+		core.SetCondition(&packageCR.Status.Conditions, "PackageResolved", core.ConditionFalse, "InvalidSpec", err.Error())
 
 		return err
 	}
 
-	core.SetCondition(
-		&packageCR.Status.Conditions,
-		"PackageResolved",
-		core.ConditionTrue,
-		"Resolved",
-		"Package specification resolved successfully",
-	)
+	log.Info("package resolved successfully")
+	d.events.Normal(packageCR, "PackageResolved", "Package specification resolved successfully")
+	core.SetCondition(&packageCR.Status.Conditions, "PackageResolved", core.ConditionTrue, "Resolved", "Package specification resolved successfully")
 
 	// ------------------------------------------------
 	// 2. Ensure prerequisites (secrets, repos, identity)
 	// ------------------------------------------------
-	if err := d.packageMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-		d.events.FromError(packageCR, "PackagePrerequisitesFailed", "PackageMediator", err)
 
-		core.SetCondition(
-			&packageCR.Status.Conditions,
-			"PackagePrerequisitesReady",
-			core.ConditionFalse,
-			"PrerequisitesFailed",
-			err.Error(),
-		)
+	log.Info("ensuring package prerequisites")
+
+	if err := d.packageMediator.EnsurePrerequisites(ctx, resolved); err != nil {
+
+		log.Error(err, "package prerequisites failed")
+		d.events.FromError(packageCR, "PackagePrerequisitesFailed", err)
+		core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionFalse, "PrerequisitesFailed", err.Error())
 
 		return err
 	}
 
-	core.SetCondition(
-		&packageCR.Status.Conditions,
-		"PackagePrerequisitesReady",
-		core.ConditionTrue,
-		"PrerequisitesReady",
-		"All package prerequisites created successfully",
-	)
+	core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionTrue, "PrerequisitesReady", "All package prerequisites created successfully")
 
 	// ------------------------------------------------
 	// 3. Build execution intent (INTENT ONLY)
 	// ------------------------------------------------
 	intent, err := pkgIntent.BuildPackageIntent(resolved)
 	if err != nil {
-		d.events.FromError(packageCR, "PackageIntentBuildFailed", "PackageIntent", err)
-
-		core.SetCondition(
-			&packageCR.Status.Conditions,
-			"PackageTriggered",
-			core.ConditionFalse,
-			"IntentBuildFailed",
-			err.Error(),
-		)
+		d.events.FromError(packageCR, "PackageIntentBuildFailed", err)
+		core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionFalse, "IntentBuildFailed", err.Error())
 
 		return err
 	}
@@ -144,15 +105,8 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	// 4. Trigger execution (authoritative service)
 	// ------------------------------------------------
 	if err := d.packageService.Reconcile(ctx, resolved, intent); err != nil {
-		d.events.FromError(packageCR, "PackageTriggerFailed", "PackageService", err)
-
-		core.SetCondition(
-			&packageCR.Status.Conditions,
-			"PackageTriggered",
-			core.ConditionFalse,
-			"TriggerFailed",
-			err.Error(),
-		)
+		d.events.FromError(packageCR, "PackageTriggerFailed", err)
+		core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
 
 		return err
 	}
@@ -160,13 +114,7 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	// ------------------------------------------------
 	// 5. Execution requested (NOT completed)
 	// ------------------------------------------------
-	core.SetCondition(
-		&packageCR.Status.Conditions,
-		"PackageTriggered",
-		core.ConditionTrue,
-		"ExecutionRequested",
-		"Package execution has been requested",
-	)
+	core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionTrue, "ExecutionRequested", "Package execution has been requested")
 
 	return nil
 }
@@ -176,13 +124,13 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 // -----------------------------------------------------------------------------
 
 func (d *PackageDomain) CanCreate(obj client.Object) bool {
-	_, ok := obj.(*environmentv1alpha1.Package)
+	_, ok := obj.(*environmentv1.Package)
 	return ok
 }
 
 func (d *PackageDomain) CanUpdate(oldObj, newObj client.Object) bool {
-	oldPkg, okOld := oldObj.(*environmentv1alpha1.Package)
-	newPkg, okNew := newObj.(*environmentv1alpha1.Package)
+	oldPkg, okOld := oldObj.(*environmentv1.Package)
+	newPkg, okNew := newObj.(*environmentv1.Package)
 	if !okOld || !okNew {
 		return false
 	}
@@ -192,6 +140,6 @@ func (d *PackageDomain) CanUpdate(oldObj, newObj client.Object) bool {
 }
 
 func (d *PackageDomain) CanDelete(obj client.Object) bool {
-	_, ok := obj.(*environmentv1alpha1.Package)
+	_, ok := obj.(*environmentv1.Package)
 	return ok
 }

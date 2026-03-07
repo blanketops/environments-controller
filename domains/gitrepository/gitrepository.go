@@ -26,13 +26,7 @@ type GitRepositoryDomain struct {
 }
 
 // New constructs a new GitRepositoryDomain.
-func New(
-	mediator *gitrepository.Mediator,
-	service *application.GitRepositoryService,
-	cache *core.Cache,
-	events *core.EventRecorder,
-	log logr.Logger,
-) *GitRepositoryDomain {
+func New(mediator *gitrepository.Mediator, service *application.GitRepositoryService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *GitRepositoryDomain {
 	return &GitRepositoryDomain{
 		Mediator: mediator,
 		Service:  service,
@@ -48,61 +42,66 @@ func (d *GitRepositoryDomain) GVK() schema.GroupVersionKind {
 }
 
 // Handle processes Create / Update / Delete commands.
-func (d *GitRepositoryDomain) Handle(
-	ctx context.Context,
-	cmd core.Command,
-) error {
+func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd core.Command) error {
 
 	gitrepositoryCR, ok := cmd.Obj.(*sourcesv1alpha1.GitRepository)
 	if !ok || gitrepositoryCR == nil {
 		return fmt.Errorf("invalid object passed to GitRepositoryDomain: %T", cmd.Obj)
 	}
 
-	d.log.Info(
-		"Handling GitRepositoryDomain Command",
-		"type", cmd.Type,
-		"name", gitrepositoryCR.Name,
-	)
+	log := d.log.WithValues("domain", "gitrepository", "name", gitrepositoryCR.Name, "namespace", gitrepositoryCR.Namespace)
+	log.Info("handling gitrepository command", "type", cmd.Type)
 
 	// ------------------------------------------------
 	// 1. Resolve GitRepository ONCE (domain-owned)
 	// ------------------------------------------------
-	resolved, err := gitrepoResolution.ResolveGitRepository(gitrepositoryCR)
-	if err != nil {
-		d.events.FromError(gitrepositoryCR, "GitRepositoryResolveFailed", "ResolveContract", err)
 
-		core.SetCondition(
-			&gitrepositoryCR.Status.Conditions,
-			"GitRepositoryResolved",
-			core.ConditionFalse,
-			"InvalidSpec",
-			err.Error(),
-		)
+	log.Info("resolving gitrepository contract")
+	resolved, err := gitrepoResolution.ResolveGitRepository(gitrepositoryCR)
+
+	if err != nil {
+
+		log.Error(err, "gitrepository resolution failed")
+		d.events.FromError(gitrepositoryCR, "GitRepositoryResolveFailed", err)
+		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryResolved", core.ConditionFalse, "InvalidSpec", err.Error())
+
 		return err
 	}
 
-	core.SetCondition(
-		&gitrepositoryCR.Status.Conditions,
-		"GitRepositoryResolved",
-		core.ConditionTrue,
-		"Resolved",
-		"GitRepository specification resolved successfully",
-	)
+	log.Info("gitrepository resolved successfully")
+	d.events.Normal(gitrepositoryCR, "GitRepositoryResolved", "GitRepository specification resolved successfully")
+	core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryResolved", core.ConditionTrue, "Resolved", "GitRepository specification resolved successfully")
 
 	// ------------------------------------------------
 	// 2. Ensure prerequisites (secrets, etc.)
 	// ------------------------------------------------
+
+	log.Info("ensuring gitrepository prerequisites")
+
 	if err := d.Mediator.EnsurePrerequisites(ctx, resolved); err != nil {
-		d.events.FromError(gitrepositoryCR, "GitRepositoryPrerequisitesFailed", "GitRepositoryMediator", err)
+
+		log.Error(err, "gitrepository prerequisites failed")
+		d.events.FromError(gitrepositoryCR, "GitRepositoryPrerequisitesFailed", err)
+		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryPrerequisitesReady", core.ConditionFalse, "GitRepositoryPrerequisitesFailed", err.Error())
 
 		return err
 	}
 
+	log.Info("gitrepository prerequisites ensured")
+	d.events.Normal(gitrepositoryCR, "GitRepositoryPrerequisitesReady", "All gitrepository prerequisites created successfully")
+	core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryPrerequisitesReady", core.ConditionTrue, "GitRepositoryPrerequisitesReady", "All gitrepository prerequisites satisfied")
+
 	// ------------------------------------------------
 	// 3. Reconcile declarative intent (service)
 	// ------------------------------------------------
+
+	log.Info("triggering gitrepository execution")
+
 	if err := d.Service.Reconcile(ctx, resolved); err != nil {
-		d.events.FromError(gitrepositoryCR, "GitRepositoryReconcileFailed", "GitRepositoryService", err)
+
+		log.Error(err, "gitrepository trigger failed")
+		d.events.FromError(gitrepositoryCR, "GitRepositoryReconcileFailed", err)
+		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryTriggered", core.ConditionFalse, "GitRepositoryTriggerdFailed", err.Error())
 
 		return err
 	}
