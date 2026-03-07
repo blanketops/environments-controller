@@ -18,6 +18,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// BuildDomain handles Build CRs.
+// This represents a FACT INGESTION boundary.
 type BuildDomain struct {
 	buildMediator *build.Mediator
 	BuildService  *application.BuildService
@@ -58,12 +60,6 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 	resolved, err := buildResolution.ResolveBuild(buildCR)
 
 	if err != nil {
-		d.events.FromError(
-			buildCR,
-			"BuildResolveFailed", // reason
-			"Build",              // action
-			err,
-		)
 
 		log.Error(err, "build resolution failed")
 		d.events.FromError(buildCR, "BuildResolveFailed", err)
@@ -83,12 +79,6 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 	log.Info("ensuring build prerequisites")
 
 	if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-		d.events.FromError(
-			buildCR,
-			"PrerequisitesFailed", // reason
-			"Build",               // action
-			err,
-		)
 
 		log.Error(err, "build prerequisites failed")
 		d.events.FromError(buildCR, "BuildPrerequisitesFailed", err)
@@ -108,19 +98,10 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 	log.Info("triggering build execution")
 
 	if err := d.BuildService.Reconcile(ctx, resolved); err != nil {
-		d.events.FromError(
-			buildCR,
-			"BuildServiceReconFailed", // reason
-			"Build",                   // action
-			err,
-		)
-		core.SetCondition(
-			&buildCR.Status.Conditions,
-			"BuildTriggered",
-			core.ConditionFalse,
-			"TriggerFailed",
-			err.Error(),
-		)
+
+		log.Error(err, "build triggering failed")
+		d.events.FromError(buildCR, "BuildServiceReconFailed", err)
+		core.SetCondition(&buildCR.Status.Conditions, "BuildTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
 
 		return err
 	}

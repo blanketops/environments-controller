@@ -54,12 +54,8 @@ func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error
 	// ------------------------------------------------
 	resolved, err := buildtriggerResolution.ResolveBuildTrigger(buildtriggerCR)
 	if err != nil {
-		d.events.FromError(
-			triggerCR,
-			"BuildTriggerResolveFailed", // reason
-			"BuildTrigger",              // action
-			err,
-		)
+
+		d.events.FromError(buildtriggerCR, "BuildTriggerResolveFailed", err)
 
 		log.Error(err, "buildtrigger resolution failed")
 		d.events.FromError(buildtriggerCR, "BuildTriggerResolveFailed", err)
@@ -79,23 +75,17 @@ func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error
 	log.Info("ensuring buildtrigger prerequisites")
 
 	if err := d.mediator.EnsurePrerequisites(ctx, resolved); err != nil {
-		d.events.FromError(
-			triggerCR,
-			"BuildTriggerPrerequisitesFailed", // reason
-			"BuildTrigger",                    // action
-			err,
-		)
 
 		log.Error(err, "buildtrigger prerequisites failed")
 		d.events.FromError(buildtriggerCR, "BuildTriggerPrerequisitesFailed", err)
-		core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerPrerequisitesReady", core.ConditionFalse, "BuildPrerequisitesFailed", err.Error())
+		core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerPrerequisitesReady", core.ConditionFalse, "BuildTriggerPrerequisitesFailed", err.Error())
 
 		return err
 	}
 
 	log.Info("buildtrigger prerequisites ensured")
 	d.events.Normal(buildtriggerCR, "BuildTriggerPrerequisitesReady", "All buildtrigger prerequisites created successfully")
-	core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerPrerequisitesReady", core.ConditionTrue, "PrerequisitesReady", "All buildtrigger prerequisites satisfied")
+	core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerPrerequisitesReady", core.ConditionTrue, "BuildTriggerPrerequisitesReady", "All buildtrigger prerequisites satisfied")
 
 	// ------------------------------------------------
 	// 3. Evaluate trigger intent (DECISION ONLY)
@@ -104,19 +94,10 @@ func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error
 	log.Info("triggering buildtrigger evaluation")
 
 	if err := d.service.Evaluate(ctx, resolved); err != nil {
-		d.events.FromError(
-			triggerCR,
-			"BuildTriggerEvaluationFailed", // reason
-			"BuildTrigger",                 // action
-			err,
-		)
-		core.SetCondition(
-			&triggerCR.Status.Conditions,
-			"BuildTriggerEvaluated",
-			core.ConditionFalse,
-			"EvaluationFailed",
-			err.Error(),
-		)
+
+		log.Error(err, "buildtrigger evaluation failed")
+		d.events.FromError(buildtriggerCR, "BuildTriggerEvaluationFailed", err)
+		core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerEvaluated", core.ConditionFalse, "BuildTriggerEvaluationFailed", err.Error())
 
 		return err
 	}
@@ -124,6 +105,7 @@ func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error
 	// ------------------------------------------------
 	// 4. Evaluation completed
 	// ------------------------------------------------
+	log.Info("buildtrigger evaluation requested")
 	d.events.Normal(buildtriggerCR, "BuildTriggerEvaluated", "buildtrigger evaluation has started")
 	core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerEvaluated", core.ConditionTrue, "Evaluated", "BuildTrigger evaluated successfully")
 	log.Info("buildtrigger domain handling complete")

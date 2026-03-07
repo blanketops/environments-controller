@@ -47,31 +47,26 @@ func (d *GitRepositoryDomain) Handle(
 	cmd core.Command,
 ) error {
 
-	gitrepositoryCR, ok := cmd.Obj.(*sourcesv1alpha1.GitRepository)
-	if !ok || gitrepositoryCR == nil {
+	repo, ok := cmd.Obj.(*sourcesv1alpha1.GitRepository)
+	if !ok || repo == nil {
 		return fmt.Errorf("invalid object passed to GitRepositoryDomain: %T", cmd.Obj)
 	}
 
 	d.log.Info(
 		"Handling GitRepositoryDomain Command",
 		"type", cmd.Type,
-		"name", gitrepositoryCR.Name,
+		"name", repo.Name,
 	)
 
 	// ------------------------------------------------
 	// 1. Resolve GitRepository ONCE (domain-owned)
 	// ------------------------------------------------
-	resolved, err := gitrepoResolution.ResolveGitRepository(gitrepositoryCR)
+	resolved, err := gitrepoResolution.ResolveGitRepository(repo)
 	if err != nil {
-		d.events.FromError(
-			gitrepositoryCR,
-			"GitRepositoryResolveFailed", // reason
-			"GitRepository",              // action
-			err,
-		)
+		d.events.FromError(repo, "GitRepositoryResolveFailed", err)
 
 		core.SetCondition(
-			&gitrepositoryCR.Status.Conditions,
+			&repo.Status.Conditions,
 			"GitRepositoryResolved",
 			core.ConditionFalse,
 			"InvalidSpec",
@@ -81,7 +76,7 @@ func (d *GitRepositoryDomain) Handle(
 	}
 
 	core.SetCondition(
-		&gitrepositoryCR.Status.Conditions,
+		&repo.Status.Conditions,
 		"GitRepositoryResolved",
 		core.ConditionTrue,
 		"Resolved",
@@ -92,12 +87,7 @@ func (d *GitRepositoryDomain) Handle(
 	// 2. Ensure prerequisites (secrets, etc.)
 	// ------------------------------------------------
 	if err := d.Mediator.EnsurePrerequisites(ctx, resolved); err != nil {
-		d.events.FromError(
-			gitrepositoryCR,
-			"GitRepositoryPrerequisitesFailed", // reason
-			"GitRepository",                    // action
-			err,
-		)
+		d.events.FromError(repo, "GitRepositoryPrerequisitesFailed", err)
 		return err
 	}
 
@@ -105,12 +95,7 @@ func (d *GitRepositoryDomain) Handle(
 	// 3. Reconcile declarative intent (service)
 	// ------------------------------------------------
 	if err := d.Service.Reconcile(ctx, resolved); err != nil {
-		d.events.FromError(
-			gitrepositoryCR,
-			"GitRepositoryReconcileFailed", // reason
-			"GitRepository",                // action
-			err,
-		)
+		d.events.FromError(repo, "GitRepositoryReconcileFailed", err)
 		return err
 	}
 

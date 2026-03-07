@@ -77,12 +77,11 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		resolved, err := deploymentResolution.ResolveDeployment(deployCR)
 
 		if err != nil {
-			d.events.FromError(
-				deployCR,
-				"DeploymentResolutionFailed", // reason
-				"Deploy",                     // action
-				err,
-			)
+
+			log.Error(err, "deployment resolution failed")
+			d.events.FromError(deployCR, "DeploymentResolutionFailed", err)
+			core.SetCondition(&deployCR.Status.Conditions, "DeploymentResolved", core.ConditionFalse, "InvalidSpec", err.Error())
+
 			return err
 		}
 
@@ -97,12 +96,11 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		log.Info("ensuring deployment prerequisites")
 
 		if err := d.deployMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-			d.events.FromError(
-				deployCR,
-				"DeploymentPrerequisitesFailed", // reason
-				"Deploy",                        // action
-				err,
-			)
+
+			log.Error(err, "deployment prerequisites failed")
+			d.events.FromError(deployCR, "DeploymentPrerequisitesFailed", err)
+			core.SetCondition(&deployCR.Status.Conditions, "DeploymentPrerequisitesReady", core.ConditionFalse, "DeploymentPrerequisitesFailed", err.Error())
+
 			return err
 		}
 
@@ -113,49 +111,45 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// ------------------------------------------------
 		// 3. RESOLVE SERVICE UNITS (AUTHORITATIVE)
 		// ------------------------------------------------
+
+		log.Info("triggering resolve serviceunits")
 		serviceUnits, err := d.resolveServiceUnits(ctx, resolved)
+
 		if err != nil {
-			d.events.FromError(
-				deployCR,
-				"ServiceUnitResolutionFailed", // reason
-				"Deploy",                      // action
-				err,
-			)
+
+			log.Error(err, "resolve serviceunits failed")
+			d.events.FromError(deployCR, "ServiceUnitResolutionFailed", err)
+			core.SetCondition(&deployCR.Status.Conditions, "ServiceUnitResolved", core.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
+
 			return err
 		}
+
+		log.Info("serviceunit resolved successfully")
+		d.events.Normal(deployCR, "ServiceUnitResolved", "ServiceUnit specification resolved successfully")
+		core.SetCondition(&deployCR.Status.Conditions, "ServiceUnitResolved", core.ConditionTrue, "Resolved", "ServiceUnit specification resolved successfully")
 
 		// ------------------------------------------------
 		// 4. EXECUTE DEPLOYMENT (OPTIONAL)
 		// ------------------------------------------------
+		log.Info("triggering deployment of serviceunit(s)")
+
 		if d.deployService != nil {
-			if err := d.deployService.Reconcile(
-				ctx,
-				resolved,
-				serviceUnits); err != nil {
-				d.events.FromError(
-					deployCR,
-					"DeploymentFailed", // reason
-					"Deploy",           // action
-					err,
-				)
+			if err := d.deployService.Reconcile(ctx, resolved, serviceUnits); err != nil {
+
+				log.Error(err, "deployment of serviceunits failed")
+				d.events.FromError(deployCR, "DeploymentFailed", err)
+				core.SetCondition(&deployCR.Status.Conditions, "DeploymentFailed", core.ConditionFalse, "DeploymentFailed", err.Error())
+
 				return err
 			}
 		}
 
-		d.events.Info(
-			deployCR,
-			"DeploymentSucceeded", // reason
-			"Reconcile",           // action
-			"deployment reconciliation completed successfully",
-		)
+		log.Info("serviceunit resolved successfully")
+		d.events.Info(deployCR, "DeploymentSucceeded", "Reconcile", "deployment reconciliation completed successfully")
+		core.SetCondition(&deployCR.Status.Conditions, "DeploymentSucceeded", core.ConditionTrue, "DeploymentSucceeded", "Deployment trigger completed successfully")
 
 	case core.CmdDelete:
-		d.events.Info(
-			deployCR,
-			"DeploymentDeleted", // reason
-			"Delete",            // action
-			"deployment cleanup not implemented yet",
-		)
+		d.events.Info(deployCR, "DeploymentDeleted", "deployment cleanup not implemented yet")
 	}
 
 	return nil
