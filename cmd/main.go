@@ -5,7 +5,8 @@ import (
 	"os"
 
 	bootstrap "github.com/ntlaletsi70/blanketops-environments-controller/internal/bootstrap"
-
+	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
+	"github.com/ntlaletsi70/blanketops-environments-mvp/core"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -20,6 +21,13 @@ var (
 func init() {
 
 	bootstrap.RegisterSchemes(scheme)
+}
+
+type Runtime interface {
+	Engine() *core.Engine
+	Cache() *core.Cache
+	Events() *core.EventRecorder
+	Registry() *core.Registry
 }
 
 func main() {
@@ -43,7 +51,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := bootstrap.RegisterControllers(mgr); err != nil {
+	//---------------------------------------------------
+	// Create Runtime
+	//---------------------------------------------------
+
+	rt := runtimeinfra.New(mgr)
+
+	//---------------------------------------------------
+	// Controllers
+	//---------------------------------------------------
+
+	if err := bootstrap.RegisterControllers(mgr, rt); err != nil {
 		setupLog.Error(err, "failed to register controllers")
 		os.Exit(1)
 	}
@@ -53,7 +71,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := bootstrap.RegisterBuild(mgr, setupLog, mgr.GetEventRecorderFor("blanketops")); err != nil {
+	if err := bootstrap.RegisterBuild(mgr, rt, setupLog, mgr.GetEventRecorder("blanketops-environments")); err != nil {
 		setupLog.Error(err, "failed to register build subsystem")
 		os.Exit(1)
 	}

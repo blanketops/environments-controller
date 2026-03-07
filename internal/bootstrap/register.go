@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,13 +15,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	ctrl "sigs.k8s.io/controller-runtime"
-
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/go-logr/logr"
 	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
@@ -36,14 +36,12 @@ import (
 	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
 
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/environments"
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/events"
 
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildrun"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildtrigger"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/deployment"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/githubevent"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/gitrepository"
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/sources"
 
 	kappctrlv1alpha1 "carvel.dev/kapp-controller/pkg/apis/kappctrl/v1alpha1"
 	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/build/api"
@@ -198,57 +196,64 @@ func RegisterObservers(mgr ctrl.Manager) error {
 	return nil
 }
 
-func RegisterControllers(mgr ctrl.Manager) error {
+func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 
-	if err := (&sources.GitRepositoryReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		return err
-	}
-
-	if err := (&events.GitHubEventReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		return err
-	}
-
-	if err := (&environments.DeploymentReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		return err
-	}
-
-	if err := (&environments.ServiceUnitReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		return err
-	}
-
-	// if err := (&environments.RouteReconciler{
-	// 	Client: mgr.GetClient(),
-	// 	Scheme: mgr.GetScheme(),
+	// if err := (&obssourcesv1alpha1.GitRepositoryReconciler{
+	// 	Client:  mgr.GetClient(),
+	// 	Scheme:  mgr.GetScheme(),
+	// 	Runtime: rt,
 	// }).SetupWithManager(mgr); err != nil {
 	// 	return err
 	// }
-	if err := (&environments.PackageReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		return err
-	}
+
+	// if err := (&obeventsv1alpha1.GitHubEventReconciler{
+	// 	Client:  mgr.GetClient(),
+	// 	Scheme:  mgr.GetScheme(),
+	// 	Runtime: rt,
+	// }).SetupWithManager(mgr); err != nil {
+	// 	return err
+	// }
+
+	// if err := (&environments.DeploymentReconciler{
+	// 	Client:  mgr.GetClient(),
+	// 	Scheme:  mgr.GetScheme(),
+	// 	Runtime: rt,
+	// }).SetupWithManager(mgr); err != nil {
+	// 	return err
+	// }
+
+	// if err := (&environments.ServiceUnitReconciler{
+	// 	Client:  mgr.GetClient(),
+	// 	Scheme:  mgr.GetScheme(),
+	// 	Runtime: rt,
+	// }).SetupWithManager(mgr); err != nil {
+	// 	return err
+	// }
+
+	// if err := (&environments.RouteReconciler{
+	// 	Client:  mgr.GetClient(),
+	// 	Scheme:  mgr.GetScheme(),
+	// 	Runtime: rt,
+	// }).SetupWithManager(mgr); err != nil {
+	// 	return err
+	// }
+
+	// if err := (&environments.PackageReconciler{
+	// 	Client:  mgr.GetClient(),
+	// 	Scheme:  mgr.GetScheme(),
+	// 	Runtime: rt,
+	// }).SetupWithManager(mgr); err != nil {
+	// 	return err
+	// }
 
 	return nil
-
 }
 
 func RegisterBuild(
 	mgr ctrl.Manager,
+	rt *runtimeinfra.Runtime,
 	logger logr.Logger,
-	recorder record.EventRecorder,
+	recorder events.EventRecorder,
 ) error {
 
 	shipClient, err := shipwrightclientset.NewForConfig(ctrl.GetConfigOrDie())
@@ -295,6 +300,7 @@ func RegisterBuild(
 	return (&environments.BuildReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
+		Runtime:      rt,
 		BuildClient:  shipClient,
 		BuildService: buildService,
 	}).SetupWithManager(mgr)

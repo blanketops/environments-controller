@@ -21,19 +21,26 @@ import (
 
 	"github.com/go-logr/logr"
 	buildv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 
+	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
+
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/build"
+	builddomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/build"
+	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/build/api"
+	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
+
 	buildclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 )
@@ -47,11 +54,8 @@ type BuildReconciler struct {
 	Scheme        *runtime.Scheme
 	BuildMediator *build.Mediator
 	Log           logr.Logger
+	Runtime       *runtimeinfra.Runtime
 	Recorder      events.EventRecorder
-	Cache         *core.Cache
-	Events        *core.EventRecorder
-	Registry      *core.Registry
-	Engine        *core.Engine
 }
 
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=builds,verbs=get;list;watch;create;update;patch;delete
@@ -69,12 +73,7 @@ type BuildReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
-	log := r.Log.WithValues(
-		"controller", "build",
-		"namespace", req.Namespace,
-		"name", req.Name,
-	)
-
+	log := r.Log.WithValues("controller", "build", "namespace", req.Namespace, "name", req.Name)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -91,11 +90,7 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, err
 	}
 
-	log.Info(
-		"build fetched",
-		"generation", build.Generation,
-		"resourceVersion", build.ResourceVersion,
-	)
+	log.Info("build fetched", "generation", build.Generation, "resourceVersion", build.ResourceVersion)
 
 	// ------------------------------------------------
 	// Construct core command
@@ -106,29 +101,17 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		Obj:  &build,
 	}
 
-	log.Info(
-		"routing build to core engine",
-		"gvk", cmd.GVK.String(),
-		"command", cmd.Type,
-	)
+	log.Info("routing build to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
 	// ------------------------------------------------
 	// Execute domain logic via engine
 	// ------------------------------------------------
-	if err := r.Engine.Execute(ctx, cmd); err != nil {
+	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
+
 		log.Error(err, "engine execution failed")
-
-		r.Recorder.Eventf(
-			&build, // regarding
-			nil,    // related (none)
-			corev1.EventTypeWarning,
-			"EngineFailure", // reason
-			"Execute",       // action (short verb)
-			"%v",            // note (format)
-			err,             // args
-		)
-
+		r.Recorder.Eventf(&build, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
 		log.Info("reconcile exit: engine error")
+
 		return ctrl.Result{}, err
 	}
 
@@ -145,6 +128,7 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 		latest.Status = build.Status
 		return r.Status().Update(ctx, &latest)
+
 	}); err != nil {
 		log.Error(err, "failed to update build status")
 		return ctrl.Result{}, err
@@ -156,7 +140,9 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	return ctrl.Result{}, nil
 }
 
+// ----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
+// ----------------------------------------------------------------
 func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	//---------------------------------------------------------------------
@@ -166,12 +152,52 @@ func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = mgr.GetEventRecorder("build-controller")
 
 	//---------------------------------------------------------------------
-	// Core infrastructure
+	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	r.Cache = core.NewCache(mgr, nil)
-	r.Events = core.NewEventRecorder(r.Recorder)
-	r.Registry = core.NewRegistry()
-	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine-build"))
+	cache := r.Runtime.Cache
+	events := r.Runtime.Events
+	registry := r.Runtime.Registry
+	//---------------------------------------------------------------------
+	// Mediator (prerequisites only)
+	//---------------------------------------------------------------------
+	r.BuildMediator = build.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.build"), r.Recorder)
+
+	//---------------------------------------------------------------------
+	// Providers (strategy handlers)
+	//---------------------------------------------------------------------
+
+	//---------------------------------------------------------------------
+	// Providers (buildah)
+	//---------------------------------------------------------------------
+	buildahProvider := buildapi.NewBuildahProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.buildah"), r.Recorder)
+
+	//---------------------------------------------------------------------
+	// Providers (kaniko)
+	//---------------------------------------------------------------------
+	kanikoProvider := buildapi.NewKanikoProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.kaniko"), r.Recorder)
+
+	//---------------------------------------------------------------------
+	// Providers (buildpacks)
+	//---------------------------------------------------------------------
+	buildpacksProvider := buildapi.NewBuildpacksProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.buildpacks"), r.Recorder)
+
+	//---------------------------------------------------------------------
+	// BackendSelector (Backend selector maps strategy -> provider)
+	//---------------------------------------------------------------------
+	backendSelector := buildapp.NewBackendSelector(buildahProvider, kanikoProvider, buildpacksProvider)
+
+	//-----------------------------------------------------------------------------------------
+	// Build Service (Mapper and StatiusWriter, domain service for orchestration))
+	//------------------------------------------------------------------------------------------
+	mapper := buildapp.NewMapper()
+	statusWriter := buildapp.NewStatusWriter(r.Client, r.Log.WithName("build-status-writer"))
+	r.BuildService = buildapp.NewBuildService(mapper, statusWriter, backendSelector)
+
+	//--------------------------------------------------------------------------------
+	// Registry ( Domain Registration, domain orchestrates mediator + service)
+	//--------------------------------------------------------------------------------
+	buildDomain := builddomain.New(r.BuildMediator, r.BuildService, cache, events, r.Log.WithName("domain.build"))
+	registry.RegisterDomain(buildv1alpha1.GroupVersion.WithKind("Build"), buildDomain)
 
 	// ---------------------------------------------------------------------
 	// Controller registration
