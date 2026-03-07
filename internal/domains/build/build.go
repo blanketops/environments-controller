@@ -38,6 +38,7 @@ func New(buildMediator *build.Mediator, buildService *application.BuildService, 
 	}
 }
 
+// GVK tells the engine which CRD this domain handles.
 func (d *BuildDomain) GVK() schema.GroupVersionKind {
 	return buildv1alpha1.GroupVersion.WithKind("Build")
 }

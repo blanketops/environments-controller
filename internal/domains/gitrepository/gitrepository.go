@@ -16,7 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// GitRepositoryDomain handles GitRepository CRs.
+// GitRepositoryDomain handles Build CRs.
+// This represents a FACT INGESTION boundary.
 type GitRepositoryDomain struct {
 	Mediator *gitrepository.Mediator
 	Service  *application.GitRepositoryService
@@ -25,7 +26,7 @@ type GitRepositoryDomain struct {
 	log      logr.Logger
 }
 
-// New constructs a new GitRepositoryDomain.
+// New constructs a new GitRepositoryDomain instance.
 func New(mediator *gitrepository.Mediator, service *application.GitRepositoryService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *GitRepositoryDomain {
 	return &GitRepositoryDomain{
 		Mediator: mediator,

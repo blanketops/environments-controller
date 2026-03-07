@@ -39,6 +39,7 @@ func New(service *application.GitHubEventService, mediator *githubeventMediator.
 	}
 }
 
+// GVK tells the engine which CRD this domain handles.
 func (d *GitHubEventDomain) GVK() schema.GroupVersionKind {
 	return eventsv1alpha1.GroupVersion.WithKind("GitHubEvent")
 }

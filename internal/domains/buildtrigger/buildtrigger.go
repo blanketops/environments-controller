@@ -17,6 +17,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// BuildTriggerDomain handles Build CRs.
+// This represents a FACT INGESTION boundary.
 type BuildTriggerDomain struct {
 	mediator *buildtrigger.Mediator
 	service  *application.BuildTriggerService
@@ -35,6 +37,7 @@ func New(mediator *buildtrigger.Mediator, service *application.BuildTriggerServi
 	}
 }
 
+// GVK tells the engine which CRD this domain handles.
 func (d *BuildTriggerDomain) GVK() schema.GroupVersionKind {
 	return environmentsv1alpha1.GroupVersion.WithKind("BuildTrigger")
 }

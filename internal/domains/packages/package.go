@@ -19,7 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// PackageDomain implements authoritative domain logic for Package CRs.
+// PackageDomain handles Build CRs.
+// This represents a FACT INGESTION boundary.
 type PackageDomain struct {
 	packageMediator *pkgMediator.Mediator
 	packageService  *pkgApplication.PackageService
@@ -39,6 +40,7 @@ func New(packageMediator *pkgMediator.Mediator, packageService *pkgApplication.P
 	}
 }
 
+// GVK tells the engine which CRD this domain handles.
 func (d *PackageDomain) GVK() schema.GroupVersionKind {
 	return environmentv1.GroupVersion.WithKind("Package")
 }
@@ -83,37 +85,53 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 
 		log.Error(err, "package prerequisites failed")
 		d.events.FromError(packageCR, "PackagePrerequisitesFailed", err)
-		core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionFalse, "PrerequisitesFailed", err.Error())
+		core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionFalse, "PackagePrerequisitesFailed", err.Error())
 
 		return err
 	}
 
-	core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionTrue, "PrerequisitesReady", "All package prerequisites created successfully")
+	log.Info("package prerequisites ensured")
+	d.events.Normal(packageCR, "PackagePrerequisitesReady", "All package prerequisites created successfully")
+	core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionTrue, "PackagePrerequisitesReady", "All package prerequisites created successfully")
 
-	// ------------------------------------------------
+	//------------------------------------------------------------------
 	// 3. Build execution intent (INTENT ONLY)
-	// ------------------------------------------------
+	//------------------------------------------------------------------
+
+	log.Info("build package intent execution")
+
 	intent, err := pkgIntent.BuildPackageIntent(resolved)
+
 	if err != nil {
-		d.events.FromError(packageCR, "PackageIntentBuildFailed", err)
-		core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionFalse, "IntentBuildFailed", err.Error())
+
+		log.Error(err, "package intent build execution failed")
+		d.events.FromError(packageCR, "PackageIntentBuildExecutionFailed", err)
+		core.SetCondition(&packageCR.Status.Conditions, "PackageIntentBuilt", core.ConditionFalse, "PackageIntentBuildFailed", err.Error())
 
 		return err
 	}
 
-	// ------------------------------------------------
+	log.Info("package intent execution completed")
+	d.events.Normal(packageCR, "PackageIntentBuildComplete", "Package intent built successfully")
+	core.SetCondition(&packageCR.Status.Conditions, "PackageIntentBuilt", core.ConditionTrue, "PackageBuildIntentReady", "Package intent build execution completed successfully")
+
+	// ----------------------------------------------------------------
 	// 4. Trigger execution (authoritative service)
-	// ------------------------------------------------
+	// ----------------------------------------------------------------
+	log.Info("triggering package execution")
+
 	if err := d.packageService.Reconcile(ctx, resolved, intent); err != nil {
+
+		log.Error(err, "package triggering failed")
 		d.events.FromError(packageCR, "PackageTriggerFailed", err)
 		core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
 
 		return err
 	}
 
-	// ------------------------------------------------
+	//-----------------------------------------------------------------
 	// 5. Execution requested (NOT completed)
-	// ------------------------------------------------
+	//-----------------------------------------------------------------
 	core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionTrue, "ExecutionRequested", "Package execution has been requested")
 
 	return nil

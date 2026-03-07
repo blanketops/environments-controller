@@ -28,8 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// DeployDomain represents the domain logic for Deployment CRDs.
-// It is invoked through the core.Engine and adheres to the Domain interface.
+// DeploymentDomain handles Build CRs.
+// This represents a FACT INGESTION boundary.
 type DeployDomain struct {
 	deployMediator *deploymediator.Mediator
 	deployService  *deployapp.DeploymentService // optional, nil-safe
