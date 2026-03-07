@@ -61,35 +61,15 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error 
 	if err != nil {
 
 		log.Error(err, "serviceunit resolution failed")
-
 		d.events.FromError(su, "ServiceUnitResolveFailed", err)
-
-		core.SetCondition(
-			&su.Status.Conditions,
-			"ServiceUnitResolved",
-			core.ConditionFalse,
-			"InvalidSpec",
-			err.Error(),
-		)
+		core.SetCondition(&su.Status.Conditions, "ServiceUnitResolved", core.ConditionFalse, "InvalidSpec", err.Error())
 
 		return err
 	}
 
 	log.Info("serviceunit resolved successfully")
-
-	d.events.Normal(
-		su,
-		"ServiceUnitResolved",
-		"ServiceUnit specification resolved successfully",
-	)
-
-	core.SetCondition(
-		&su.Status.Conditions,
-		"ServiceUnitResolved",
-		core.ConditionTrue,
-		"Resolved",
-		"ServiceUnit specification resolved successfully",
-	)
+	d.events.Normal(su, "ServiceUnitResolved", "ServiceUnit specification resolved successfully")
+	core.SetCondition(&su.Status.Conditions, "ServiceUnitResolved", core.ConditionTrue, "Resolved", "ServiceUnit specification resolved successfully")
 
 	//------------------------------------------------
 	// Stage 2: Ensure prerequisites
@@ -100,35 +80,15 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error 
 	if err := d.serviceUnitMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 
 		log.Error(err, "serviceunit prerequisites failed")
-
 		d.events.FromError(su, "ServiceUnitPrerequisitesFailed", err)
-
-		core.SetCondition(
-			&su.Status.Conditions,
-			"ServiceUnitPrerequisitesReady",
-			core.ConditionFalse,
-			"PrerequisitesFailed",
-			err.Error(),
-		)
+		core.SetCondition(&su.Status.Conditions, "ServiceUnitPrerequisitesReady", core.ConditionFalse, "PrerequisitesFailed", err.Error())
 
 		return err
 	}
 
 	log.Info("serviceunit prerequisites ensured")
-
-	d.events.Normal(
-		su,
-		"ServiceUnitPrerequisitesReady",
-		"All ServiceUnit prerequisites created successfully",
-	)
-
-	core.SetCondition(
-		&su.Status.Conditions,
-		"ServiceUnitPrerequisitesReady",
-		core.ConditionTrue,
-		"PrerequisitesReady",
-		"All prerequisites created successfully",
-	)
+	d.events.Normal(su, "ServiceUnitPrerequisitesReady", "All ServiceUnit prerequisites created successfully")
+	core.SetCondition(&su.Status.Conditions, "ServiceUnitPrerequisitesReady", core.ConditionTrue, "PrerequisitesReady", "All prerequisites created successfully")
 
 	//------------------------------------------------
 	// Stage 3: Execute intent
@@ -155,19 +115,9 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error 
 
 	log.Info("serviceunit reconciliation complete")
 
-	d.events.Normal(
-		su,
-		"ServiceUnitReady",
-		"ServiceUnit successfully reconciled",
-	)
+	d.events.Normal(su, "ServiceUnitReady", "ServiceUnit successfully reconciled")
 
-	core.SetCondition(
-		&su.Status.Conditions,
-		"ServiceUnitReady",
-		core.ConditionTrue,
-		"Ready",
-		"ServiceUnit successfully reconciled",
-	)
+	core.SetCondition(&su.Status.Conditions, "ServiceUnitReady", core.ConditionTrue, "Ready", "ServiceUnit successfully reconciled")
 
 	log.Info("serviceunit domain handling complete")
 
