@@ -93,13 +93,28 @@ func (d *GitRepositoryDomain) Handle(
 	d.events.Normal(gitrepositoryCR, "GitRepositoryPrerequisitesReady", "all build prerequisites created successfully")
 	core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryPrerequisitesReady", core.ConditionTrue, "GitRepositoryPrerequisitesReady", "All build prerequisites satisfied")
 
-	// ------------------------------------------------
+	// ---------------------------------------------------------
 	// 3. Reconcile declarative intent (service)
-	// ------------------------------------------------
+	// ---------------------------------------------------------
+	log.Info("triggering gitrepository execution")
+
 	if err := d.Service.Reconcile(ctx, resolved); err != nil {
+
+		log.Error(err, "gitrepository triggering failed")
 		d.events.FromError(gitrepositoryCR, "GitRepositoryReconcileFailed", err)
+		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
+
 		return err
 	}
+
+	// ------------------------------------------------
+	// 4. GitRepository Execution completed
+	// ------------------------------------------------
+
+	log.Info("gitrepository execution requested")
+	d.events.Normal(gitrepositoryCR, "GitRepositoryTriggered", "GitRepository execution has started")
+	core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryTriggered", core.ConditionTrue, "ExecutionStarted", "GitRepository execution has started")
+	log.Info("gitrepository domain handling complete")
 
 	return nil
 }
