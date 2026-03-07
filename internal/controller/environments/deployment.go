@@ -166,9 +166,12 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Registry = core.NewRegistry()
 	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
 
+	// ---------------------------------------------------------------------
+	// Controller registration
+	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
-		Named("deployment").
+		For(&deploymentv1alpha1.Deployment{}).
+		Named("environments-deployment").
+		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }

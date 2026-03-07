@@ -161,9 +161,12 @@ func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Registry = core.NewRegistry()
 	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
 
+	// ---------------------------------------------------------------------
+	// Controller registration
+	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
+		For(&sourcesv1alpha1.GitRepository{}).
 		Named("sources-gitrepository").
+		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }

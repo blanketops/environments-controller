@@ -21,6 +21,8 @@ import (
 
 	"github.com/go-logr/logr"
 	buildv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
+
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/build"
 	buildclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
@@ -33,6 +35,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 )
 
 // BuildReconciler reconciles a Build object
@@ -170,9 +173,20 @@ func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Registry = core.NewRegistry()
 	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
 
+	// ---------------------------------------------------------------------
+	// Controller registration
+	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
-		Named("build").
+		For(&buildv1alpha1.Build{}).
+		Watches(
+			&shipwrightv1alpha1.BuildRun{},
+			handler.EnqueueRequestForOwner(
+				mgr.GetScheme(),
+				mgr.GetRESTMapper(),
+				&shipwrightv1alpha1.BuildRun{},
+			),
+		).
+		WithEventFilter(core.MeaningfulChangePredicate()).
+		Named("environments-build").
 		Complete(r)
 }

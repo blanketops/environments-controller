@@ -163,8 +163,12 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Registry = core.NewRegistry()
 	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
 
+	// ---------------------------------------------------------------------
+	// Controller registration
+	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		//For(&eventsv1alpha1.GitHubEvent{}).
+		For(&eventsv1alpha1.GitHubEvent{}).
 		Named("events-githubevent").
+		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }

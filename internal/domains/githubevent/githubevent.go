@@ -46,24 +46,28 @@ func (d *GitHubEventDomain) GVK() schema.GroupVersionKind {
 func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command,
 ) error {
 
-	githubeventCR, ok := cmd.Obj.(*eventsv1alpha1.GitHubEvent)
-	if !ok || githubeventCR == nil {
+	eventCR, ok := cmd.Obj.(*eventsv1alpha1.GitHubEvent)
+	if !ok || eventCR == nil {
 		return fmt.Errorf("invalid object passed to GitHubEventDomain: %T", cmd.Obj)
 	}
 
-	log := d.log.WithValues("domain", "githubevent", "name", githubeventCR.Name, "namespace", githubeventCR.Namespace)
-	log.Info("handling githubevent command", "type", cmd.Type)
+	d.log.Info(
+		"Handling GitHubEventDomain command",
+		"type", cmd.Type,
+		"name", eventCR.Name,
+	)
 
 	// ------------------------------------------------
 	// 1. Resolve GitHubEvent contract ONCE
 	// ------------------------------------------------
-	resolved, err := githubeventResolution.ResolveGitHubEvent(githubeventCR)
+	resolved, err := githubeventResolution.ResolveGitHubEvent(eventCR)
 	if err != nil {
-
-		log.Error(err, "githubevent resolution failed")
-		d.events.FromError(githubeventCR, "GitHubEventResolveFailed", err)
-		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventResolved", core.ConditionFalse, "InvalidSpec", err.Error())
-
+		d.events.FromError(
+			eventCR,
+			"GitHubEventResolveFailed", // reason
+			"GitHubEvent",              // action
+			err,
+		)
 		return err
 	}
 
@@ -75,10 +79,13 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command,
 	// 2. Ensure prerequisites (secrets, webhooks, etc.)
 	// ------------------------------------------------
 	if err := d.Mediator.EnsurePrerequisites(ctx, resolved); err != nil {
+		d.events.FromError(
+			eventCR,
+			"GitHubEventPrerequisitesFailed", // reason
+			"GitHubEvent",                    // action
+			err,
+		)
 
-		d.events.FromError(githubeventCR, "GitHubEventPrerequisitesFailed", err)
-
-		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventPrerequisitesReady", core.ConditionFalse, "GitHubEventPrerequisitesFailed", err.Error())
 		return err
 	}
 
@@ -89,10 +96,12 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command,
 	// ------------------------------------------------
 
 	if err := d.Service.Reconcile(ctx, resolved); err != nil {
-
-		d.events.FromError(githubeventCR, "GitHubEventRejected", err)
-		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventOrganized", core.ConditionFalse, "GitHubEventRejected", err.Error())
-
+		d.events.FromError(
+			eventCR,
+			"GitHubEventRejected", // reason
+			"GitHubEvent",         // action
+			err,
+		)
 		return err
 	}
 
