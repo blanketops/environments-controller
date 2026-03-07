@@ -28,6 +28,7 @@ type BuildDomain struct {
 	log           logr.Logger
 }
 
+// New constructs a new BuildDomain instance.
 func New(buildMediator *build.Mediator, buildService *application.BuildService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *BuildDomain {
 	return &BuildDomain{
 		buildMediator: buildMediator,
@@ -43,6 +44,7 @@ func (d *BuildDomain) GVK() schema.GroupVersionKind {
 	return buildv1alpha1.GroupVersion.WithKind("Build")
 }
 
+// Handle executes core.Command operations routed by the Engine.
 func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 
 	buildCR, ok := cmd.Obj.(*buildv1alpha1.Build)

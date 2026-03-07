@@ -45,6 +45,7 @@ func (d *PackageDomain) GVK() schema.GroupVersionKind {
 	return environmentv1.GroupVersion.WithKind("Package")
 }
 
+// Handle executes core.Command operations routed by the Engine.
 func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 
 	packageCR, ok := cmd.Obj.(*environmentv1.Package)

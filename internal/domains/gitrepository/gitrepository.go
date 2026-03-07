@@ -42,11 +42,8 @@ func (d *GitRepositoryDomain) GVK() schema.GroupVersionKind {
 	return sourcesv1alpha1.GroupVersion.WithKind("GitRepository")
 }
 
-// Handle processes Create / Update / Delete commands.
-func (d *GitRepositoryDomain) Handle(
-	ctx context.Context,
-	cmd core.Command,
-) error {
+// Handle executes core.Command operations routed by the Engine.
+func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd core.Command) error {
 
 	gitrepositoryCR, ok := cmd.Obj.(*sourcesv1alpha1.GitRepository)
 	if !ok || gitrepositoryCR == nil {

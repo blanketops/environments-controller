@@ -29,6 +29,7 @@ type GitHubEventDomain struct {
 	log      logr.Logger
 }
 
+// New constructs a new GitHubEventDomain instance.
 func New(service *application.GitHubEventService, mediator *githubeventMediator.Mediator, events *core.EventRecorder, cache *core.Cache, log logr.Logger) *GitHubEventDomain {
 	return &GitHubEventDomain{
 		Service:  service,
@@ -44,6 +45,7 @@ func (d *GitHubEventDomain) GVK() schema.GroupVersionKind {
 	return eventsv1alpha1.GroupVersion.WithKind("GitHubEvent")
 }
 
+// Handle executes core.Command operations routed by the Engine.
 func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error {
 
 	githubeventCR, ok := cmd.Obj.(*eventsv1alpha1.GitHubEvent)

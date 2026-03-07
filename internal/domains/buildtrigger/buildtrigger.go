@@ -27,6 +27,7 @@ type BuildTriggerDomain struct {
 	log      logr.Logger
 }
 
+// New constructs a new BuildTriggerDomain instance.
 func New(mediator *buildtrigger.Mediator, service *application.BuildTriggerService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *BuildTriggerDomain {
 	return &BuildTriggerDomain{
 		mediator: mediator,
@@ -42,6 +43,7 @@ func (d *BuildTriggerDomain) GVK() schema.GroupVersionKind {
 	return environmentsv1alpha1.GroupVersion.WithKind("BuildTrigger")
 }
 
+// Handle executes core.Command operations routed by the Engine.
 func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error {
 
 	buildtriggerCR, ok := cmd.Obj.(*environmentsv1alpha1.BuildTrigger)
