@@ -159,7 +159,7 @@ func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Cache = core.NewCache(mgr, nil)
 	r.Events = core.NewEventRecorder(r.Recorder)
 	r.Registry = core.NewRegistry()
-	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine-gitrepository"))
 
 	// ---------------------------------------------------------------------
 	// Controller registration
