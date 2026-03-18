@@ -8,7 +8,7 @@ require (
 	github.com/fluxcd/source-controller/api v1.8.0
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
-	github.com/ntlaletsi70/blanketops-environments v0.1.4
+	github.com/ntlaletsi70/blanketops-environments v0.1.6
 	github.com/ntlaletsi70/blanketops-environments-api v0.0.8
 	github.com/ntlaletsi70/blanketops-environments-mvp v0.0.0-20260307105812-5cabde98ce84
 	github.com/shipwright-io/build v0.18.4

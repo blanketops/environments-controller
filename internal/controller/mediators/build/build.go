@@ -19,7 +19,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -27,14 +27,14 @@ type Mediator struct {
 	Client   client.Client
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 
 	BuildGitSSHSecretReconciler      *git.BuildGitSSHSecretReconciler
 	RegistryExternalSecretReconciler *registry.BuildRegistryExternalSecretReconciler
 	ServiceAccountReconciler         *serviceaccounts.ServiceAccountReconciler
 }
 
-func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, Recorder record.EventRecorder) *Mediator {
+func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, Recorder events.EventRecorder) *Mediator {
 	return &Mediator{
 		Client:                           c,
 		Scheme:                           scheme,
