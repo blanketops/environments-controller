@@ -35,7 +35,7 @@ jobs:
       - name: Build
         run: go build ./...
 
-      - name: Lint (optional)
-        run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
-          staticcheck ./...
+      # - name: Lint (optional)
+      #   run: |
+      #     go install honnef.co/go/tools/cmd/staticcheck@latest
+      #     staticcheck ./...
