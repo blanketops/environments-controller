@@ -26,7 +26,7 @@ func (r *Reconciler) Reconcile(
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorderFor("buildtrigger-controller")
+	r.Recorder = mgr.GetEventRecorder("buildtrigger-controller")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&buildtriggerv1.BuildTrigger{}).
 		Complete(r)

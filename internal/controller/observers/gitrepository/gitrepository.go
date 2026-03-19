@@ -126,7 +126,7 @@ func extractReady(obj unstructured.Unstructured) (bool, string) {
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorderFor("sources-gitrepository")
+	r.Recorder = mgr.GetEventRecorder("sources-gitrepository")
 	r.Status = application.NewStatusWriter()
 
 	return ctrl.NewControllerManagedBy(mgr).

@@ -70,7 +70,7 @@ func (r *Reconciler) Reconcile(
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorderFor("githubevent-observer")
+	r.Recorder = mgr.GetEventRecorder("githubevent-observer")
 
 	// IMPORTANT: watch the external resource, not GitHubEvent
 	return ctrl.NewControllerManagedBy(mgr).

@@ -160,7 +160,7 @@ func (r *Reconciler) Reconcile(
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorderFor("deployment-observer")
+	r.Recorder = mgr.GetEventRecorder("deployment-observer")
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fluxkustomize.Kustomization{}).
