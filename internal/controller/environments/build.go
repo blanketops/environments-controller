@@ -21,28 +21,24 @@ import (
 
 	"github.com/go-logr/logr"
 	buildv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
-	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
-
-	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
-
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/build"
-	builddomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/build"
+	"github.com/ntlaletsi70/blanketops-environments/core"
 	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/build/api"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
-
+	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	buildclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/ntlaletsi70/blanketops-environments/core"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+
+	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/build"
+	builddomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/build"
+	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
 // BuildReconciler reconciles a Build object
@@ -92,9 +88,9 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	log.Info("build fetched", "generation", build.Generation, "resourceVersion", build.ResourceVersion)
 
-	// ------------------------------------------------
+	//-------------------------------------------------
 	// Construct core command
-	// ------------------------------------------------
+	//-------------------------------------------------
 	cmd := core.Command{
 		GVK:  buildv1alpha1.GroupVersion.WithKind("Build"),
 		Type: core.CmdUpdate,
@@ -140,11 +136,10 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	return ctrl.Result{}, nil
 }
 
-// ----------------------------------------------------------------
+// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
-// ----------------------------------------------------------------
+// -----------------------------------------------------------------
 func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
 	//---------------------------------------------------------------------
 	// Logging & events
 	//---------------------------------------------------------------------
@@ -157,6 +152,7 @@ func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	cache := r.Runtime.Cache
 	events := r.Runtime.Events
 	registry := r.Runtime.Registry
+
 	//---------------------------------------------------------------------
 	// Mediator (prerequisites only)
 	//---------------------------------------------------------------------
