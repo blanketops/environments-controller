@@ -28,6 +28,8 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
 // PackageReconciler reconciles a Package object
@@ -35,11 +37,8 @@ type PackageReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
+	Runtime  *runtimeinfra.Runtime
 	Recorder events.EventRecorder
-	Cache    *core.Cache
-	Events   *core.EventRecorder
-	Registry *core.Registry
-	Engine   *core.Engine
 }
 
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=packages,verbs=get;list;watch;create;update;patch;delete
@@ -57,12 +56,7 @@ type PackageReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
-	log := r.Log.WithValues(
-		"controller", "package",
-		"namespace", req.Namespace,
-		"name", req.Name,
-	)
-
+	log := r.Log.WithValues("controller", "package", "namespace", req.Namespace, "name", req.Name)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -79,11 +73,7 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	log.Info(
-		"package fetched",
-		"generation", packages.Generation,
-		"resourceVersion", packages.ResourceVersion,
-	)
+	log.Info("package fetched", "generation", packages.Generation, "resourceVersion", packages.ResourceVersion)
 
 	// ------------------------------------------------
 	// Construct core command
@@ -94,29 +84,17 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		Obj:  &packages,
 	}
 
-	log.Info(
-		"routing package to core engine",
-		"gvk", cmd.GVK.String(),
-		"command", cmd.Type,
-	)
+	log.Info("routing package to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
 	// ------------------------------------------------
 	// Execute domain logic via engine
 	// ------------------------------------------------
-	if err := r.Engine.Execute(ctx, cmd); err != nil {
+	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
+
 		log.Error(err, "engine execution failed")
-
-		r.Recorder.Eventf(
-			&packages, // regarding
-			nil,       // related (none)
-			corev1.EventTypeWarning,
-			"EngineFailure", // reason
-			"Execute",       // action (short verb)
-			"%v",            // note (format)
-			err,             // args
-		)
-
+		r.Recorder.Eventf(&packages, nil, corev1.EventTypeWarning, "EngineFailure", "%v", err)
 		log.Info("reconcile exit: engine error")
+
 		return ctrl.Result{}, err
 	}
 
@@ -133,6 +111,7 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		latest.Status = packages.Status
 		return r.Status().Update(ctx, &latest)
+
 	}); err != nil {
 		log.Error(err, "failed to update package status")
 		return ctrl.Result{}, err
@@ -144,9 +123,10 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
+// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
+// -----------------------------------------------------------------
 func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
 	//---------------------------------------------------------------------
 	// Logging & events
 	//---------------------------------------------------------------------
@@ -154,12 +134,39 @@ func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = mgr.GetEventRecorder("package-controller")
 
 	//---------------------------------------------------------------------
-	// Core infrastructure
+	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	r.Cache = core.NewCache(mgr, nil)
-	r.Events = core.NewEventRecorder(r.Recorder)
-	r.Registry = core.NewRegistry()
-	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine-package"))
+	cache := r.Runtime.Cache
+	events := r.Runtime.Events
+	registry := r.Runtime.Registry
+
+	// ---------------------------------------------------------------------
+	// Mediator (prerequisites only)
+	// ---------------------------------------------------------------------
+	r.PackageMediator = pkgMediator.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.package"), r.Recorder)
+
+	// ---------------------------------------------------------------------
+	// Providers (kapp)
+	// ---------------------------------------------------------------------
+	kappProvider := pkgProvider.NewApplicationProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.kapp"), r.Recorder)
+
+	//---------------------------------------------------------------------
+	// BackendSelector (Backend selector maps strategy -> provider)
+	//---------------------------------------------------------------------
+	backendSelector := application.NewBackendSelector(kappProvider)
+
+	//-----------------------------------------------------------------------------------------
+	// Package Service (Mapper and StatiusWriter, domain service for orchestration))
+	//------------------------------------------------------------------------------------------
+	mapper := pkgAapp.NewMapper()
+	statusWriter := pkgAapp.NewStatusWriter(r.Client, r.Log.WithName("package-status-writer"))
+	packageService := application.NewPackageService(mapper, backendSelector, statusWriter)
+
+	//--------------------------------------------------------------------------------
+	// Registry ( Domain Registration, domain orchestrates mediator + service)
+	//--------------------------------------------------------------------------------
+	pkgDomain := pkgDomain.New(r.PackageMediator, packageService, r.Cache, r.Events, r.Log.WithName("domain.package"))
+	r.Registry.RegisterDomain(packagev1alpha1.GroupVersion.WithKind("Package"), pkgDomain)
 
 	// ---------------------------------------------------------------------
 	// Controller registration
