@@ -1,3 +1,18 @@
+/*
+Copyright 2026 The BlanketOps Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package sources
 
 import (
@@ -16,7 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// GitRepositoryDomain handles GitRepository CRs.
+// GitRepositoryDomain handles Build CRs.
+// This represents a FACT INGESTION boundary.
 type GitRepositoryDomain struct {
 	Mediator *gitrepository.Mediator
 	Service  *application.GitRepositoryService
@@ -25,14 +41,8 @@ type GitRepositoryDomain struct {
 	log      logr.Logger
 }
 
-// New constructs a new GitRepositoryDomain.
-func New(
-	mediator *gitrepository.Mediator,
-	service *application.GitRepositoryService,
-	cache *core.Cache,
-	events *core.EventRecorder,
-	log logr.Logger,
-) *GitRepositoryDomain {
+// New constructs a new GitRepositoryDomain instance.
+func New(mediator *gitrepository.Mediator, service *application.GitRepositoryService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *GitRepositoryDomain {
 	return &GitRepositoryDomain{
 		Mediator: mediator,
 		Service:  service,
@@ -47,63 +57,77 @@ func (d *GitRepositoryDomain) GVK() schema.GroupVersionKind {
 	return sourcesv1alpha1.GroupVersion.WithKind("GitRepository")
 }
 
-// Handle processes Create / Update / Delete commands.
-func (d *GitRepositoryDomain) Handle(
-	ctx context.Context,
-	cmd core.Command,
-) error {
+// Handle executes core.Command operations routed by the Engine.
+func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd core.Command) error {
 
-	repo, ok := cmd.Obj.(*sourcesv1alpha1.GitRepository)
-	if !ok || repo == nil {
+	gitrepositoryCR, ok := cmd.Obj.(*sourcesv1alpha1.GitRepository)
+	if !ok || gitrepositoryCR == nil {
 		return fmt.Errorf("invalid object passed to GitRepositoryDomain: %T", cmd.Obj)
 	}
 
-	d.log.Info(
-		"Handling GitRepositoryDomain Command",
-		"type", cmd.Type,
-		"name", repo.Name,
-	)
+	log := d.log.WithValues("domain", "gitrepository", "name", gitrepositoryCR.Name, "namespace", gitrepositoryCR.Namespace)
+	log.Info("handling gitrepository command", "type", cmd.Type)
 
-	// ------------------------------------------------
+	// --------------------------------------------------------------
 	// 1. Resolve GitRepository ONCE (domain-owned)
-	// ------------------------------------------------
-	resolved, err := gitrepoResolution.ResolveGitRepository(repo)
-	if err != nil {
-		d.events.FromError(repo, "GitRepositoryResolveFailed", err)
+	// --------------------------------------------------------------
 
-		core.SetCondition(
-			&repo.Status.Conditions,
-			"GitRepositoryResolved",
-			core.ConditionFalse,
-			"InvalidSpec",
-			err.Error(),
-		)
+	log.Info("resolving gitrepository contract")
+	resolved, err := gitrepoResolution.ResolveGitRepository(gitrepositoryCR)
+
+	if err != nil {
+
+		log.Error(err, "gitrepository resolution failed")
+		d.events.FromError(gitrepositoryCR, "GitRepositoryResolveFailed", err)
+		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryResolved", core.ConditionFalse, "InvalidSpec", err.Error())
+
 		return err
 	}
 
-	core.SetCondition(
-		&repo.Status.Conditions,
-		"GitRepositoryResolved",
-		core.ConditionTrue,
-		"Resolved",
-		"GitRepository specification resolved successfully",
-	)
+	log.Info("gitrepository resolved successfully")
+	d.events.Normal(gitrepositoryCR, "GitRepositoryResolved", "GitRepository specification resolved successfully")
+	core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryResolved", core.ConditionTrue, "Resolved", "GitRepository specification resolved successfully")
 
 	// ------------------------------------------------
 	// 2. Ensure prerequisites (secrets, etc.)
 	// ------------------------------------------------
+	log.Info("ensuring gitrepository prerequisites")
+
 	if err := d.Mediator.EnsurePrerequisites(ctx, resolved); err != nil {
-		d.events.FromError(repo, "GitRepositoryPrerequisitesFailed", err)
+
+		log.Error(err, "gitrepository prerequisites failed")
+		d.events.FromError(gitrepositoryCR, "GitRepositoryPrerequisitesFailed", err)
+		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryPrerequisitesReady", core.ConditionFalse, "GitRepositoryPrerequisitesFailed", err.Error())
+
+		return err
+	}
+
+	log.Info("gitrepository prerequisites ensured")
+	d.events.Normal(gitrepositoryCR, "GitRepositoryPrerequisitesReady", "all build prerequisites created successfully")
+	core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryPrerequisitesReady", core.ConditionTrue, "GitRepositoryPrerequisitesReady", "All build prerequisites satisfied")
+
+	// ---------------------------------------------------------
+	// 3. Reconcile declarative intent (service)
+	// ---------------------------------------------------------
+	log.Info("triggering gitrepository execution")
+
+	if err := d.Service.Reconcile(ctx, resolved); err != nil {
+
+		log.Error(err, "gitrepository triggering failed")
+		d.events.FromError(gitrepositoryCR, "GitRepositoryReconcileFailed", err)
+		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
+
 		return err
 	}
 
 	// ------------------------------------------------
-	// 3. Reconcile declarative intent (service)
+	// 4. GitRepository Execution completed
 	// ------------------------------------------------
-	if err := d.Service.Reconcile(ctx, resolved); err != nil {
-		d.events.FromError(repo, "GitRepositoryReconcileFailed", err)
-		return err
-	}
+
+	log.Info("gitrepository execution requested")
+	d.events.Normal(gitrepositoryCR, "GitRepositoryTriggered", "GitRepository execution has started")
+	core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryTriggered", core.ConditionTrue, "ExecutionStarted", "GitRepository execution has started")
+	log.Info("gitrepository domain handling complete")
 
 	return nil
 }

@@ -1,4 +1,19 @@
 /*
+Copyright 2026 The BlanketOps Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
 Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,20 +31,19 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	"github.com/ntlaletsi70/blanketops-environments-mvp/core"
+	deployapp "github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
 	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
 	"github.com/ntlaletsi70/blanketops-environments/resolution/serviceunit"
-
-	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	deploymediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/deployment"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	deployapp "github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
-
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	deploymediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/deployment"
 )
 
-// DeployDomain represents the domain logic for Deployment CRDs.
-// It is invoked through the core.Engine and adheres to the Domain interface.
+// DeploymentDomain handles Build CRs.
+// This represents a FACT INGESTION boundary.
 type DeployDomain struct {
 	deployMediator *deploymediator.Mediator
 	deployService  *deployapp.DeploymentService // optional, nil-safe
@@ -40,13 +54,7 @@ type DeployDomain struct {
 }
 
 // New constructs a new DeployDomain instance.
-func New(
-	deployMediator *deploymediator.Mediator,
-	deployService *deployapp.DeploymentService, // may be nil
-	cache *core.Cache,
-	events *core.EventRecorder,
-	log logr.Logger,
-) *DeployDomain {
+func New(deployMediator *deploymediator.Mediator, deployService *deployapp.DeploymentService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *DeployDomain {
 	return &DeployDomain{
 		deployMediator: deployMediator,
 		deployService:  deployService,
@@ -63,72 +71,99 @@ func (d *DeployDomain) GVK() schema.GroupVersionKind {
 
 // Handle executes core.Command operations routed by the Engine.
 func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
+
 	deployCR, ok := cmd.Obj.(*environmentv1.Deployment)
 	if !ok || deployCR == nil {
-		return fmt.Errorf("invalid object for Deployment domain: %T", cmd.Obj)
+		return fmt.Errorf("invalid object passed to DeploymentDomain: %T", cmd.Obj)
 	}
 
-	d.log.Info(
-		"Handling Deployment command",
-		"type", cmd.Type,
-		"name", deployCR.Name,
-	)
+	log := d.log.WithValues("domain", "deployment", "name", deployCR.Name, "namespace", deployCR.Namespace)
+	d.log.Info("handling deployment command", "type", cmd.Type)
 
 	switch cmd.Type {
-
 	case core.CmdCreate, core.CmdUpdate:
 
-		// ------------------------------------------------
-		// 1. RESOLVE (AUTHORITATIVE, ONCE)
-		// ------------------------------------------------
+		//------------------------------------------------
+		// Stage 1: Resolve deployment contract
+		//------------------------------------------------
+
+		log.Info("resolving deployment contract")
 		resolved, err := deploymentResolution.ResolveDeployment(deployCR)
+
 		if err != nil {
+
+			log.Error(err, "deployment resolution failed")
 			d.events.FromError(deployCR, "DeploymentResolutionFailed", err)
+			core.SetCondition(&deployCR.Status.Conditions, "DeploymentResolved", core.ConditionFalse, "InvalidSpec", err.Error())
+
 			return err
 		}
 
-		// ------------------------------------------------
-		// 2. ENSURE PREREQUISITES (INFRA ONLY)
-		// ------------------------------------------------
+		log.Info("deployment resolved successfully")
+		d.events.Normal(deployCR, "DeploymentResolved", "Deployment specification resolved successfully")
+		core.SetCondition(&deployCR.Status.Conditions, "DeploymentResolved", core.ConditionTrue, "Resolved", "Deployment specification resolved successfully")
+
+		//------------------------------------------------
+		// Stage 2: Ensure prerequisites
+		//------------------------------------------------
+
+		log.Info("ensuring deployment prerequisites")
+
 		if err := d.deployMediator.EnsurePrerequisites(ctx, resolved); err != nil {
+
+			log.Error(err, "deployment prerequisites failed")
 			d.events.FromError(deployCR, "DeploymentPrerequisitesFailed", err)
+			core.SetCondition(&deployCR.Status.Conditions, "DeploymentPrerequisitesReady", core.ConditionFalse, "DeploymentPrerequisitesFailed", err.Error())
+
 			return err
 		}
+
+		log.Info("deployment prerequisites ensured")
+		d.events.Normal(deployCR, "DeploymentPrerequisitesReady", "All deployment prerequisites created successfully")
+		core.SetCondition(&deployCR.Status.Conditions, "DeploymentPrerequisitesReady", core.ConditionTrue, "DeploymentPrerequisitesReady", "All deployment prerequisites satisfied")
 
 		// ------------------------------------------------
 		// 3. RESOLVE SERVICE UNITS (AUTHORITATIVE)
 		// ------------------------------------------------
+
+		log.Info("triggering resolve serviceunits")
 		serviceUnits, err := d.resolveServiceUnits(ctx, resolved)
+
 		if err != nil {
+
+			log.Error(err, "resolve serviceunits failed")
 			d.events.FromError(deployCR, "ServiceUnitResolutionFailed", err)
+			core.SetCondition(&deployCR.Status.Conditions, "ServiceUnitResolved", core.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
+
 			return err
 		}
+
+		log.Info("serviceunit resolved successfully")
+		d.events.Normal(deployCR, "ServiceUnitResolved", "ServiceUnit specification resolved successfully")
+		core.SetCondition(&deployCR.Status.Conditions, "ServiceUnitResolved", core.ConditionTrue, "Resolved", "ServiceUnit specification resolved successfully")
 
 		// ------------------------------------------------
 		// 4. EXECUTE DEPLOYMENT (OPTIONAL)
 		// ------------------------------------------------
+		log.Info("triggering deployment of serviceunit(s)")
+
 		if d.deployService != nil {
-			if err := d.deployService.Reconcile(
-				ctx,
-				resolved,
-				serviceUnits); err != nil {
+			if err := d.deployService.Reconcile(ctx, resolved, serviceUnits); err != nil {
+
+				log.Error(err, "deployment of serviceunits failed")
 				d.events.FromError(deployCR, "DeploymentFailed", err)
+				core.SetCondition(&deployCR.Status.Conditions, "DeploymentFailed", core.ConditionFalse, "DeploymentFailed", err.Error())
+
 				return err
 			}
 		}
 
-		d.events.Info(
-			deployCR,
-			"DeploymentSucceeded",
-			"Deployment reconciliation completed successfully",
-		)
+		log.Info("serviceunit resolved successfully")
+		d.events.Info(deployCR, "DeploymentSucceeded", "Reconcile", "deployment reconciliation completed successfully")
+		core.SetCondition(&deployCR.Status.Conditions, "DeploymentSucceeded", core.ConditionTrue, "DeploymentSucceeded", "Deployment trigger completed successfully")
 
 	case core.CmdDelete:
-		d.events.Info(
-			deployCR,
-			"DeploymentDeleted",
-			"Deployment cleanup not implemented yet",
-		)
+		d.events.Info(deployCR, "DeploymentDeleted", "deployment cleanup not implemented yet")
 	}
 
 	return nil

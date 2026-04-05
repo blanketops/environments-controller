@@ -28,6 +28,8 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
 // BuildTriggerReconciler reconciles a BuildTrigger object
@@ -35,11 +37,8 @@ type BuildTriggerReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
+	Runtime  *runtimeinfra.Runtime
 	Recorder events.EventRecorder
-	Cache    *core.Cache
-	Events   *core.EventRecorder
-	Registry *core.Registry
-	Engine   *core.Engine
 }
 
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=buildtriggers,verbs=get;list;watch;create;update;patch;delete
@@ -57,16 +56,11 @@ type BuildTriggerReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *BuildTriggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
-	log := r.Log.WithValues(
-		"controller", "buildtrigger",
-		"namespace", req.Namespace,
-		"name", req.Name,
-	)
-
+	log := r.Log.WithValues("controller", "buildtrigger", "namespace", req.Namespace, "name", req.Name)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
-	// Fetch Build
+	// Fetch BuildTrigger
 	// ------------------------------------------------
 	var buildtrigger buildtriggerv1alpha1.BuildTrigger
 	if err := r.Get(ctx, req.NamespacedName, &buildtrigger); err != nil {
@@ -79,44 +73,28 @@ func (r *BuildTriggerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	log.Info(
-		"buildtrigger fetched",
-		"generation", buildtrigger.Generation,
-		"resourceVersion", buildtrigger.ResourceVersion,
-	)
+	log.Info("buildtrigger fetched", "generation", buildtrigger.Generation, "resourceVersion", buildtrigger.ResourceVersion)
 
-	// ------------------------------------------------
+	//-------------------------------------------------
 	// Construct core command
-	// ------------------------------------------------
+	//-------------------------------------------------
 	cmd := core.Command{
 		GVK:  buildtriggerv1alpha1.GroupVersion.WithKind("BuildTrigger"),
 		Type: core.CmdUpdate,
 		Obj:  &buildtrigger,
 	}
 
-	log.Info(
-		"routing buildtrigger to core engine",
-		"gvk", cmd.GVK.String(),
-		"command", cmd.Type,
-	)
+	log.Info("routing buildtrigger to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
 	// ------------------------------------------------
 	// Execute domain logic via engine
 	// ------------------------------------------------
-	if err := r.Engine.Execute(ctx, cmd); err != nil {
+	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
+
 		log.Error(err, "engine execution failed")
-
-		r.Recorder.Eventf(
-			&buildtrigger, // regarding
-			nil,           // related (none)
-			corev1.EventTypeWarning,
-			"EngineFailure", // reason
-			"Execute",       // action (short verb)
-			"%v",            // note (format)
-			err,             // args
-		)
-
+		r.Recorder.Eventf(&buildtrigger, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
 		log.Info("reconcile exit: engine error")
+
 		return ctrl.Result{}, err
 	}
 
@@ -133,6 +111,7 @@ func (r *BuildTriggerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 		latest.Status = buildtrigger.Status
 		return r.Status().Update(ctx, &latest)
+
 	}); err != nil {
 		log.Error(err, "failed to update buildtrigger status")
 		return ctrl.Result{}, err
@@ -144,9 +123,10 @@ func (r *BuildTriggerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, nil
 }
 
+// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
+// -----------------------------------------------------------------
 func (r *BuildTriggerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
 	//---------------------------------------------------------------------
 	// Logging & events
 	//---------------------------------------------------------------------
@@ -154,16 +134,15 @@ func (r *BuildTriggerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = mgr.GetEventRecorder("buildtriger-controller")
 
 	//---------------------------------------------------------------------
-	// Core infrastructure
+	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	r.Cache = core.NewCache(mgr, nil)
-	r.Events = core.NewEventRecorder(r.Recorder)
-	r.Registry = core.NewRegistry()
-	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+	//cache := r.Runtime.Cache
+	//events := r.Runtime.Events
+	//registry := r.Runtime.Registry
 
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
-		Named("buildtrigger").
+		For(&buildtriggerv1alpha1.BuildTrigger{}).
+		WithEventFilter(core.MeaningfulChangePredicate()).
+		Named("environments-buildtrigger").
 		Complete(r)
 }

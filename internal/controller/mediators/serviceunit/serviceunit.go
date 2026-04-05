@@ -1,7 +1,26 @@
+/*
+Copyright 2026 The BlanketOps Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package serviceunit
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/go-logr/logr"
+	serviceunitResolution "github.com/ntlaletsi70/blanketops-environments/resolution/serviceunit"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,9 +42,30 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger) *Mediator {
 	}
 }
 
-// Reconcile handles the primary reconciliation loop for an Environment.
-// func (mediator *Mediator) Reconcile(ctx context.Context, env *environmentv1.Environment) error {
-// 	//create functions per sections as single responsibility actions
+func (m *Mediator) EnsurePrerequisites(
+	ctx context.Context,
+	resolved *serviceunitResolution.ResolvedServiceUnit,
+) error {
 
-// 	return nil
-// }
+	log := m.Log.WithValues(
+		"serviceunit", resolved.ServiceUnit.Name,
+		"namespace", resolved.ServiceUnit.Namespace,
+	)
+
+	log.Info("mediator start")
+
+	if resolved == nil || resolved.Spec == nil {
+		return fmt.Errorf("nil ResolvedServiceUnit (resolver bug)")
+	}
+
+	spec := resolved.Spec
+
+	log.Info("resolved serviceunit contract",
+		"name", resolved.ServiceUnit.Name,
+		"replicas", spec.Size,
+		"image", spec.Image,
+		"port", spec.ContainerPort,
+	)
+
+	return nil
+}

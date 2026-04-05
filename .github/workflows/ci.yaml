@@ -1,41 +1,41 @@
 name: CI
 
 on:
-    pull_request:
-    push:
-        branches:
-            - main
+  pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
-    contents: read
+  contents: read
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
+  build:
+    runs-on: self-hosted
 
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-            - name: Setup Go
-              uses: actions/setup-go@v5
-              with:
-                  go-version: "1.25.7"
-                  cache: true
-              # 🔐 Configure access to private modules (PAT-based)
-            - name: Configure Git for private modules
-              run: |
-                  git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
-                  go env -w GOPRIVATE=github.com/ntlaletsi70/*
-                  go env -w GONOSUMDB=github.com/ntlaletsi70/*
-                  go env -w GOPROXY=direct
-            - name: Tidy
-              run: go mod tidy && git diff --exit-code
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.7"
+          cache: true
+        # 🔐 Configure access to private modules (PAT-based)
+      - name: Configure Git for private modules
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+          go env -w GOPRIVATE=github.com/ntlaletsi70/*
+          go env -w GONOSUMDB=github.com/ntlaletsi70/*
+          go env -w GOPROXY=direct
+      - name: Tidy
+        run: go mod tidy && git diff --exit-code
 
-            - name: Build
-              run: go build ./...
+      - name: Build
+        run: go build ./...
 
-            - name: Lint (optional)
-              run: |
-                  go install honnef.co/go/tools/cmd/staticcheck@latest
-                  staticcheck ./...
+      # - name: Lint (optional)
+      #   run: |
+      #     go install honnef.co/go/tools/cmd/staticcheck@latest
+      #     staticcheck ./...

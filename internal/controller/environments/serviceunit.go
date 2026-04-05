@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	packagev1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	serviceunitv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	corev1 "k8s.io/api/core/v1"
@@ -28,6 +29,8 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
 // ServiceUnitReconciler reconciles a ServiceUnit object
@@ -35,11 +38,8 @@ type ServiceUnitReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
+	Runtime  *runtimeinfra.Runtime
 	Recorder events.EventRecorder
-	Cache    *core.Cache
-	Events   *core.EventRecorder
-	Registry *core.Registry
-	Engine   *core.Engine
 }
 
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=serviceunits,verbs=get;list;watch;create;update;patch;delete
@@ -56,12 +56,8 @@ type ServiceUnitReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues(
-		"controller", "serviceunit",
-		"namespace", req.Namespace,
-		"name", req.Name,
-	)
 
+	log := r.Log.WithValues("controller", "serviceunit", "namespace", req.Namespace, "name", req.Name)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -70,7 +66,7 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	var serviceunit serviceunitv1alpha1.ServiceUnit
 	if err := r.Get(ctx, req.NamespacedName, &serviceunit); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			log.Info("reconcile exit: build not found (deleted)")
+			log.Info("reconcile exit: serviceunit not found (deleted)")
 			return ctrl.Result{}, nil
 		}
 
@@ -78,11 +74,7 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	log.Info(
-		"build fetched",
-		"generation", serviceunit.Generation,
-		"resourceVersion", serviceunit.ResourceVersion,
-	)
+	log.Info("serviceunit fetched", "generation", serviceunit.Generation, "resourceVersion", serviceunit.ResourceVersion)
 
 	// ------------------------------------------------
 	// Construct core command
@@ -93,28 +85,17 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		Obj:  &serviceunit,
 	}
 
-	log.Info(
-		"routing serviceunit to core engine",
-		"gvk", cmd.GVK.String(),
-		"command", cmd.Type,
-	)
+	log.Info("routing serviceunit to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
 	// ------------------------------------------------
 	// Execute domain logic via engine
 	// ------------------------------------------------
-	if err := r.Engine.Execute(ctx, cmd); err != nil {
-		log.Error(err, "engine execution failed")
+	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 
-		r.Recorder.Eventf(
-			&serviceunit, // regarding
-			nil,          // related (none)
-			corev1.EventTypeWarning,
-			"EngineFailure", // reason
-			"Execute",       // action (short verb)
-			"%v",            // note (format)
-			err,             // args
-		)
+		log.Error(err, "engine execution failed")
+		r.Recorder.Eventf(&serviceunit, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
 		log.Info("reconcile exit: engine error")
+
 		return ctrl.Result{}, err
 	}
 
@@ -131,37 +112,41 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 		latest.Status = serviceunit.Status
 		return r.Status().Update(ctx, &latest)
+
 	}); err != nil {
-		log.Error(err, "failed to update build status")
+		log.Error(err, "failed to update serviceunit status")
 		return ctrl.Result{}, err
 	}
 
-	log.Info("build status updated successfully")
+	log.Info("serviceunit status updated successfully")
 	log.Info("reconcile done")
 
 	return ctrl.Result{}, nil
 }
 
+// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
+// -----------------------------------------------------------------
 func (r *ServiceUnitReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
 	//---------------------------------------------------------------------
 	// Logging & events
 	//---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("ServiceUnit")
-	r.Recorder = mgr.GetEventRecorderFor("serviceunit-controller")
+	r.Recorder = mgr.GetEventRecorder("serviceunit-controller")
 
 	//---------------------------------------------------------------------
-	// Core infrastructure
+	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	r.Cache = core.NewCache(mgr, nil)
-	r.Events = core.NewEventRecorder(r.Recorder)
-	r.Registry = core.NewRegistry()
-	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+	cache := r.Runtime.Cache
+	events := r.Runtime.Events
+	registry := r.Runtime.Registry
 
+	// ---------------------------------------------------------------------
+	// Controller registration
+	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
-		Named("serviceunit").
+		For(&packagev1alpha1.ServiceUnit{}).
+		Named("environments-serviceunit").
+		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }

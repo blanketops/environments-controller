@@ -19,16 +19,17 @@ package sources
 import (
 	"context"
 
-	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
-
 	"github.com/go-logr/logr"
+	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
 // GitRepositoryReconciler reconciles a GitRepository object
@@ -36,11 +37,8 @@ type GitRepositoryReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
+	Runtime  *runtimeinfra.Runtime
 	Recorder events.EventRecorder
-	Cache    *core.Cache
-	Events   *core.EventRecorder
-	Registry *core.Registry
-	Engine   *core.Engine
 }
 
 // +kubebuilder:rbac:groups=sources.blanketops.dev,resources=gitrepositories,verbs=get;list;watch;create;update;patch;delete
@@ -57,12 +55,8 @@ type GitRepositoryReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues(
-		"controller", "gitrepository",
-		"namespace", req.Namespace,
-		"name", req.Name,
-	)
 
+	log := r.Log.WithValues("controller", "gitrepository", "namespace", req.Namespace, "name", req.Name)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -79,11 +73,7 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	log.Info(
-		"gitrepository fetched",
-		"generation", gitrepository.Generation,
-		"resourceVersion", gitrepository.ResourceVersion,
-	)
+	log.Info("gitrepository fetched", "generation", gitrepository.Generation, "resourceVersion", gitrepository.ResourceVersion)
 
 	// ------------------------------------------------
 	// Construct core command
@@ -94,29 +84,17 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		Obj:  &gitrepository,
 	}
 
-	log.Info(
-		"routing gitrepository to core engine",
-		"gvk", cmd.GVK.String(),
-		"command", cmd.Type,
-	)
+	log.Info("routing gitrepository to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
 	// ------------------------------------------------
 	// Execute domain logic via engine
 	// ------------------------------------------------
-	if err := r.Engine.Execute(ctx, cmd); err != nil {
+	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
+
 		log.Error(err, "engine execution failed")
-
-		r.Recorder.Eventf(
-			&gitrepository, // regarding
-			nil,            // related (none)
-			corev1.EventTypeWarning,
-			"EngineFailure", // reason
-			"Execute",       // action (short verb)
-			"%v",            // note (format)
-			err,             // args
-		)
-
+		r.Recorder.Eventf(&gitrepository, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
 		log.Info("reconcile exit: engine error")
+
 		return ctrl.Result{}, err
 	}
 
@@ -133,6 +111,7 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 		latest.Status = gitrepository.Status
 		return r.Status().Update(ctx, &latest)
+
 	}); err != nil {
 		log.Error(err, "failed to update gitrepository status")
 		return ctrl.Result{}, err
@@ -144,26 +123,61 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, nil
 }
 
+// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
+// -----------------------------------------------------------------
 func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
 	//---------------------------------------------------------------------
 	// Logging & events
 	//---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("GitRepository")
-	r.Recorder = mgr.GetEventRecorderFor("gitrepository-controller")
+	r.Recorder = mgr.GetEventRecorder("gitrepository-controller")
 
 	//---------------------------------------------------------------------
-	// Core infrastructure
+	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	r.Cache = core.NewCache(mgr, nil)
-	r.Events = core.NewEventRecorder(r.Recorder)
-	r.Registry = core.NewRegistry()
-	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+	cache := r.Runtime.Cache
+	events := r.Runtime.Events
+	registry := r.Runtime.Registry
 
+	//---------------------------------------------------------------------
+	// Mediator (prerequisites only)
+	//---------------------------------------------------------------------
+	r.GitRepositoryMediator = gitrepository.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.gitrepository"), r.Recorder)
+
+	//---------------------------------------------------------------------
+	// Providers (strategy handlers)
+	//---------------------------------------------------------------------
+
+	//---------------------------------------------------------------------
+	// Providers (github)
+	//---------------------------------------------------------------------
+	githubProvider := gitrepoapi.NewGitHubProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.github"), r.Recorder)
+
+	//---------------------------------------------------------------------
+	// BackendSelector (Backend selector maps strategy -> provider)
+	//---------------------------------------------------------------------
+	backendSelector := application.NewBackendSelector(githubProvider)
+
+	//-----------------------------------------------------------------------------------------
+	// GitRepository Service (Mapper and StatiusWriter, domain service for orchestration))
+	//------------------------------------------------------------------------------------------
+	mapper := application.NewMapper()
+	statusWriter := application.NewStatusWriter() //check args for a fix here please, extra argument required
+	r.Service = application.NewGitRepositoryService(mapper, statusWriter, backendSelector)
+
+	//--------------------------------------------------------------------------------
+	// Registry ( Domain Registration, domain orchestrates mediator + service)
+	//--------------------------------------------------------------------------------
+	domain := sourcesdomain.New(r.GitRepositoryMediator, r.Service, r.Cache, r.Events, r.Log.WithName("domain.gitrepository"))
+	r.Registry.RegisterDomain(sourcesv1alpha1.GroupVersion.WithKind("GitRepository"), domain)
+
+	// ---------------------------------------------------------------------
+	// Controller registration
+	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
+		For(&sourcesv1alpha1.GitRepository{}).
 		Named("sources-gitrepository").
+		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }

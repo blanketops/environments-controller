@@ -1,3 +1,18 @@
+/*
+Copyright 2026 The BlanketOps Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package buildtrigger
 
 import (
@@ -17,6 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// BuildTriggerDomain handles Build CRs.
+// This represents a FACT INGESTION boundary.
 type BuildTriggerDomain struct {
 	mediator *buildtrigger.Mediator
 	service  *application.BuildTriggerService
@@ -25,13 +42,8 @@ type BuildTriggerDomain struct {
 	log      logr.Logger
 }
 
-func New(
-	mediator *buildtrigger.Mediator,
-	service *application.BuildTriggerService,
-	cache *core.Cache,
-	events *core.EventRecorder,
-	log logr.Logger,
-) *BuildTriggerDomain {
+// New constructs a new BuildTriggerDomain instance.
+func New(mediator *buildtrigger.Mediator, service *application.BuildTriggerService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *BuildTriggerDomain {
 	return &BuildTriggerDomain{
 		mediator: mediator,
 		service:  service,
@@ -41,85 +53,71 @@ func New(
 	}
 }
 
+// GVK tells the engine which CRD this domain handles.
 func (d *BuildTriggerDomain) GVK() schema.GroupVersionKind {
 	return environmentsv1alpha1.GroupVersion.WithKind("BuildTrigger")
 }
 
+// Handle executes core.Command operations routed by the Engine.
 func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error {
-	triggerCR, ok := cmd.Obj.(*environmentsv1alpha1.BuildTrigger)
-	if !ok || triggerCR == nil {
+
+	buildtriggerCR, ok := cmd.Obj.(*environmentsv1alpha1.BuildTrigger)
+	if !ok || buildtriggerCR == nil {
 		return fmt.Errorf("invalid object passed to BuildTriggerDomain: %T", cmd.Obj)
 	}
 
-	d.log.Info("handling buildtrigger command",
-		"type", cmd.Type,
-		"name", triggerCR.Name,
-	)
+	log := d.log.WithValues("domain", "buildtrigger", "name", buildtriggerCR.Name, "namespace", buildtriggerCR.Namespace)
+	log.Info("handling buildtrigger command", "type", cmd.Type)
 
 	// ------------------------------------------------
 	// 1. Resolve trigger contract
 	// ------------------------------------------------
-	resolved, err := buildtriggerResolution.ResolveBuildTrigger(triggerCR)
+	resolved, err := buildtriggerResolution.ResolveBuildTrigger(buildtriggerCR)
 	if err != nil {
-		d.events.FromError(triggerCR, "BuildTriggerResolveFailed", err)
 
-		core.SetCondition(
-			&triggerCR.Status.Conditions,
-			"BuildTriggerResolved",
-			core.ConditionFalse,
-			"InvalidSpec",
-			err.Error(),
-		)
+		d.events.FromError(buildtriggerCR, "BuildTriggerResolveFailed", err)
+
+		log.Error(err, "buildtrigger resolution failed")
+		d.events.FromError(buildtriggerCR, "BuildTriggerResolveFailed", err)
+		core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerResolved", core.ConditionFalse, "InvalidSpec", err.Error())
 
 		return err
 	}
 
-	core.SetCondition(
-		&triggerCR.Status.Conditions,
-		"BuildTriggerResolved",
-		core.ConditionTrue,
-		"Resolved",
-		"BuildTrigger specification resolved successfully",
-	)
+	log.Info("buildtrigger resolved successfully")
+	d.events.Normal(buildtriggerCR, "BuildTriggerResolved", "BuildTrigger specification resolved successfully")
+	core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerResolved", core.ConditionTrue, "Resolved", "BuildTrigger specification resolved successfully")
 
 	// ------------------------------------------------
 	// 2. Ensure prerequisites (noop today, but real boundary)
 	// ------------------------------------------------
-	if err := d.mediator.EnsurePrerequisites(ctx, resolved); err != nil {
-		d.events.FromError(triggerCR, "BuildTriggerPrerequisitesFailed", err)
 
-		core.SetCondition(
-			&triggerCR.Status.Conditions,
-			"BuildTriggerPrerequisitesReady",
-			core.ConditionFalse,
-			"PrerequisitesFailed",
-			err.Error(),
-		)
+	log.Info("ensuring buildtrigger prerequisites")
+
+	if err := d.mediator.EnsurePrerequisites(ctx, resolved); err != nil {
+
+		log.Error(err, "buildtrigger prerequisites failed")
+		d.events.FromError(buildtriggerCR, "BuildTriggerPrerequisitesFailed", err)
+		core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerPrerequisitesReady", core.ConditionFalse, "BuildTriggerPrerequisitesFailed", err.Error())
 
 		return err
 	}
 
-	core.SetCondition(
-		&triggerCR.Status.Conditions,
-		"BuildTriggerPrerequisitesReady",
-		core.ConditionTrue,
-		"PrerequisitesReady",
-		"All BuildTrigger prerequisites satisfied",
-	)
+	log.Info("buildtrigger prerequisites ensured")
+	d.events.Normal(buildtriggerCR, "BuildTriggerPrerequisitesReady", "All buildtrigger prerequisites created successfully")
+	core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerPrerequisitesReady", core.ConditionTrue, "BuildTriggerPrerequisitesReady", "All buildtrigger prerequisites satisfied")
 
 	// ------------------------------------------------
 	// 3. Evaluate trigger intent (DECISION ONLY)
 	// ------------------------------------------------
-	if err := d.service.Evaluate(ctx, resolved); err != nil {
-		d.events.FromError(triggerCR, "BuildTriggerEvaluationFailed", err)
 
-		core.SetCondition(
-			&triggerCR.Status.Conditions,
-			"BuildTriggerEvaluated",
-			core.ConditionFalse,
-			"EvaluationFailed",
-			err.Error(),
-		)
+	log.Info("triggering buildtrigger evaluation")
+
+	if err := d.service.Evaluate(ctx, resolved); err != nil {
+
+		log.Error(err, "buildtrigger evaluation failed")
+		d.events.FromError(buildtriggerCR, "BuildTriggerEvaluationFailed", err)
+		core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerEvaluated", core.ConditionFalse, "BuildTriggerEvaluationFailed", err.Error())
 
 		return err
 	}
@@ -127,13 +125,10 @@ func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error
 	// ------------------------------------------------
 	// 4. Evaluation completed
 	// ------------------------------------------------
-	core.SetCondition(
-		&triggerCR.Status.Conditions,
-		"BuildTriggerEvaluated",
-		core.ConditionTrue,
-		"Evaluated",
-		"BuildTrigger evaluated successfully",
-	)
+	log.Info("buildtrigger evaluation requested")
+	d.events.Normal(buildtriggerCR, "BuildTriggerEvaluated", "buildtrigger evaluation has started")
+	core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerEvaluated", core.ConditionTrue, "Evaluated", "BuildTrigger evaluated successfully")
+	log.Info("buildtrigger domain handling complete")
 
 	return nil
 }

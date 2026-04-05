@@ -1,4 +1,19 @@
 /*
+Copyright 2026 The BlanketOps Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+/*
 Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,21 +30,17 @@ import (
 	"fmt"
 	"time"
 
+	fluxkustomize "github.com/fluxcd/kustomize-controller/api/v1"
 	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
-
 	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/domain"
-
+	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
-
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	fluxkustomize "github.com/fluxcd/kustomize-controller/api/v1"
 )
 
 // Reconciler observes Flux Kustomizations and updates Deployment status
@@ -37,7 +48,7 @@ import (
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
 func (r *Reconciler) Reconcile(
@@ -113,7 +124,7 @@ func (r *Reconciler) Reconcile(
 	result := &domain.DeploymentResult{
 		Phase:          phase,
 		Message:        readyCond.Message,
-		Runtime:        domain.Runtime(resolved.Spec.Runtime.String()),
+		Runtime:        domain.Runtime(resolved.Spec.Runtime),
 		LastUpdateTime: time.Now(),
 	}
 
@@ -160,7 +171,7 @@ func (r *Reconciler) Reconcile(
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorderFor("deployment-observer")
+	r.Recorder = mgr.GetEventRecorder("deployment-observer")
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fluxkustomize.Kustomization{}).

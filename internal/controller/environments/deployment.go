@@ -23,24 +23,29 @@ import (
 	"github.com/go-logr/logr"
 	deploymentv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/api"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	deployment "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/deployment"
+	deployDomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/deployment"
+	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
 // DeploymentReconciler reconciles a Deployment object
 type DeploymentReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Log      logr.Logger
-	Recorder events.EventRecorder
-	Cache    *core.Cache
-	Events   *core.EventRecorder
-	Registry *core.Registry
-	Engine   *core.Engine
+	Scheme             *runtime.Scheme
+	Log                logr.Logger
+	Recorder           events.EventRecorder
+	Runtime            *runtimeinfra.Runtime
+	DeploymentMediator *deployment.Mediator
+	DeploymentService  *application.DeploymentService
 }
 
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=deployments,verbs=get;list;watch;create;update;patch;delete
@@ -57,12 +62,7 @@ type DeploymentReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues(
-		"controller", "deployment",
-		"namespace", req.Namespace,
-		"name", req.Name,
-	)
-
+	log := r.Log.WithValues("controller", "deployment", "namespace", req.Namespace, "name", req.Name)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -79,11 +79,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	log.Info(
-		"deployment fetched",
-		"generation", deployment.Generation,
-		"resourceVersion", deployment.ResourceVersion,
-	)
+	log.Info("deployment fetched", "generation", deployment.Generation, "resourceVersion", deployment.ResourceVersion)
 
 	// ------------------------------------------------
 	// Construct core command
@@ -95,30 +91,17 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		Obj:  &deployment,
 	}
 
-	log.Info(
-		"routing deployment to core engine",
-		"gvk",
-		cmd.GVK.String(),
-		"command", cmd.Type,
-	)
+	log.Info("routing deployment to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
 	// ------------------------------------------------
 	// Execute domain logic via engine
 	// ------------------------------------------------
-	if err := r.Engine.Execute(ctx, cmd); err != nil {
+	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
+
 		log.Error(err, "engine execution failed")
-
-		r.Recorder.Eventf(
-			&deployment, // regarding
-			nil,         // related (none)
-			corev1.EventTypeWarning,
-			"EngineFailure", // reason
-			"Execute",       // action (short verb)
-			"%v",            // note (format)
-			err,             // args
-		)
-
+		r.Recorder.Eventf(&deployment, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
 		log.Info("reconcile exit: engine error")
+
 		return ctrl.Result{}, err
 	}
 
@@ -139,7 +122,9 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 		latest.Status = deployment.Status
 		return r.Status().Update(ctx, &latest)
+
 	}); err != nil {
+		log.Error(err, "failed to update deployement status")
 		return ctrl.Result{}, err
 	}
 
@@ -149,9 +134,10 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{}, nil
 }
 
+// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
+// -----------------------------------------------------------------
 func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
 	//---------------------------------------------------------------------
 	// Logging & events
 	//---------------------------------------------------------------------
@@ -159,16 +145,66 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = mgr.GetEventRecorder("deployment-controller")
 
 	//---------------------------------------------------------------------
-	// Core infrastructure
+	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	r.Cache = core.NewCache(mgr, nil)
-	r.Events = core.NewEventRecorder(r.Recorder)
-	r.Registry = core.NewRegistry()
-	r.Engine = core.NewEngine(r.Registry, ctrl.Log.WithName("engine"))
+	cache := r.Runtime.Cache
+	events := r.Runtime.Events
+	registry := r.Runtime.Registry
 
+	// ---------------------------------------------------------------------
+	// Mediator (infra / prerequisites only)
+	// ---------------------------------------------------------------------
+	r.DeploymentMediator = deployment.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.deployment"), r.Recorder)
+
+	// ---------------------------------------------------------------------
+	// Providers (runtime backends)
+	// ---------------------------------------------------------------------
+	// kubernetesBackend := api.NewK8SProvider(
+	// 	mgr.GetClient(),
+	// 	mgr.GetScheme(),
+	// 	r.Log.WithName("backend.kubernetes"),
+	// 	r.Recorder,
+	// )
+
+	// Future-safe placeholders
+	// knativeBackend := application.NewKnativeBackend(...)
+	// ecsBackend := application.NewECSBackend(...)
+	// fluxBackend := application.NewFluxBackend(...)
+
+	// ---------------------------------------------------------------------
+	// Runtime Provider (imperative backends)
+	// ---------------------------------------------------------------------
+	runtimeProvider := api.NewRuntimeProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("runtime"), r.Recorder)
+
+	// ---------------------------------------------------------------------
+	// GitOps Reconciler (Flux integration layer)
+	// ---------------------------------------------------------------------
+	kustomizer := api.NewKustomizeStrategyProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("reconciliation.kustomize"))
+
+	// ---------------------------------------------------------------------
+	// Reconciliation Executor (delivery axis)
+	// ---------------------------------------------------------------------
+	reconciliationExecutor := api.NewReconciliationExecutor(runtimeProvider, kustomizer, r.Log.WithName("reconciliation"))
+
+	// ---------------------------------------------------------------------
+	// Service Layer
+	// ---------------------------------------------------------------------
+	intentBuilder := application.NewIntentBuilder()
+	statusWriter := application.NewStatusWriter(mgr.GetClient(), r.Log.WithName("deployment.status-writer"))
+	r.DeploymentService = application.NewDeploymentService(intentBuilder, statusWriter, reconciliationExecutor, ctrl.Log)
+
+	// ---------------------------------------------------------------------
+	// Registry ( Domain Registration, domain orchestrates mediator + service)
+	// ---------------------------------------------------------------------
+	deployDomain := deployDomain.New(r.DeploymentMediator, r.DeploymentService, cache, events, r.Log.WithName("domain.deployment"))
+	registry.RegisterDomain(deploymentv1alpha1.GroupVersion.WithKind("Deployment"), deployDomain)
+
+	// ---------------------------------------------------------------------
+	// Controller registration
+	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		// Uncomment the following line adding a pointer to an instance of the controlled resource as an argument
-		// For().
-		Named("deployment").
+		For(&deploymentv1alpha1.Deployment{}).
+		Named("environments-deployment").
+		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }

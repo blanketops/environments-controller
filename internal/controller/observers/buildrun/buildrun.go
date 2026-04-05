@@ -1,3 +1,18 @@
+/*
+Copyright 2026 The BlanketOps Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package buildrun
 
 import (
@@ -9,12 +24,9 @@ import (
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/domain"
 	buildresolution "github.com/ntlaletsi70/blanketops-environments/resolution/build"
-
-	corev1 "k8s.io/api/core/v1"
-
-	"k8s.io/client-go/tools/record"
-
 	shipwrightv1beta1 "github.com/shipwright-io/build/pkg/apis/build/v1beta1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -24,19 +36,12 @@ const retryAttemptAnnotation = "build.blanketops.dev/retry-attempt"
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
-func (r *Reconciler) Reconcile(
-	ctx context.Context,
-	req ctrl.Request,
-) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
-	log := ctrl.LoggerFrom(ctx).WithValues(
-		"controller", "buildrun",
-		"buildRun", req.NamespacedName.String(),
-	)
-
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "buildrun", "buildRun", req.NamespacedName.String())
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -58,11 +63,7 @@ func (r *Reconciler) Reconcile(
 	}
 
 	success := cond.Status == corev1.ConditionTrue
-
-	log = log.WithValues(
-		"succeeded", success,
-		"reason", cond.Reason,
-	)
+	log = log.WithValues("succeeded", success, "reason", cond.Reason)
 
 	// ------------------------------------------------
 	// Resolve owning Build
@@ -83,10 +84,7 @@ func (r *Reconciler) Reconcile(
 		return ctrl.Result{}, err
 	}
 
-	log = log.WithValues(
-		"build", build.Name,
-		"namespace", build.Namespace,
-	)
+	log = log.WithValues("build", build.Name, "namespace", build.Namespace)
 
 	// ------------------------------------------------
 	// Resolve runtime Build (AUTHORITATIVE)
@@ -99,7 +97,6 @@ func (r *Reconciler) Reconcile(
 
 	buildHash := br.Labels["build-hash"]
 	log = log.WithValues("buildHash", buildHash)
-
 	log.Info("buildrun completed")
 
 	// ------------------------------------------------
@@ -109,10 +106,8 @@ func (r *Reconciler) Reconcile(
 		resolved.Spec.Policy != nil &&
 		resolved.Spec.Policy.Retry != nil &&
 		resolved.Spec.Policy.Retry.OnFailure {
-
 		retry := resolved.Spec.Policy.Retry
 
-		// Count existing attempts for this execution hash
 		var runs shipwrightv1beta1.BuildRunList
 		if err := r.List(
 			ctx,
@@ -128,35 +123,23 @@ func (r *Reconciler) Reconcile(
 		}
 
 		attempts := len(runs.Items)
-
 		log.Info("retry evaluation",
 			"attempts", attempts,
 			"maxAttempts", retry.MaxAttempts,
 		)
 
 		if attempts < int(retry.MaxAttempts) {
-
 			patch := client.MergeFrom(build.DeepCopy())
-
 			if build.Annotations == nil {
 				build.Annotations = map[string]string{}
 			}
+			build.Annotations[retryAttemptAnnotation] = strconv.Itoa(attempts + 1)
+			log.Info("retry scheduled", "nextAttempt", attempts+1)
 
-			build.Annotations[retryAttemptAnnotation] =
-				strconv.Itoa(attempts + 1)
-
-			log.Info("retry scheduled",
-				"nextAttempt", attempts+1,
-			)
-
-			// 🔑 Persist retry intent ONLY
 			if err := r.Patch(ctx, &build, patch); err != nil {
 				log.Error(err, "failed to persist retry attempt")
 				return ctrl.Result{}, err
 			}
-
-			// Do NOT finalize build
-			// Annotation change triggers Build controller
 			return ctrl.Result{}, nil
 		}
 
@@ -201,7 +184,7 @@ func (r *Reconciler) Reconcile(
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorderFor("buildrun-observer")
+	r.Recorder = mgr.GetEventRecorder("buildrun-observer")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&shipwrightv1beta1.BuildRun{}).
 		Complete(r)
