@@ -20,6 +20,10 @@ jobs:
               uses: actions/setup-go@v5
               with:
                   go-version-file: go.mod
+            - name: Decode SSH key
+              run: |
+                  echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 -d > /tmp/id_ed25519
+                  chmod 600 /tmp/id_ed25519
 
             - name: Setup SSH
               uses: webfactory/ssh-agent@v0.9.0
