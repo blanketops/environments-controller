@@ -92,7 +92,7 @@ func (r *BuildTriggerReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 
 		log.Error(err, "engine execution failed")
-		r.Recorder.Eventf(&build, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
+		r.Recorder.Eventf(&buildtrigger, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
 		log.Info("reconcile exit: engine error")
 
 		return ctrl.Result{}, err
@@ -136,9 +136,9 @@ func (r *BuildTriggerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	//---------------------------------------------------------------------
 	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	cache := r.Runtime.Cache
-	events := r.Runtime.Events
-	registry := r.Runtime.Registry
+	//cache := r.Runtime.Cache
+	//events := r.Runtime.Events
+	//registry := r.Runtime.Registry
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&buildtriggerv1alpha1.BuildTrigger{}).

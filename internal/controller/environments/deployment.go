@@ -23,6 +23,8 @@ import (
 	"github.com/go-logr/logr"
 	deploymentv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/api"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -30,16 +32,20 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	deployment "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/deployment"
+	deployDomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/deployment"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
 // DeploymentReconciler reconciles a Deployment object
 type DeploymentReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Log      logr.Logger
-	Recorder events.EventRecorder
-	Runtime  *runtimeinfra.Runtime
+	Scheme             *runtime.Scheme
+	Log                logr.Logger
+	Recorder           events.EventRecorder
+	Runtime            *runtimeinfra.Runtime
+	DeploymentMediator *deployment.Mediator
+	DeploymentService  *application.DeploymentService
 }
 
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=deployments,verbs=get;list;watch;create;update;patch;delete
@@ -56,12 +62,7 @@ type DeploymentReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues(
-		"controller", "deployment",
-		"namespace", req.Namespace,
-		"name", req.Name,
-	)
-
+	log := r.Log.WithValues("controller", "deployment", "namespace", req.Namespace, "name", req.Name)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -78,11 +79,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	log.Info(
-		"deployment fetched",
-		"generation", deployment.Generation,
-		"resourceVersion", deployment.ResourceVersion,
-	)
+	log.Info("deployment fetched", "generation", deployment.Generation, "resourceVersion", deployment.ResourceVersion)
 
 	// ------------------------------------------------
 	// Construct core command
@@ -94,30 +91,17 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		Obj:  &deployment,
 	}
 
-	log.Info(
-		"routing deployment to core engine",
-		"gvk",
-		cmd.GVK.String(),
-		"command", cmd.Type,
-	)
+	log.Info("routing deployment to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
 	// ------------------------------------------------
 	// Execute domain logic via engine
 	// ------------------------------------------------
-	if err := r.Engine.Execute(ctx, cmd); err != nil {
+	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
+
 		log.Error(err, "engine execution failed")
-
-		r.Recorder.Eventf(
-			&deployment, // regarding
-			nil,         // related (none)
-			corev1.EventTypeWarning,
-			"EngineFailure", // reason
-			"Execute",       // action (short verb)
-			"%v",            // note (format)
-			err,             // args
-		)
-
+		r.Recorder.Eventf(&deployment, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
 		log.Info("reconcile exit: engine error")
+
 		return ctrl.Result{}, err
 	}
 
@@ -210,10 +194,10 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.DeploymentService = application.NewDeploymentService(intentBuilder, statusWriter, reconciliationExecutor, ctrl.Log)
 
 	// ---------------------------------------------------------------------
-	// Domain (orchestration only)
+	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	// ---------------------------------------------------------------------
-	deployDomain := deployDomain.New(r.DeploymentMediator, r.DeploymentService, r.Cache, r.Events, r.Log.WithName("domain.deployment"))
-	r.Registry.RegisterDomain(deploymentv1alpha1.GroupVersion.WithKind("Deployment"), deployDomain)
+	deployDomain := deployDomain.New(r.DeploymentMediator, r.DeploymentService, cache, events, r.Log.WithName("domain.deployment"))
+	registry.RegisterDomain(deploymentv1alpha1.GroupVersion.WithKind("Deployment"), deployDomain)
 
 	// ---------------------------------------------------------------------
 	// Controller registration
