@@ -1,3 +1,18 @@
+/*
+Copyright 2026 The BlanketOps Authors.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package buildrun
 
 import (
@@ -11,7 +26,7 @@ import (
 	buildresolution "github.com/ntlaletsi70/blanketops-environments/resolution/build"
 	shipwrightv1beta1 "github.com/shipwright-io/build/pkg/apis/build/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -21,17 +36,12 @@ const retryAttemptAnnotation = "build.blanketops.dev/retry-attempt"
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
-func (r *Reconciler) Reconcile(
-	ctx context.Context,
-	req ctrl.Request,
-) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx).WithValues(
-		"controller", "buildrun",
-		"buildRun", req.NamespacedName.String(),
-	)
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "buildrun", "buildRun", req.NamespacedName.String())
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -53,10 +63,7 @@ func (r *Reconciler) Reconcile(
 	}
 
 	success := cond.Status == corev1.ConditionTrue
-	log = log.WithValues(
-		"succeeded", success,
-		"reason", cond.Reason,
-	)
+	log = log.WithValues("succeeded", success, "reason", cond.Reason)
 
 	// ------------------------------------------------
 	// Resolve owning Build
@@ -77,10 +84,7 @@ func (r *Reconciler) Reconcile(
 		return ctrl.Result{}, err
 	}
 
-	log = log.WithValues(
-		"build", build.Name,
-		"namespace", build.Namespace,
-	)
+	log = log.WithValues("build", build.Name, "namespace", build.Namespace)
 
 	// ------------------------------------------------
 	// Resolve runtime Build (AUTHORITATIVE)

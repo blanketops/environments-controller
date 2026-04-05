@@ -23,6 +23,8 @@ import (
 	"github.com/go-logr/logr"
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
+	githubeventapi "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/api"
+	githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -30,16 +32,18 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	githubevent "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/githubevent"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
 // GitHubEventReconciler reconciles a GitHubEvent object
 type GitHubEventReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Log      logr.Logger
-	Runtime  *runtimeinfra.Runtime
-	Recorder events.EventRecorder
+	Scheme              *runtime.Scheme
+	Log                 logr.Logger
+	Runtime             *runtimeinfra.Runtime
+	Recorder            events.EventRecorder
+	GitHubEventMediator *githubevent.Mediator
 }
 
 // +kubebuilder:rbac:groups=events.k8s.io,resources=githubevents,verbs=get;list;watch;create;update;patch;delete
@@ -164,7 +168,7 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// GitHubEvent Service (Mapper and StatiusWriter, domain service for orchestration))
 	//-----------------------------------------------------------------------
 	mapper := githubeventapp.NewMapper()
-	statusWriter := githubeventapp.NewStatusWriter(r.Client, r.Log.WithName("githubevent-status-writer"))
+	statusWriter := githubeventapp.NewStatusWriter(r.Client)
 	r.Service = githubeventapp.NewGitHubEventService(mapper, statusWriter, backendSelector)
 
 	//--------------------------------------------------------------------------------
