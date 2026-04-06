@@ -1,83 +1,83 @@
 name: Ko Image
 on:
-    push:
-        branches:
-            - main
-        tags:
-            - "v*"
-    workflow_dispatch:
-        inputs:
-            sign_and_attest:
-                description: "Sign and attest the image after build"
-                type: boolean
-                default: true
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      sign_and_attest:
+        description: "Sign and attest the image after build"
+        type: boolean
+        default: true
 
 permissions:
-    contents: read
-    packages: write
-    id-token: write
-    attestations: write
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
 
 jobs:
-    build:
-        runs-on: self-hosted
-        steps:
-            - uses: actions/checkout@v4
+  build:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Setup Go
-              uses: actions/setup-go@v5
-              with:
-                  go-version-file: go.mod
-                  cache: false
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
 
-            - name: Setup SSH
-              uses: webfactory/ssh-agent@v0.9.0
-              with:
-                  ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-            - name: Configure git for private modules
-              run: |
-                  git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
+      - name: Configure git for private modules
+        run: |
+          git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
 
-            - name: Setup ko
-              uses: ko-build/setup-ko@v0.7
+      - name: Setup ko
+        uses: ko-build/setup-ko@v0.7
 
-            - name: Login to registry
-              run: |
-                  echo "${{ secrets.DOCKERHUB_TOKEN }}" | ko login docker.io \
-                    --username ${{ secrets.DOCKERHUB_USERNAME }} \
-                    --password-stdin
+      - name: Login to registry
+        run: |
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | ko login docker.io \
+            --username ${{ secrets.DOCKERHUB_USERNAME }} \
+            --password-stdin
 
-            - name: Build and push
-              id: build
-              env:
-                  KO_DOCKER_REPO: docker.io/nkanyezisolutions/blanketops-environments-controller
-                  GOPRIVATE: github.com/ntlaletsi70/*
-                  GONOSUMDB: github.com/ntlaletsi70/*
-                  GOPROXY: direct
-                  GIT_SSH_COMMAND: ssh -o StrictHostKeyChecking=no
-              run: |
-                  ko build ./cmd \
-                    --bare \
-                    --platform linux/amd64,linux/arm64 \
-                    --tags ${{ github.ref_name }},latest \
-                    --image-refs /tmp/ko-image-refs
-                  echo "digest=$(cut -d@ -f2 /tmp/ko-image-refs)" >> $GITHUB_OUTPUT
+      - name: Build and push
+        id: build
+        env:
+          KO_DOCKER_REPO: docker.io/nkanyezisolutions/blanketops-environments-controller
+          GOPRIVATE: github.com/ntlaletsi70/*
+          GONOSUMDB: github.com/ntlaletsi70/*
+          GOPROXY: direct
+          GIT_SSH_COMMAND: ssh -o StrictHostKeyChecking=no
+        run: |
+          ko build ./cmd \
+            --bare \
+            --platform linux/amd64,linux/arm64 \
+            --tags ${{ github.ref_name }},latest \
+            --image-refs /tmp/ko-image-refs
+          echo "digest=$(tail -1 /tmp/ko-image-refs | cut -d@ -f2)" >> $GITHUB_OUTPUT
 
-            - name: Install cosign
-              if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
-              uses: sigstore/cosign-installer@v3
+      - name: Install cosign
+        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+        uses: sigstore/cosign-installer@v3
 
-            - name: Sign image
-              if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
-              run: |
-                  cosign sign --yes \
-                    docker.io/nkanyezisolutions/blanketops-environments-controller@${{ steps.build.outputs.digest }}
+      - name: Sign image
+        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+        run: |
+          cosign sign --yes \
+            docker.io/nkanyezisolutions/blanketops-environments-controller@${{ steps.build.outputs.digest }}
 
-            - name: Attest image provenance
-              if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
-              uses: actions/attest-build-provenance@v2
-              with:
-                  subject-name: docker.io/nkanyezisolutions/blanketops-environments-controller
-                  subject-digest: ${{ steps.build.outputs.digest }}
-                  push-to-registry: true
+      - name: Attest image provenance
+        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: docker.io/nkanyezisolutions/blanketops-environments-controller
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
