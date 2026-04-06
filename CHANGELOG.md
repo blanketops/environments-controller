@@ -2,6 +2,71 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.9] - 2026-04-06
+
+### 🐛 Bug Fixes
+
+- *(ci)* Correct ko build path, switch to DOCKERHUB creds, add act setup
+- *(ci)* Use GH_PAT in release workflows to allow PR creation and protected branch pushes
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.0.8
+
+### Release
+
+- Merge release/v0.0.9 into main
+
+## [0.0.8] - 2026-04-06
+
+### 🚀 Features
+
+- Migrate observers to core.EventRecorder and ctx-based logger
+- *(ci)* Add manual create-release and finalize-release workflows
+
+### 🐛 Bug Fixes
+
+- *(ci)* Disable Go cache and remove dead SSH decode step in ko workflow
+- *(ci)* Disable Go cache and remove dead SSH decode step in ko workflow
+- *(ci)* Disable Go cache and remove dead SSH decode step in ko workflow
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.0.7
+
+### Release
+
+- V0.0.8
+
+## [0.0.7] - 2026-04-05
+
+### 🚀 Features
+
+- *(workflows)* Runs on self-hosted
+- *(controller)* GetEventRecorder, replace
+- *(controller)* Disable static checks
+- *(controller-manager)* Standardise controller, update all
+- *(controller-manager)* Standardise controller, update all
+- Bump blanketops-environments to v0.1.9, fix CI SSH key decode
+
+### 🐛 Bug Fixes
+
+- *(bootstrap)* Register domain APIs and external CRDs with manager scheme
+- *(bootstrap)* Register domain APIs and external CRDs with manager scheme
+- *(domain)* Redo domain, update
+- *(domain)* Redo domain, update
+- *(domain)* Redo domain, update
+- *(domain)* Redo domain, update
+- *(domain)* Redo domain, housekeeping add comments accross fix
+- *(domain)* Redo domain, housekeeping add comments accross fix
+- *(domain)* Redo domain, housekeeping add comments accross fix
+- *(domain)* Redo domain, housekeeping add comments accross fix
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.0.6
+- Add Apache 2.0 license headers to all Go files
+
 ## [0.0.6] - 2026-03-02
 
 ### 🐛 Bug Fixes
