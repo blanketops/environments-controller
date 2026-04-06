@@ -33,7 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	deployment "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/deployment"
-	deployDomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/deployment"
+	deploydomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/deployment"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
@@ -62,7 +62,8 @@ type DeploymentReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("controller", "deployment", "namespace", req.Namespace, "name", req.Name)
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "deployment", "namespace", req.Namespace, "name", req.Name)
+	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -196,7 +197,7 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// ---------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	// ---------------------------------------------------------------------
-	deployDomain := deployDomain.New(r.DeploymentMediator, r.DeploymentService, cache, events, r.Log.WithName("domain.deployment"))
+	deployDomain := deploydomain.New(r.DeploymentMediator, r.DeploymentService, cache, events, r.Log.WithName("domain.deployment"))
 	registry.RegisterDomain(deploymentv1alpha1.GroupVersion.WithKind("Deployment"), deployDomain)
 
 	// ---------------------------------------------------------------------

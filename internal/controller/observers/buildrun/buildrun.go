@@ -17,16 +17,15 @@ package buildrun
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	buildv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/domain"
 	buildresolution "github.com/ntlaletsi70/blanketops-environments/resolution/build"
 	shipwrightv1beta1 "github.com/shipwright-io/build/pkg/apis/build/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -36,7 +35,7 @@ const retryAttemptAnnotation = "build.blanketops.dev/retry-attempt"
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
-	Recorder events.EventRecorder
+	Recorder *core.EventRecorder
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -151,18 +150,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// ------------------------------------------------
 	if r.Recorder != nil {
 		if success {
-			r.Recorder.Event(
+			r.Recorder.Normal(
 				&build,
-				corev1.EventTypeNormal,
 				"BuildSucceeded",
-				fmt.Sprintf("BuildRun %s completed successfully", br.Name),
+				"BuildRun %s completed successfully",
+				br.Name,
 			)
 		} else {
-			r.Recorder.Event(
+			r.Recorder.Warn(
 				&build,
-				corev1.EventTypeWarning,
 				"BuildFailed",
-				fmt.Sprintf("BuildRun %s failed: %s", br.Name, cond.Message),
+				"BuildRun %s failed: %s",
+				br.Name,
+				cond.Message,
 			)
 		}
 	}
@@ -184,7 +184,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorder("buildrun-observer")
+	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("buildrun-observer"))
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&shipwrightv1beta1.BuildRun{}).
 		Complete(r)

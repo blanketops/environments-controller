@@ -56,7 +56,8 @@ type BuildTriggerReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *BuildTriggerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
-	log := r.Log.WithValues("controller", "buildtrigger", "namespace", req.Namespace, "name", req.Name)
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "buildtrigger", "namespace", req.Namespace, "name", req.Name)
+	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------

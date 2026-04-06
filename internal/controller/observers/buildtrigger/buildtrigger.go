@@ -19,8 +19,8 @@ import (
 	"context"
 
 	buildtriggerv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
-	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -28,7 +28,7 @@ import (
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
-	Recorder events.EventRecorder
+	Recorder *core.EventRecorder
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -37,7 +37,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorder("buildtrigger-controller")
+	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("buildtrigger-controller"))
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&buildtriggerv1.BuildTrigger{}).
 		Complete(r)

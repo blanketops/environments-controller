@@ -22,7 +22,6 @@ import (
 	"github.com/go-logr/logr"
 	packagev1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
@@ -56,7 +55,8 @@ type PackageReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
-	log := r.Log.WithValues("controller", "package", "namespace", req.Namespace, "name", req.Name)
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "package", "namespace", req.Namespace, "name", req.Name)
+	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -92,7 +92,7 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 
 		log.Error(err, "engine execution failed")
-		r.Recorder.Eventf(&packages, nil, corev1.EventTypeWarning, "EngineFailure", "%v", err)
+		//r.Recorder.Eventf(&packages, nil, corev1.EventTypeWarning, "EngineFailure", "%v", err)
 		log.Info("reconcile exit: engine error")
 
 		return ctrl.Result{}, err
@@ -136,37 +136,37 @@ func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	//---------------------------------------------------------------------
 	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	cache := r.Runtime.Cache
-	events := r.Runtime.Events
-	registry := r.Runtime.Registry
+	// cache := r.Runtime.Cache
+	// events := r.Runtime.Events
+	// registry := r.Runtime.Registry
 
 	// ---------------------------------------------------------------------
 	// Mediator (prerequisites only)
 	// ---------------------------------------------------------------------
-	r.PackageMediator = pkgMediator.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.package"), r.Recorder)
+	// r.PackageMediator = pkgMediator.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.package"), r.Recorder)
 
 	// ---------------------------------------------------------------------
 	// Providers (kapp)
 	// ---------------------------------------------------------------------
-	kappProvider := pkgProvider.NewApplicationProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.kapp"), r.Recorder)
+	// kappProvider := pkgProvider.NewApplicationProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.kapp"), r.Recorder)
 
 	//---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
 	//---------------------------------------------------------------------
-	backendSelector := application.NewBackendSelector(kappProvider)
+	// backendSelector := application.NewBackendSelector(kappProvider)
 
 	//-----------------------------------------------------------------------------------------
 	// Package Service (Mapper and StatiusWriter, domain service for orchestration))
 	//------------------------------------------------------------------------------------------
-	mapper := pkgAapp.NewMapper()
-	statusWriter := pkgAapp.NewStatusWriter(r.Client, r.Log.WithName("package-status-writer"))
-	packageService := application.NewPackageService(mapper, backendSelector, statusWriter)
+	// mapper := pkgAapp.NewMapper()
+	// statusWriter := pkgAapp.NewStatusWriter(r.Client, r.Log.WithName("package-status-writer"))
+	// packageService := application.NewPackageService(mapper, backendSelector, statusWriter)
 
 	//--------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	//--------------------------------------------------------------------------------
-	pkgDomain := pkgDomain.New(r.PackageMediator, packageService, r.Cache, r.Events, r.Log.WithName("domain.package"))
-	r.Registry.RegisterDomain(packagev1alpha1.GroupVersion.WithKind("Package"), pkgDomain)
+	// pkgDomain := pkgDomain.New(r.PackageMediator, packageService, cache, events, r.Log.WithName("domain.package"))
+	// registry.RegisterDomain(packagev1alpha1.GroupVersion.WithKind("Package"), pkgDomain)
 
 	// ---------------------------------------------------------------------
 	// Controller registration

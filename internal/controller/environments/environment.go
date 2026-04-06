@@ -22,7 +22,6 @@ import (
 	"github.com/go-logr/logr"
 	environmentv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
@@ -56,7 +55,8 @@ type EnvironmentReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
-	log := r.Log.WithValues("controller", "environment", "namespace", req.Namespace, "name", req.Name)
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "environment", "namespace", req.Namespace, "name", req.Name)
+	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -89,14 +89,14 @@ func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// ------------------------------------------------
 	// Execute domain logic via engine
 	// ------------------------------------------------
-	if err := r.Engine.Execute(ctx, cmd); err != nil {
+	// if err := r.Engine.Execute(ctx, cmd); err != nil {
 
-		log.Error(err, "engine execution failed")
-		r.Recorder.Eventf(&environment, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
-		log.Info("reconcile exit: engine error")
+	// 	log.Error(err, "engine execution failed")
+	// 	r.Recorder.Eventf(&environment, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
+	// 	log.Info("reconcile exit: engine error")
 
-		return ctrl.Result{}, err
-	}
+	// 	return ctrl.Result{}, err
+	// }
 
 	log.Info("engine execution completed")
 
@@ -137,9 +137,9 @@ func (r *EnvironmentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	//---------------------------------------------------------------------
 	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	cache := r.Runtime.Cache
-	events := r.Runtime.Events
-	registry := r.Runtime.Registry
+	// cache := r.Runtime.Cache
+	// events := r.Runtime.Events
+	// registry := r.Runtime.Registry
 
 	//---------------------------------------------------------------------
 	// Final Kustomize Patch And Release

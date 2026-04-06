@@ -57,7 +57,8 @@ type ServiceUnitReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
-	log := r.Log.WithValues("controller", "serviceunit", "namespace", req.Namespace, "name", req.Name)
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "serviceunit", "namespace", req.Namespace, "name", req.Name)
+	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -137,9 +138,9 @@ func (r *ServiceUnitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	//---------------------------------------------------------------------
 	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	cache := r.Runtime.Cache
-	events := r.Runtime.Events
-	registry := r.Runtime.Registry
+	// cache := r.Runtime.Cache
+	// events := r.Runtime.Events
+	// registry := r.Runtime.Registry
 
 	// ---------------------------------------------------------------------
 	// Controller registration
