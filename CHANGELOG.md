@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.8] - 2026-04-06
+
+### 🚀 Features
+
+- Migrate observers to core.EventRecorder and ctx-based logger
+- *(ci)* Add manual create-release and finalize-release workflows
+
+### 🐛 Bug Fixes
+
+- *(ci)* Disable Go cache and remove dead SSH decode step in ko workflow
+- *(ci)* Disable Go cache and remove dead SSH decode step in ko workflow
+- *(ci)* Disable Go cache and remove dead SSH decode step in ko workflow
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.0.7
+
+### Release
+
+- V0.0.8
+
 ## [0.0.7] - 2026-04-05
 
 ### 🚀 Features
