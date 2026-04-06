@@ -1,7 +1,12 @@
 # syntax=docker/dockerfile:1.7
 
 # -------- Build Stage --------
-FROM golang:1.25-alpine AS builder
+# Use the host platform for the builder so Go cross-compiles natively
+# instead of running the compiler under QEMU emulation
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /workspace
 
@@ -25,21 +30,17 @@ RUN git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://git
 # Copy go mod files first (better layer caching)
 COPY go.mod go.sum ./
 
-
-
-# 👇 Use SSH mount for private repo access
+# Use SSH mount for private repo access
 RUN --mount=type=ssh \
     go mod download
-
 
 # Copy source
 COPY cmd/ cmd/
 COPY internal/ internal/
 
-# Build static binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -a -o manager ./cmd/main.go
-
+# Cross-compile for the target platform natively on the build host
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -a -o manager ./cmd
 
 # -------- Runtime Stage --------
 FROM gcr.io/distroless/static:nonroot
