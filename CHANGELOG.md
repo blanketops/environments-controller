@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.9] - 2026-04-06
+
+### 🐛 Bug Fixes
+
+- *(ci)* Correct ko build path, switch to DOCKERHUB creds, add act setup
+- *(ci)* Use GH_PAT in release workflows to allow PR creation and protected branch pushes
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.0.8
+
+### Release
+
+- Merge release/v0.0.9 into main
+
 ## [0.0.8] - 2026-04-06
 
 ### 🚀 Features
