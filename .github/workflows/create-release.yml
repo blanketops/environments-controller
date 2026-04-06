@@ -21,6 +21,7 @@ jobs:
         with:
           ref: develop
           fetch-depth: 0
+          token: ${{ secrets.GH_PAT }}
 
       - name: Configure git
         run: |
@@ -34,7 +35,7 @@ jobs:
 
       - name: Open PR to main
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           gh pr create \
             --base main \
