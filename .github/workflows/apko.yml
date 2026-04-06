@@ -39,6 +39,7 @@ jobs:
           config: melange.yaml
           archs: x86_64
           sign-with-temporary-key: true
+          workdir: .
 
       - name: Build image
         id: build
