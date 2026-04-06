@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-04-06
+
+### 🐛 Bug Fixes
+
+- *(ci)* Fix multi-platform build, wolfi workflow and melange config
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.0.9
+- Sync develop with main after release/v0.0.9
+
+### Release
+
+- Merge release/v0.2.0 into main
+
 ## [0.0.9] - 2026-04-06
 
 ### 🐛 Bug Fixes
