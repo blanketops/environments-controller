@@ -2,12 +2,20 @@ name: Wolfi Image
 
 on:
   workflow_dispatch:
+    inputs:
+      sign_and_attest:
+        description: "Sign and attest the image after build"
+        type: boolean
+        default: true
   push:
     tags:
       - "v*"
 
 permissions:
   contents: read
+  packages: write
+  id-token: write
+  attestations: write
 
 jobs:
   wolfi:
@@ -21,23 +29,38 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Setup melange
-        uses: chainguard-dev/actions/setup-melange@eab208ef2d05b13404296a5e194a6b237e8bb213
+        uses: chainguard-dev/actions/setup-melange@main
         with:
           version: latest-release
 
-      - name: Setup apko
-        uses: chainguard-dev/actions/setup-apko@eab208ef2d05b13404296a5e194a6b237e8bb213
-
       - name: Build package
-        uses: chainguard-dev/actions/melange-build@eab208ef2d05b13404296a5e194a6b237e8bb213
+        uses: chainguard-dev/actions/melange-build@main
         with:
           config: melange.yaml
           archs: x86_64
           sign-with-temporary-key: true
-          source-dir: ${{ github.workspace }}
 
       - name: Build image
-        uses: chainguard-dev/actions/apko-build@eab208ef2d05b13404296a5e194a6b237e8bb213
+        id: build
+        uses: chainguard-dev/actions/apko-build@main
         with:
           config: apko.yaml
-          tag: your.registry/controller:${{ github.ref_name }}
+          tag: docker.io/nkanyezisolutions/blanketops-environments-controller:${{ github.ref_name }}
+
+      - name: Install cosign
+        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+        run: |
+          cosign sign --yes \
+            docker.io/nkanyezisolutions/blanketops-environments-controller@${{ steps.build.outputs.digest }}
+
+      - name: Attest image provenance
+        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: docker.io/nkanyezisolutions/blanketops-environments-controller
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
