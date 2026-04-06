@@ -10,7 +10,6 @@ require (
 	github.com/go-logr/zapr v1.3.0
 	github.com/ntlaletsi70/blanketops-environments v0.1.9
 	github.com/ntlaletsi70/blanketops-environments-api v0.0.8
-	github.com/ntlaletsi70/blanketops-environments-mvp v0.0.0-20260307105812-5cabde98ce84
 	github.com/shipwright-io/build v0.18.4
 	github.com/tektoncd/pipeline v1.10.0
 	go.uber.org/zap v1.27.1
@@ -47,6 +46,7 @@ require (
 	github.com/google/cel-go v0.27.0 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/google/pprof v0.0.0-20260115054156-294ebfa9ad83 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3 // indirect
 	github.com/josharian/intern v1.0.0 // indirect

@@ -32,7 +32,7 @@ import (
 
 	"github.com/go-logr/logr"
 	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	"github.com/ntlaletsi70/blanketops-environments-mvp/core"
+	"github.com/ntlaletsi70/blanketops-environments/core"
 	deployapp "github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
 	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
 	"github.com/ntlaletsi70/blanketops-environments/resolution/serviceunit"
@@ -148,7 +148,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		log.Info("triggering deployment of serviceunit(s)")
 
 		if d.deployService != nil {
-			if err := d.deployService.Reconcile(ctx, resolved, serviceUnits); err != nil {
+			if err := d.deployService.Reconcile(ctx, resolved, serviceUnits, d.log); err != nil {
 
 				log.Error(err, "deployment of serviceunits failed")
 				d.events.FromError(deployCR, "DeploymentFailed", err)
@@ -159,7 +159,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		}
 
 		log.Info("serviceunit resolved successfully")
-		d.events.Info(deployCR, "DeploymentSucceeded", "Reconcile", "deployment reconciliation completed successfully")
+		d.events.Info(deployCR, "DeploymentSucceeded", "deployment reconciliation completed successfully")
 		core.SetCondition(&deployCR.Status.Conditions, "DeploymentSucceeded", core.ConditionTrue, "DeploymentSucceeded", "Deployment trigger completed successfully")
 
 	case core.CmdDelete:

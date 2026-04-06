@@ -56,7 +56,8 @@ type GitRepositoryReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
-	log := r.Log.WithValues("controller", "gitrepository", "namespace", req.Namespace, "name", req.Name)
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "gitrepository", "namespace", req.Namespace, "name", req.Name)
+	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -136,14 +137,14 @@ func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	//---------------------------------------------------------------------
 	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	cache := r.Runtime.Cache
-	events := r.Runtime.Events
-	registry := r.Runtime.Registry
+	// cache := r.Runtime.Cache
+	// events := r.Runtime.Events
+	// registry := r.Runtime.Registry
 
 	//---------------------------------------------------------------------
 	// Mediator (prerequisites only)
 	//---------------------------------------------------------------------
-	r.GitRepositoryMediator = gitrepository.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.gitrepository"), r.Recorder)
+	//r.GitRepositoryMediator = gitrepository.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.gitrepository"), r.Recorder)
 
 	//---------------------------------------------------------------------
 	// Providers (strategy handlers)
@@ -152,25 +153,25 @@ func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	//---------------------------------------------------------------------
 	// Providers (github)
 	//---------------------------------------------------------------------
-	githubProvider := gitrepoapi.NewGitHubProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.github"), r.Recorder)
+	//githubProvider := gitrepoapi.NewGitHubProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.github"), r.Recorder)
 
 	//---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
 	//---------------------------------------------------------------------
-	backendSelector := application.NewBackendSelector(githubProvider)
+	//backendSelector := application.NewBackendSelector(githubProvider)
 
 	//-----------------------------------------------------------------------------------------
 	// GitRepository Service (Mapper and StatiusWriter, domain service for orchestration))
 	//------------------------------------------------------------------------------------------
-	mapper := application.NewMapper()
-	statusWriter := application.NewStatusWriter() //check args for a fix here please, extra argument required
-	r.Service = application.NewGitRepositoryService(mapper, statusWriter, backendSelector)
+	// mapper := application.NewMapper()
+	// statusWriter := application.NewStatusWriter() //check args for a fix here please, extra argument required
+	// r.Service = application.NewGitRepositoryService(mapper, statusWriter, backendSelector)
 
 	//--------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	//--------------------------------------------------------------------------------
-	domain := sourcesdomain.New(r.GitRepositoryMediator, r.Service, r.Cache, r.Events, r.Log.WithName("domain.gitrepository"))
-	r.Registry.RegisterDomain(sourcesv1alpha1.GroupVersion.WithKind("GitRepository"), domain)
+	// domain := sourcesdomain.New(r.GitRepositoryMediator, r.Service, r.Cache, r.Events, r.Log.WithName("domain.gitrepository"))
+	// r.Registry.RegisterDomain(sourcesv1alpha1.GroupVersion.WithKind("GitRepository"), domain)
 
 	// ---------------------------------------------------------------------
 	// Controller registration
