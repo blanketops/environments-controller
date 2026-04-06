@@ -21,7 +21,19 @@ import (
 	"fmt"
 	"strings"
 
-	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
+	kappctrlv1alpha1 "carvel.dev/kapp-controller/pkg/apis/kappctrl/v1alpha1"
+	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
+	fluxcdsourcev1 "github.com/fluxcd/source-controller/api/v1"
+	"github.com/go-logr/logr"
+	environmentsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
+	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
+	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/build/api"
+	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
+	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
+	shipwrightv1beta1 "github.com/shipwright-io/build/pkg/apis/build/v1beta1"
+	shipwrightclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
+	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,30 +49,13 @@ import (
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/go-logr/logr"
-	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
-	shipwrightv1beta1 "github.com/shipwright-io/build/pkg/apis/build/v1beta1"
-	shipwrightclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
-	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
-
-	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
-	fluxcdsourcev1 "github.com/fluxcd/source-controller/api/v1"
-
-	environmentsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
-	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
-
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/environments"
-
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildrun"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildtrigger"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/deployment"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/githubevent"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/gitrepository"
-
-	kappctrlv1alpha1 "carvel.dev/kapp-controller/pkg/apis/kappctrl/v1alpha1"
-	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/build/api"
-	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
+	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
 func RegisterSchemes(scheme *runtime.Scheme) {

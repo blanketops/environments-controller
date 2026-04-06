@@ -19,9 +19,9 @@ import (
 	"context"
 
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
+	"github.com/ntlaletsi70/blanketops-environments/core"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -30,7 +30,7 @@ import (
 // It MUST NOT mutate domain state.
 type Reconciler struct {
 	client.Client
-	Recorder events.EventRecorder
+	Recorder *core.EventRecorder
 }
 
 func (r *Reconciler) Reconcile(
@@ -72,9 +72,8 @@ func (r *Reconciler) Reconcile(
 
 	// ---- OBSERVE ONLY ----
 	if r.Recorder != nil {
-		r.Recorder.Event(
+		r.Recorder.Normal(
 			&ev,
-			"Normal",
 			"ExternalEventObserved",
 			"External system reported event activity",
 		)
@@ -84,7 +83,7 @@ func (r *Reconciler) Reconcile(
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorder("githubevent-observer")
+	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("githubevent-observer"))
 
 	// IMPORTANT: watch the external resource, not GitHubEvent
 	return ctrl.NewControllerManagedBy(mgr).

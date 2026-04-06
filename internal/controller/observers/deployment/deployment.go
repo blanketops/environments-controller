@@ -27,18 +27,16 @@ package deployment
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	fluxkustomize "github.com/fluxcd/kustomize-controller/api/v1"
 	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/domain"
 	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -48,7 +46,7 @@ import (
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
-	Recorder events.EventRecorder
+	Recorder *core.EventRecorder
 }
 
 func (r *Reconciler) Reconcile(
@@ -135,26 +133,20 @@ func (r *Reconciler) Reconcile(
 		switch phase {
 
 		case domain.DeploymentPhase("Ready"):
-			r.Recorder.Event(
+			r.Recorder.Normal(
 				&deployment,
-				corev1.EventTypeNormal,
 				"DeploymentSucceeded",
-				fmt.Sprintf(
-					"Kustomization %s applied successfully",
-					ks.Name,
-				),
+				"Kustomization %s applied successfully",
+				ks.Name,
 			)
 
 		case domain.DeploymentPhase("Failed"):
-			r.Recorder.Event(
+			r.Recorder.Warn(
 				&deployment,
-				corev1.EventTypeWarning,
 				"DeploymentFailed",
-				fmt.Sprintf(
-					"Kustomization %s failed: %s",
-					ks.Name,
-					readyCond.Message,
-				),
+				"Kustomization %s failed: %s",
+				ks.Name,
+				readyCond.Message,
 			)
 		}
 	}
@@ -171,7 +163,7 @@ func (r *Reconciler) Reconcile(
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorder("deployment-observer")
+	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("deployment-observer"))
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fluxkustomize.Kustomization{}).

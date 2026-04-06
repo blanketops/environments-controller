@@ -120,8 +120,6 @@ github.com/ntlaletsi70/blanketops-environments-api v0.0.8 h1:uBvUAXaf8CQxHDAm60K
 github.com/ntlaletsi70/blanketops-environments-api v0.0.8/go.mod h1:mC14Rb6ytbYyxXbrf69/y7zcglCtsSKEt5cM7wZuKj8=
 github.com/ntlaletsi70/blanketops-environments-contract v0.0.8 h1:EM1agrOq5CvA9fIYcYRgmYRKB1yT81v4KtozyGnygEs=
 github.com/ntlaletsi70/blanketops-environments-contract v0.0.8/go.mod h1:8cT3P22UtHIcF3N17T1ip1O6jZUXfSsFsDBj6B8ooik=
-github.com/ntlaletsi70/blanketops-environments-mvp v0.0.0-20260307105812-5cabde98ce84 h1:VPQ5S+4sXaikrU1iqHYHKluCki08rDtkkfWbeKUlmaw=
-github.com/ntlaletsi70/blanketops-environments-mvp v0.0.0-20260307105812-5cabde98ce84/go.mod h1:kRpqOe60efTsD4UvYyv4N1pa/OrJvudpn9l7fhPS5dQ=
 github.com/onsi/ginkgo v1.16.4 h1:29JGrr5oVBm5ulCWet69zQkzWipVXIol6ygQUe/EzNc=
 github.com/onsi/ginkgo/v2 v2.28.1 h1:S4hj+HbZp40fNKuLUQOYLDgZLwNUVn19N3Atb98NCyI=
 github.com/onsi/ginkgo/v2 v2.28.1/go.mod h1:CLtbVInNckU3/+gC8LzkGUb9oF+e8W8TdUsxPwvdOgE=

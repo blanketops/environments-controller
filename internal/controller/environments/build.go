@@ -68,8 +68,9 @@ type BuildReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "build", "namespace", req.Namespace, "name", req.Name)
+	ctx = logr.NewContext(ctx, log)
 
-	log := r.Log.WithValues("controller", "build", "namespace", req.Namespace, "name", req.Name)
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
@@ -81,7 +82,6 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 			log.Info("reconcile exit: build not found (deleted)")
 			return ctrl.Result{}, nil
 		}
-
 		log.Error(err, "failed to fetch build")
 		return ctrl.Result{}, err
 	}
@@ -103,11 +103,9 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	// Execute domain logic via engine
 	// ------------------------------------------------
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
-
 		log.Error(err, "engine execution failed")
 		r.Recorder.Eventf(&build, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
 		log.Info("reconcile exit: engine error")
-
 		return ctrl.Result{}, err
 	}
 
