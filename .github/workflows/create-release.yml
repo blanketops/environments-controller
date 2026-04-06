@@ -43,6 +43,7 @@ jobs:
             --title "release: ${{ github.event.inputs.version }}" \
             --body "## Release ${{ github.event.inputs.version }}
 
-          Release branch cut from \`develop\`. Merge bugfix PRs into this branch before finalizing.
+          Release branch cut from \`develop\`. Merge fix PRs into this branch before finalizing.
 
-          **Next step:** once all fixes are merged, run the _Finalize Release_ workflow."
+          **Next step:** once all fixes are merged, run the _Finalize Release_ workflow." \
+          || echo "::warning::PR creation failed — branch release/${{ github.event.inputs.version }} was created successfully. Open the PR manually."

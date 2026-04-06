@@ -5,10 +5,18 @@ on:
             - main
         tags:
             - "v*"
+    workflow_dispatch:
+        inputs:
+            sign_and_attest:
+                description: "Sign and attest the image after build"
+                type: boolean
+                default: true
 
 permissions:
     contents: read
     packages: write
+    id-token: write
+    attestations: write
 
 jobs:
     build:
@@ -41,6 +49,7 @@ jobs:
                     --password-stdin
 
             - name: Build and push
+              id: build
               env:
                   KO_DOCKER_REPO: docker.io/nkanyezisolutions/blanketops-environments-controller
                   GOPRIVATE: github.com/ntlaletsi70/*
@@ -51,4 +60,24 @@ jobs:
                   ko build ./cmd \
                     --bare \
                     --platform linux/amd64,linux/arm64 \
-                    --tags ${{ github.ref_name }},latest
+                    --tags ${{ github.ref_name }},latest \
+                    --image-refs /tmp/ko-image-refs
+                  echo "digest=$(cut -d@ -f2 /tmp/ko-image-refs)" >> $GITHUB_OUTPUT
+
+            - name: Install cosign
+              if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+              uses: sigstore/cosign-installer@v3
+
+            - name: Sign image
+              if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+              run: |
+                  cosign sign --yes \
+                    docker.io/nkanyezisolutions/blanketops-environments-controller@${{ steps.build.outputs.digest }}
+
+            - name: Attest image provenance
+              if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+              uses: actions/attest-build-provenance@v2
+              with:
+                  subject-name: docker.io/nkanyezisolutions/blanketops-environments-controller
+                  subject-digest: ${{ steps.build.outputs.digest }}
+                  push-to-registry: true
