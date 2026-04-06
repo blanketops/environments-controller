@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   wolfi:
+    if: false
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +40,7 @@ jobs:
           config: melange.yaml
           archs: x86_64
           sign-with-temporary-key: true
+          workdir: .
 
       - name: Build image
         id: build

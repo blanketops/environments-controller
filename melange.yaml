@@ -4,26 +4,30 @@ package:
   epoch: 0
   description: "BlanketOps Environments Kubernetes Controller"
   target-architecture:
-    - x86_64
+  - x86_64
   copyright:
-    - license: Apache-2.0
+  - license: Apache-2.0
   dependencies:
     runtime: []
   checks:
     disabled:
-      - usrlocal
-      - setuidgid
+    - usrlocal
+    - setuidgid
 update:
   enabled: false
 
 environment:
   contents:
+    repositories:
+    - https://packages.wolfi.dev/os
+    keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
     packages:
-      - busybox
-      - ca-certificates-bundle
-      - go
-      - git
-      - openssh-client
+    - busybox
+    - ca-certificates-bundle
+    - go
+    - git
+    - openssh-client
   environment:
     GOPRIVATE: github.com/ntlaletsi70/*
     GONOSUMDB: github.com/ntlaletsi70/*
@@ -31,23 +35,23 @@ environment:
     CGO_ENABLED: "0"
 
 pipeline:
-  - uses: git-checkout
-    with:
-      repository: https://github.com/ntlaletsi70/blanketops-environments-controller
-      tag: ${{package.version}}
-      expected-commit: ""
+- uses: git-checkout
+  with:
+    repository: https://github.com/ntlaletsi70/blanketops-environments-controller
+    tag: ${{package.version}}
+    expected-commit: ""
 
-  - name: Configure SSH for private modules
-    runs: |
-      mkdir -p /root/.ssh
-      chmod 700 /root/.ssh
-      ssh-keyscan github.com >> /root/.ssh/known_hosts
-      git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
+- name: Configure SSH for private modules
+  runs: |
+    mkdir -p /root/.ssh
+    chmod 700 /root/.ssh
+    ssh-keyscan github.com >> /root/.ssh/known_hosts
+    git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
 
-  - uses: go/build
-    with:
-      packages: ./cmd
-      output: manager
-      ldflags: -s -w
+- uses: go/build
+  with:
+    packages: ./cmd
+    output: manager
+    ldflags: -s -w
 
-  - uses: strip
+- uses: strip
