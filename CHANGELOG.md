@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2026-04-06
+
+### 🚀 Features
+
+- *(ci)* Add GitHub OIDC + Sigstore Fulcio keyless attestations to all image workflows
+
+### 🐛 Bug Fixes
+
+- *(ci)* Make PR creation non-fatal in create-release workflow
+- *(ci)* Improve Wolfi build configuration and melange workdir
+- *(ci)* Consolidate to ko workflow, fix digest extraction, disable redundant builds
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.2.1
+- Remove .secrets from tracking (should be gitignored)
+- Ensure .secrets is gitignored
+- Sync develop with main after release/v0.2.1
+
+### Release
+
+- Merge release/v0.2.2 into main
+
 ## [0.2.1] - 2026-04-06
 
 ### ⚙️ Miscellaneous Tasks
