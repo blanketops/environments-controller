@@ -58,6 +58,11 @@ type BuildReconciler struct {
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=builds/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=builds/finalizers,verbs=update
 
+// +kubebuilder:rbac:groups=shipwright.io,resources=builds;buildruns,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=shipwright.io,resources=builds/status;buildruns/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=tekton.dev,resources=pipelines;pipelineruns;tasks;taskruns,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=tekton.dev,resources=pipelineruns/status;taskruns/status,verbs=get;update;patch
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
