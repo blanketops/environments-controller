@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.3] - 2026-04-30
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.2.2
+- *(release)* Update changelog for v0.2.2
+
+### Release
+
+- Merge release/v0.2.3 into main
+
 ## [0.2.2] - 2026-04-06
 
 ### 🚀 Features
