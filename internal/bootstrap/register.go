@@ -85,8 +85,8 @@ func EnsureServiceAccount(ctx context.Context, cfg *rest.Config) error {
 	}
 
 	const (
-		namespace = "default"            // adjust later
-		name      = "blanketops-manager" // must match deployment
+		namespace = "default"              // adjust later
+		name      = "environments-manager" // must match deployment
 	)
 
 	_, err = client.CoreV1().
