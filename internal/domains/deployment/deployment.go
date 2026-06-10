@@ -14,16 +14,16 @@ limitations under the License.
 */
 
 /*
-Copyright 2025.
+Package deployment implements the Deployment resource domain.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
+The Deployment domain is responsible for managing the lifecycle of
+Deployment resources. It receives commands from the Engine, resolves
+resource specifications into validated contracts, delegates
+processing to the application layer, and records reconciliation
+outcomes through conditions and events.
 */
 
-package deploy
+package deployment
 
 import (
 	"context"
@@ -42,18 +42,22 @@ import (
 	deploymediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/deployment"
 )
 
-// DeploymentDomain handles Build CRs.
-// This represents a FACT INGESTION boundary.
+// DeployDomain implements the Deployment resource domain.
 type DeployDomain struct {
+	// deployMediator manages prerequisite interactions.
 	deployMediator *deploymediator.Mediator
-	deployService  *deployapp.DeploymentService // optional, nil-safe
 
-	cache  *core.Cache
+	// deployService handles business logic for deployment operations.
+	deployService *deployapp.DeploymentService
+	// cache provides access to internal state storage.
+	cache *core.Cache
+	// events handles logging of Kubernetes events.
 	events *core.EventRecorder
-	log    logr.Logger
+	// log is the logger instance for this domain.
+	log logr.Logger
 }
 
-// New constructs a new DeployDomain instance.
+// New returns a new DeployDomain instance configured with the necessary dependencies.
 func New(deployMediator *deploymediator.Mediator, deployService *deployapp.DeploymentService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *DeployDomain {
 	return &DeployDomain{
 		deployMediator: deployMediator,
@@ -74,7 +78,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 
 	deployCR, ok := cmd.Obj.(*environmentv1.Deployment)
 	if !ok || deployCR == nil {
-		return fmt.Errorf("invalid object passed to DeploymentDomain: %T", cmd.Obj)
+		return fmt.Errorf("invalid object passed to DeployDomain: %T", cmd.Obj)
 	}
 
 	log := d.log.WithValues("domain", "deployment", "name", deployCR.Name, "namespace", deployCR.Namespace)
@@ -173,11 +177,14 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 // Predicate hooks
 // -----------------------------------------------------------------------------
 
+// CanCreate reports whether the supplied object can be processed as a Deploy create operation.
 func (d *DeployDomain) CanCreate(obj client.Object) bool {
 	_, ok := obj.(*environmentv1.Deployment)
 	return ok
 }
 
+// CanUpdate reports whether the supplied update should trigger Deploy reconciliation
+// by comparing the specifications of the old and new objects.
 func (d *DeployDomain) CanUpdate(oldObj, newObj client.Object) bool {
 	oldDep, okOld := oldObj.(*environmentv1.Deployment)
 	newDep, okNew := newObj.(*environmentv1.Deployment)
@@ -189,6 +196,7 @@ func (d *DeployDomain) CanUpdate(oldObj, newObj client.Object) bool {
 	return !reflect.DeepEqual(oldDep.Spec, newDep.Spec)
 }
 
+// CanDelete reports whether the supplied object can be processed as a Deploy delete operation.
 func (d *DeployDomain) CanDelete(obj client.Object) bool {
 	_, ok := obj.(*environmentv1.Deployment)
 	return ok

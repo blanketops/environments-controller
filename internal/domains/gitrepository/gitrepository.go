@@ -13,7 +13,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sources
+/*
+Package gitrepository implements the GitRepository resource domain.
+
+The GitRepository domain is responsible for managing the lifecycle of
+GitRepository resources. It receives commands from the Engine, resolves
+resource specifications into validated contracts, delegates
+processing to the application layer, and records reconciliation
+outcomes through conditions and events.
+*/
+
+package gitrepository
 
 import (
 	"context"
@@ -22,33 +32,37 @@ import (
 
 	"github.com/go-logr/logr"
 	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/gitrepository"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/gitrepository/application"
 	gitrepoResolution "github.com/ntlaletsi70/blanketops-environments/resolution/gitrepository"
-
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/gitrepository"
 )
 
-// GitRepositoryDomain handles Build CRs.
-// This represents a FACT INGESTION boundary.
+// GitRepositoryDomain implements the GitRepository resource domain logic.
 type GitRepositoryDomain struct {
-	Mediator *gitrepository.Mediator
-	Service  *application.GitRepositoryService
-	cache    *core.Cache
-	events   *core.EventRecorder
-	log      logr.Logger
+	// gitRepositoryMediator manages prerequisite interactions.
+	gitRepositoryMediator *gitrepository.Mediator
+	// gitRepositoryService handles business logic for gitrepository operations.
+	gitRepositoryService *application.GitRepositoryService
+	// cache provides access to internal state storage.
+	cache *core.Cache
+	// events handles logging of Kubernetes events.
+	events *core.EventRecorder
+	// log is the logger instance for this domain.
+	log logr.Logger
 }
 
-// New constructs a new GitRepositoryDomain instance.
+// New returns a new GitRepositoryDomain instance configured with the necessary dependencies.
 func New(mediator *gitrepository.Mediator, service *application.GitRepositoryService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *GitRepositoryDomain {
 	return &GitRepositoryDomain{
-		Mediator: mediator,
-		Service:  service,
-		cache:    cache,
-		events:   events,
-		log:      log,
+		gitRepositoryMediator: mediator,
+		gitRepositoryService:  service,
+		cache:                 cache,
+		events:                events,
+		log:                   log,
 	}
 }
 
@@ -68,94 +82,102 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd core.Command) erro
 	log := d.log.WithValues("domain", "gitrepository", "name", gitrepositoryCR.Name, "namespace", gitrepositoryCR.Namespace)
 	log.Info("handling gitrepository command", "type", cmd.Type)
 
-	// --------------------------------------------------------------
-	// 1. Resolve GitRepository ONCE (domain-owned)
-	// --------------------------------------------------------------
+	switch cmd.Type {
+	case core.CmdCreate, core.CmdUpdate:
 
-	log.Info("resolving gitrepository contract")
-	resolved, err := gitrepoResolution.ResolveGitRepository(gitrepositoryCR)
+		// --------------------------------------------------------------
+		// 1. Resolve GitRepository ONCE (domain-owned)
+		// --------------------------------------------------------------
 
-	if err != nil {
+		log.Info("resolving gitrepository contract")
+		resolved, err := gitrepoResolution.ResolveGitRepository(gitrepositoryCR)
 
-		log.Error(err, "gitrepository resolution failed")
-		d.events.FromError(gitrepositoryCR, "GitRepositoryResolveFailed", err)
-		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryResolved", core.ConditionFalse, "InvalidSpec", err.Error())
+		if err != nil {
 
-		return err
+			log.Error(err, "gitrepository resolution failed")
+			d.events.FromError(gitrepositoryCR, "GitRepositoryResolveFailed", err)
+			core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryResolved", core.ConditionFalse, "InvalidSpec", err.Error())
+
+			return err
+		}
+
+		log.Info("gitrepository resolved successfully")
+		d.events.Normal(gitrepositoryCR, "GitRepositoryResolved", "GitRepository specification resolved successfully")
+		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryResolved", core.ConditionTrue, "Resolved", "GitRepository specification resolved successfully")
+
+		// ------------------------------------------------
+		// 2. Ensure prerequisites (secrets, etc.)
+		// ------------------------------------------------
+		log.Info("ensuring gitrepository prerequisites")
+
+		if err := d.gitRepositoryMediator.EnsurePrerequisites(ctx, resolved); err != nil {
+
+			log.Error(err, "gitrepository prerequisites failed")
+			d.events.FromError(gitrepositoryCR, "GitRepositoryPrerequisitesFailed", err)
+			core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryPrerequisitesReady", core.ConditionFalse, "GitRepositoryPrerequisitesFailed", err.Error())
+
+			return err
+		}
+
+		log.Info("gitrepository prerequisites ensured")
+		d.events.Normal(gitrepositoryCR, "GitRepositoryPrerequisitesReady", "all build prerequisites created successfully")
+		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryPrerequisitesReady", core.ConditionTrue, "GitRepositoryPrerequisitesReady", "All build prerequisites satisfied")
+
+		// ---------------------------------------------------------
+		// 3. Reconcile declarative intent (service)
+		// ---------------------------------------------------------
+		log.Info("triggering gitrepository execution")
+
+		if err := d.gitRepositoryService.Reconcile(ctx, resolved); err != nil {
+
+			log.Error(err, "gitrepository triggering failed")
+			d.events.FromError(gitrepositoryCR, "GitRepositoryReconcileFailed", err)
+			core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
+
+			return err
+		}
+
+		// ------------------------------------------------
+		// 4. GitRepository Execution completed
+		// ------------------------------------------------
+
+		log.Info("gitrepository execution requested")
+		d.events.Normal(gitrepositoryCR, "GitRepositoryTriggered", "GitRepository execution has started")
+		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryTriggered", core.ConditionTrue, "ExecutionStarted", "GitRepository execution has started")
+		log.Info("gitrepository domain handling complete")
+
+	case core.CmdDelete:
+		d.events.Info(gitrepositoryCR, "GitRepositoryDeleted", "gitrepository cleanup not implemented yet")
 	}
-
-	log.Info("gitrepository resolved successfully")
-	d.events.Normal(gitrepositoryCR, "GitRepositoryResolved", "GitRepository specification resolved successfully")
-	core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryResolved", core.ConditionTrue, "Resolved", "GitRepository specification resolved successfully")
-
-	// ------------------------------------------------
-	// 2. Ensure prerequisites (secrets, etc.)
-	// ------------------------------------------------
-	log.Info("ensuring gitrepository prerequisites")
-
-	if err := d.Mediator.EnsurePrerequisites(ctx, resolved); err != nil {
-
-		log.Error(err, "gitrepository prerequisites failed")
-		d.events.FromError(gitrepositoryCR, "GitRepositoryPrerequisitesFailed", err)
-		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryPrerequisitesReady", core.ConditionFalse, "GitRepositoryPrerequisitesFailed", err.Error())
-
-		return err
-	}
-
-	log.Info("gitrepository prerequisites ensured")
-	d.events.Normal(gitrepositoryCR, "GitRepositoryPrerequisitesReady", "all build prerequisites created successfully")
-	core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryPrerequisitesReady", core.ConditionTrue, "GitRepositoryPrerequisitesReady", "All build prerequisites satisfied")
-
-	// ---------------------------------------------------------
-	// 3. Reconcile declarative intent (service)
-	// ---------------------------------------------------------
-	log.Info("triggering gitrepository execution")
-
-	if err := d.Service.Reconcile(ctx, resolved); err != nil {
-
-		log.Error(err, "gitrepository triggering failed")
-		d.events.FromError(gitrepositoryCR, "GitRepositoryReconcileFailed", err)
-		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
-
-		return err
-	}
-
-	// ------------------------------------------------
-	// 4. GitRepository Execution completed
-	// ------------------------------------------------
-
-	log.Info("gitrepository execution requested")
-	d.events.Normal(gitrepositoryCR, "GitRepositoryTriggered", "GitRepository execution has started")
-	core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryTriggered", core.ConditionTrue, "ExecutionStarted", "GitRepository execution has started")
-	log.Info("gitrepository domain handling complete")
 
 	return nil
 }
 
-// CanCreate determines whether this domain handles create events.
+// -----------------------------------------------------------------------------
+// Predicate hooks
+// -----------------------------------------------------------------------------
+
+// CanCreate reports whether the supplied object can be processed as a GitRepository create operation.
 func (d *GitRepositoryDomain) CanCreate(obj client.Object) bool {
 	_, ok := obj.(*sourcesv1alpha1.GitRepository)
 	return ok
 }
 
-// CanUpdate determines whether updates should trigger reconciliation.
-func (d *GitRepositoryDomain) CanUpdate(
-	oldObj, newObj client.Object,
-) bool {
+// CanUpdate reports whether the supplied update should trigger GitRepository reconciliation
+// by comparing the specifications of the old and new objects.
+func (d *GitRepositoryDomain) CanUpdate(oldObj, newObj client.Object) bool {
+
 	oldRepo, okOld := oldObj.(*sourcesv1alpha1.GitRepository)
 	newRepo, okNew := newObj.(*sourcesv1alpha1.GitRepository)
-	if !okOld || !okNew {
-		return false
-	}
-	if !okOld || !okNew {
-		return false
-	}
 
+	if !okOld || !okNew {
+		return false
+	}
 	// Reconcile only if spec changes
 	return !reflect.DeepEqual(oldRepo.Spec, newRepo.Spec)
 }
 
-// CanDelete determines whether delete events are handled.
+// CanDelete reports whether the supplied object can be processed as a GitRepository delete operation.
 func (d *GitRepositoryDomain) CanDelete(obj client.Object) bool {
 	_, ok := obj.(*sourcesv1alpha1.GitRepository)
 	return ok
