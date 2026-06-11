@@ -21,8 +21,7 @@ import (
 	libdeployment "github.com/ntlaletsi70/blanketops-environments/cache/deployment"
 	libgithubevent "github.com/ntlaletsi70/blanketops-environments/cache/githubevent"
 	libgitrepository "github.com/ntlaletsi70/blanketops-environments/cache/gitrepository"
-
-	//libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
+	libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
 	libserviceunit "github.com/ntlaletsi70/blanketops-environments/cache/serviceunit"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 )
@@ -36,16 +35,17 @@ type Caches struct {
 	GitHubEvent   *libgithubevent.GitHubEventCache
 	GitRepository *libgitrepository.GitRepositoryCache
 	ServiceUnit   *libserviceunit.ServiceUnitCache
-	//Packages      *libpackages.PackageCache
+	Packages      *libpackages.PackageCache
 }
 
 func NewCaches(c *core.Cache) *Caches {
 	return &Caches{
-		Build:        libbuild.NewBuildCache(c),
-		BuildTrigger: libbuildtrigger.NewBuildTriggerCache(c),
-		Deployment:   libdeployment.NewDeploymentCache(c),
-		//GitHubEvent:   libgithubevent.NewGitHubEventCache(c),
+		Build:         libbuild.NewBuildCache(c),
+		BuildTrigger:  libbuildtrigger.NewBuildTriggerCache(c),
+		Deployment:    libdeployment.NewDeploymentCache(c),
+		GitHubEvent:   libgithubevent.NewGitHubEventCache(c),
 		GitRepository: libgitrepository.NewGitRepositoryCache(c),
 		ServiceUnit:   libserviceunit.NewServiceUnitCache(c),
+		Packages:      libpackages.NewPackageCache(c),
 	}
 }

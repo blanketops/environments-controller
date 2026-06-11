@@ -32,13 +32,16 @@ import (
 
 	"github.com/go-logr/logr"
 	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	libdeployment "github.com/ntlaletsi70/blanketops-environments/cache/deployment"
 	"github.com/ntlaletsi70/blanketops-environments/core"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
 	deployapp "github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
 	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
 	"github.com/ntlaletsi70/blanketops-environments/resolution/serviceunit"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/deployment"
 	deploymediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/deployment"
 )
 
@@ -49,8 +52,16 @@ type DeployDomain struct {
 
 	// deployService handles business logic for deployment operations.
 	deployService *deployapp.DeploymentService
-	// cache provides access to internal state storage.
-	cache *core.Cache
+	// deploymentCache provides generation-scoped, field-level caching for
+	// Deployment resources. Advisory only: misses and errors fall through
+	// to full computation; correctness never depends on a hit.
+	deploymentCache *libdeployment.DeploymentCache
+
+	// reader provides cached (informer-backed) reads of cluster state,
+	// used for cross-CR resolution (e.g. ServiceUnits referenced by a
+	// Deployment). Truth comes from here; the projection cache never
+	// serves cross-CR reads.
+	reader client.Reader
 	// events handles logging of Kubernetes events.
 	events *core.EventRecorder
 	// log is the logger instance for this domain.
@@ -58,13 +69,14 @@ type DeployDomain struct {
 }
 
 // New returns a new DeployDomain instance configured with the necessary dependencies.
-func New(deployMediator *deploymediator.Mediator, deployService *deployapp.DeploymentService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *DeployDomain {
+func New(deploymentMediator *deployment.Mediator, deploymentService *application.DeploymentService, deploymentCache *libdeployment.DeploymentCache, reader client.Reader, events *core.EventRecorder, log logr.Logger) *DeployDomain {
 	return &DeployDomain{
-		deployMediator: deployMediator,
-		deployService:  deployService,
-		cache:          cache,
-		events:         events,
-		log:            log,
+		deployMediator:  deploymentMediator,
+		deployService:   deploymentService,
+		deploymentCache: deploymentCache,
+		reader:          reader,
+		events:          events,
+		log:             log,
 	}
 }
 
@@ -84,23 +96,29 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 	log := d.log.WithValues("domain", "deployment", "name", deployCR.Name, "namespace", deployCR.Namespace)
 	d.log.Info("handling deployment command", "type", cmd.Type)
 
+	nn := client.ObjectKeyFromObject(deployCR)
+	gen := deployCR.GetGeneration()
+
 	switch cmd.Type {
 	case core.CmdCreate, core.CmdUpdate:
 
 		//------------------------------------------------
-		// Stage 1: Resolve deployment contract
+		// Stage 0: Resolve deployment contract
 		//------------------------------------------------
-
 		log.Info("resolving deployment contract")
 		resolved, err := deploymentResolution.ResolveDeployment(deployCR)
-
 		if err != nil {
-
 			log.Error(err, "deployment resolution failed")
 			d.events.FromError(deployCR, "DeploymentResolutionFailed", err)
 			core.SetCondition(&deployCR.Status.Conditions, "DeploymentResolved", core.ConditionFalse, "InvalidSpec", err.Error())
-
 			return err
+		}
+
+		//------------------------------------------------
+		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
+		//------------------------------------------------
+		if cerr := d.deploymentCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
+			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 		}
 
 		log.Info("deployment resolved successfully")
@@ -110,15 +128,11 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		//------------------------------------------------
 		// Stage 2: Ensure prerequisites
 		//------------------------------------------------
-
 		log.Info("ensuring deployment prerequisites")
-
 		if err := d.deployMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-
 			log.Error(err, "deployment prerequisites failed")
 			d.events.FromError(deployCR, "DeploymentPrerequisitesFailed", err)
 			core.SetCondition(&deployCR.Status.Conditions, "DeploymentPrerequisitesReady", core.ConditionFalse, "DeploymentPrerequisitesFailed", err.Error())
-
 			return err
 		}
 
@@ -129,16 +143,12 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// ------------------------------------------------
 		// 3. RESOLVE SERVICE UNITS (AUTHORITATIVE)
 		// ------------------------------------------------
-
 		log.Info("triggering resolve serviceunits")
 		serviceUnits, err := d.resolveServiceUnits(ctx, resolved)
-
 		if err != nil {
-
 			log.Error(err, "resolve serviceunits failed")
 			d.events.FromError(deployCR, "ServiceUnitResolutionFailed", err)
 			core.SetCondition(&deployCR.Status.Conditions, "ServiceUnitResolved", core.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
-
 			return err
 		}
 
@@ -150,14 +160,11 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// 4. EXECUTE DEPLOYMENT (OPTIONAL)
 		// ------------------------------------------------
 		log.Info("triggering deployment of serviceunit(s)")
-
 		if d.deployService != nil {
 			if err := d.deployService.Reconcile(ctx, resolved, serviceUnits, d.log); err != nil {
-
 				log.Error(err, "deployment of serviceunits failed")
 				d.events.FromError(deployCR, "DeploymentFailed", err)
 				core.SetCondition(&deployCR.Status.Conditions, "DeploymentFailed", core.ConditionFalse, "DeploymentFailed", err.Error())
-
 				return err
 			}
 		}
@@ -167,6 +174,12 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		core.SetCondition(&deployCR.Status.Conditions, "DeploymentSucceeded", core.ConditionTrue, "DeploymentSucceeded", "Deployment trigger completed successfully")
 
 	case core.CmdDelete:
+		// Drop the projection for this object (all generations). No-op on
+		// backends without key enumeration; generation scoping + TTL
+		// covers correctness there.
+		if cerr := d.deploymentCache.Invalidate(ctx, nn); cerr != nil {
+			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
+		}
 		d.events.Info(deployCR, "DeploymentDeleted", "deployment cleanup not implemented yet")
 	}
 
@@ -186,8 +199,11 @@ func (d *DeployDomain) CanCreate(obj client.Object) bool {
 // CanUpdate reports whether the supplied update should trigger Deploy reconciliation
 // by comparing the specifications of the old and new objects.
 func (d *DeployDomain) CanUpdate(oldObj, newObj client.Object) bool {
+
 	oldDep, okOld := oldObj.(*environmentv1.Deployment)
 	newDep, okNew := newObj.(*environmentv1.Deployment)
+
+	// If either object is not a Deployment, we cannot process the update
 	if !okOld || !okNew {
 		return false
 	}
@@ -210,13 +226,10 @@ func (d *DeployDomain) resolveServiceUnits(
 	ctx context.Context,
 	resolved *deploymentResolution.ResolvedDeployment,
 ) ([]serviceunit.ResolvedServiceUnit, error) {
-
 	out := make([]serviceunit.ResolvedServiceUnit, 0, len(resolved.Spec.ServiceUnits))
-
 	for _, name := range resolved.Spec.ServiceUnits {
-
 		var suCR environmentv1.ServiceUnit
-		if err := d.cache.Reader.Get(
+		if err := d.reader.Get(
 			ctx,
 			client.ObjectKey{
 				Name:      name,
@@ -224,16 +237,13 @@ func (d *DeployDomain) resolveServiceUnits(
 			},
 			&suCR,
 		); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("resolving service unit %q: %w", name, err)
 		}
-
 		su, err := serviceunit.ResolveServiceUnit(&suCR)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("resolving service unit %q: %w", name, err)
 		}
-
 		out = append(out, *su)
 	}
-
 	return out, nil
 }
