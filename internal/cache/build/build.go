@@ -14,3 +14,15 @@ limitations under the License.
 */
 
 package build
+
+import (
+	libbuild "github.com/ntlaletsi70/blanketops-environments/cache/build"
+	//libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
+
+	"github.com/ntlaletsi70/blanketops-environments/core"
+)
+
+// New constructs the Build domain cache for this controller runtime.
+func New(c *core.Cache) *libbuild.BuildCache {
+	return libbuild.NewBuildCache(c)
+}

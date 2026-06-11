@@ -14,3 +14,13 @@ limitations under the License.
 */
 
 package buildtrigger
+
+import (
+	libbuildtrigger "github.com/ntlaletsi70/blanketops-environments/cache/buildtrigger"
+	//libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
+	"github.com/ntlaletsi70/blanketops-environments/core"
+)
+
+func New(c *core.Cache) *libbuildtrigger.BuildTriggerCache {
+	return libbuildtrigger.NewBuildTriggerCache(c)
+}

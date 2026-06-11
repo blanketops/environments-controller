@@ -27,3 +27,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 package gitrepository
+
+import (
+	libgitrepository "github.com/ntlaletsi70/blanketops-environments/cache/gitrepository"
+	//libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
+	"github.com/ntlaletsi70/blanketops-environments/core"
+)
+
+func New(c *core.Cache) *libgitrepository.GitRepositoryCache {
+	return libgitrepository.NewGitRepositoryCache(c)
+}
