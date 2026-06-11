@@ -32,6 +32,7 @@ import (
 
 	"github.com/go-logr/logr"
 	environmentsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	libbuildtrigger "github.com/ntlaletsi70/blanketops-environments/cache/buildtrigger"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/buildtrigger/application"
 	buildtriggerResolution "github.com/ntlaletsi70/blanketops-environments/resolution/buildtrigger"
@@ -47,8 +48,10 @@ type BuildTriggerDomain struct {
 	buildTriggerMediator *buildtrigger.Mediator
 	// buildTriggerService handles business logic for build operations.
 	buildTriggerService *application.BuildTriggerService
-	// cache provides access to internal state storage.
-	cache *core.Cache
+	// buildTriggerCache provides generation-scoped, field-level caching for
+	// BuildTrigger resources. Advisory only: misses and errors fall through
+	// to full computation; correctness never depends on a hit.
+	buildTriggerCache *libbuildtrigger.BuildTriggerCache
 	// events handles logging of Kubernetes events.
 	events *core.EventRecorder
 	// log is the logger instance for this domain.
@@ -60,7 +63,7 @@ func New(mediator *buildtrigger.Mediator, service *application.BuildTriggerServi
 	return &BuildTriggerDomain{
 		buildTriggerMediator: mediator,
 		buildTriggerService:  service,
-		cache:                cache,
+		buildTriggerCache:    libbuildtrigger.NewBuildTriggerCache(cache),
 		events:               events,
 		log:                  log,
 	}
@@ -82,21 +85,29 @@ func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error
 	log := d.log.WithValues("domain", "buildtrigger", "name", buildtriggerCR.Name, "namespace", buildtriggerCR.Namespace)
 	log.Info("handling buildtrigger command", "type", cmd.Type)
 
+	nn := client.ObjectKeyFromObject(buildtriggerCR)
+	gen := buildtriggerCR.GetGeneration()
+
 	switch cmd.Type {
 	case core.CmdCreate, core.CmdUpdate:
+
 		// ------------------------------------------------
-		// 1. Resolve trigger contract
+		// Stage 0: Resolve trigger contract
 		// ------------------------------------------------
 		resolved, err := buildtriggerResolution.ResolveBuildTrigger(buildtriggerCR)
 		if err != nil {
-
 			d.events.FromError(buildtriggerCR, "BuildTriggerResolveFailed", err)
-
 			log.Error(err, "buildtrigger resolution failed")
 			d.events.FromError(buildtriggerCR, "BuildTriggerResolveFailed", err)
 			core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerResolved", core.ConditionFalse, "InvalidSpec", err.Error())
-
 			return err
+		}
+
+		//------------------------------------------------
+		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
+		//------------------------------------------------
+		if cerr := d.buildTriggerCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
+			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 		}
 
 		log.Info("buildtrigger resolved successfully")
@@ -106,15 +117,11 @@ func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error
 		// ------------------------------------------------
 		// 2. Ensure prerequisites (noop today, but real boundary)
 		// ------------------------------------------------
-
 		log.Info("ensuring buildtrigger prerequisites")
-
 		if err := d.buildTriggerMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-
 			log.Error(err, "buildtrigger prerequisites failed")
 			d.events.FromError(buildtriggerCR, "BuildTriggerPrerequisitesFailed", err)
 			core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerPrerequisitesReady", core.ConditionFalse, "BuildTriggerPrerequisitesFailed", err.Error())
-
 			return err
 		}
 
@@ -125,15 +132,11 @@ func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error
 		// ------------------------------------------------
 		// 3. Evaluate trigger intent (DECISION ONLY)
 		// ------------------------------------------------
-
 		log.Info("triggering buildtrigger evaluation")
-
 		if err := d.buildTriggerService.Evaluate(ctx, resolved); err != nil {
-
 			log.Error(err, "buildtrigger evaluation failed")
 			d.events.FromError(buildtriggerCR, "BuildTriggerEvaluationFailed", err)
 			core.SetCondition(&buildtriggerCR.Status.Conditions, "BuildTriggerEvaluated", core.ConditionFalse, "BuildTriggerEvaluationFailed", err.Error())
-
 			return err
 		}
 
@@ -146,8 +149,13 @@ func (d *BuildTriggerDomain) Handle(ctx context.Context, cmd core.Command) error
 		log.Info("buildtrigger domain handling complete")
 
 	case core.CmdDelete:
+		// Drop the projection for this object (all generations). No-op on
+		// backends without key enumeration; generation scoping + TTL
+		// covers correctness there.
+		if cerr := d.buildTriggerCache.Invalidate(ctx, nn); cerr != nil {
+			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
+		}
 		d.events.Info(buildtriggerCR, "BuildTriggerDeleted", "buildtrigger cleanup not implemented yet")
-
 	}
 
 	return nil
@@ -169,6 +177,8 @@ func (d *BuildTriggerDomain) CanUpdate(oldObj, newObj client.Object) bool {
 
 	oldT, okOld := oldObj.(*environmentsv1alpha1.BuildTrigger)
 	newT, okNew := newObj.(*environmentsv1alpha1.BuildTrigger)
+
+	// If either object is not a BuildTrigger, we cannot process the update
 	if !okOld || !okNew {
 		return false
 	}

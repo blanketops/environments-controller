@@ -31,6 +31,7 @@ import (
 
 	"github.com/go-logr/logr"
 	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	pkgApplication "github.com/ntlaletsi70/blanketops-environments/pkg/packages/application"
 	pkgIntent "github.com/ntlaletsi70/blanketops-environments/pkg/packages/intent"
@@ -45,9 +46,12 @@ import (
 type PackageDomain struct {
 	packageMediator *pkgMediator.Mediator
 	packageService  *pkgApplication.PackageService
-	cache           *core.Cache
-	events          *core.EventRecorder
-	log             logr.Logger
+	// packageCache provides generation-scoped, field-level caching for
+	// Package resources. Advisory only: misses and errors fall through
+	// to full computation; correctness never depends on a hit.
+	packageCache *libpackages.PackageCache
+	events       *core.EventRecorder
+	log          logr.Logger
 }
 
 // New returns a new BuildDomain instance configured with the necessary dependencies.
@@ -56,7 +60,7 @@ func New(packageMediator *pkgMediator.Mediator, packageService *pkgApplication.P
 	return &PackageDomain{
 		packageMediator: packageMediator,
 		packageService:  packageService,
-		cache:           cache,
+		packageCache:    libpackages.NewPackageCache(cache),
 		events:          events,
 		log:             log,
 	}
@@ -78,22 +82,29 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	log := d.log.WithValues("domain", "package", "name", packageCR.Name, "namespace", packageCR.Namespace)
 	log.Info("handling package command", "type", cmd.Type)
 
+	nn := client.ObjectKeyFromObject(packageCR)
+	gen := packageCR.GetGeneration()
+
 	switch cmd.Type {
 	case core.CmdCreate, core.CmdUpdate:
-		//------------------------------------------------
-		// Stage 1: Resolve package contract
-		//------------------------------------------------
 
+		//------------------------------------------------
+		// Stage 0: Resolve package contract
+		//------------------------------------------------
 		log.Info("resolving package contract")
 		resolved, err := pkgResolution.ResolvePackage(packageCR)
-
 		if err != nil {
-
 			log.Error(err, "package resolution failed")
 			d.events.FromError(packageCR, "PackageResolveFailed", err)
 			core.SetCondition(&packageCR.Status.Conditions, "PackageResolved", core.ConditionFalse, "InvalidSpec", err.Error())
-
 			return err
+		}
+
+		//------------------------------------------------
+		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
+		//------------------------------------------------
+		if cerr := d.packageCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
+			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 		}
 
 		log.Info("package resolved successfully")
@@ -103,15 +114,11 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// ------------------------------------------------
 		// 2. Ensure prerequisites (secrets, repos, identity)
 		// ------------------------------------------------
-
 		log.Info("ensuring package prerequisites")
-
 		if err := d.packageMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-
 			log.Error(err, "package prerequisites failed")
 			d.events.FromError(packageCR, "PackagePrerequisitesFailed", err)
 			core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionFalse, "PackagePrerequisitesFailed", err.Error())
-
 			return err
 		}
 
@@ -122,17 +129,12 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 		//------------------------------------------------------------------
 		// 3. Build execution intent (INTENT ONLY)
 		//------------------------------------------------------------------
-
 		log.Info("build package intent execution")
-
 		intent, err := pkgIntent.BuildPackageIntent(resolved)
-
 		if err != nil {
-
 			log.Error(err, "package intent build execution failed")
 			d.events.FromError(packageCR, "PackageIntentBuildExecutionFailed", err)
 			core.SetCondition(&packageCR.Status.Conditions, "PackageIntentBuilt", core.ConditionFalse, "PackageIntentBuildFailed", err.Error())
-
 			return err
 		}
 
@@ -146,11 +148,9 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 		log.Info("triggering package execution")
 
 		if err := d.packageService.Reconcile(ctx, resolved, intent); err != nil {
-
 			log.Error(err, "package triggering failed")
 			d.events.FromError(packageCR, "PackageTriggerFailed", err)
 			core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
-
 			return err
 		}
 
@@ -161,6 +161,12 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 		d.events.Normal(packageCR, "PackageTriggered", "Package execution has been requested")
 
 	case core.CmdDelete:
+		// Drop the projection for this object (all generations). No-op on
+		// backends without key enumeration; generation scoping + TTL
+		// covers correctness there.
+		if cerr := d.packageCache.Invalidate(ctx, nn); cerr != nil {
+			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
+		}
 		d.events.Info(packageCR, "PackageDeleted", "package cleanup not implemented yet")
 	}
 	return nil

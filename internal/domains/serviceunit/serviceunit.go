@@ -31,6 +31,7 @@ import (
 
 	"github.com/go-logr/logr"
 	serviceunitv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	libserviceunit "github.com/ntlaletsi70/blanketops-environments/cache/serviceunit"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	serviceunitResolution "github.com/ntlaletsi70/blanketops-environments/resolution/serviceunit"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -43,15 +44,18 @@ import (
 type ServiceUnitDomain struct {
 	serviceUnitMediator *serviceunit.Mediator
 
-	cache  *core.Cache
-	events *core.EventRecorder
-	log    logr.Logger
+	// serviceUnitCache provides generation-scoped, field-level caching for
+	// ServiceUnit resources. Advisory only: misses and errors fall through
+	// to full computation; correctness never depends on a hit.
+	serviceUnitCache *libserviceunit.ServiceUnitCache
+	events           *core.EventRecorder
+	log              logr.Logger
 }
 
 func New(mediator *serviceunit.Mediator, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *ServiceUnitDomain {
 	return &ServiceUnitDomain{
 		serviceUnitMediator: mediator,
-		cache:               cache,
+		serviceUnitCache:    libserviceunit.NewServiceUnitCache(cache),
 		events:              events,
 		log:                 log,
 	}
