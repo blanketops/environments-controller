@@ -24,13 +24,11 @@ jobs:
                   tar -xzf cliff.tar.gz
                   sudo mv git-cliff-2.4.0/git-cliff /usr/local/bin/git-cliff
 
-            # 🔥 Switch to main branch before committing
             - name: Checkout main
               run: |
                   git checkout main
                   git pull origin main
 
-            # 🔥 Generate full changelog
             - name: Generate CHANGELOG.md
               run: git-cliff --config .cliff.toml --output CHANGELOG.md
 
@@ -51,3 +49,29 @@ jobs:
                   body_path: RELEASE_NOTES.md
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Release Summary
+              run: |
+                  cat >> $GITHUB_STEP_SUMMARY <<EOF
+                  # 📦 GitHub Release Published
+
+                  **Version:** \`${{ github.ref_name }}\`
+
+                  ## Completed
+
+                  - Generated CHANGELOG.md using git-cliff
+                  - Committed changelog updates to main
+                  - Generated release notes
+                  - Published GitHub Release
+
+                  ## Artifacts
+
+                  - CHANGELOG.md
+                  - RELEASE_NOTES.md
+                  - GitHub Release
+
+                  ## Source Tag
+
+                  \`${{ github.ref_name }}\`
+
+                  EOF
