@@ -31,6 +31,7 @@ import (
 
 	"github.com/go-logr/logr"
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
+	libgithubevent "github.com/ntlaletsi70/blanketops-environments/cache/githubevent"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
 	githubeventResolution "github.com/ntlaletsi70/blanketops-environments/resolution/githubevent"
@@ -46,8 +47,10 @@ type GitHubEventDomain struct {
 	githubEventMediator *githubeventMediator.Mediator
 	// githubEventService handles business logic for build operations.
 	githubEventService *application.GitHubEventService
-	// cache provides access to internal state storage.
-	cache *core.Cache
+	// buildCache provides generation-scoped, field-level caching for
+	// Build resources. Advisory only: misses and errors fall through
+	// to full computation; correctness never depends on a hit.
+	githubeventCache *libgithubevent.GitHubEventCache
 	// events handles logging of Kubernetes events.
 	events *core.EventRecorder
 	// log is the logger instance for this domain.
@@ -59,8 +62,8 @@ func New(service *application.GitHubEventService, mediator *githubeventMediator.
 	return &GitHubEventDomain{
 		githubEventMediator: mediator,
 		githubEventService:  service,
+		githubeventCache:    libgithubevent.NewGitHubEventCache(cache),
 		events:              events,
-		cache:               cache,
 		log:                 log,
 	}
 }
@@ -81,11 +84,14 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error 
 	log := d.log.WithValues("domain", "githubevent", "name", githubeventCR.Name, "namespace", githubeventCR.Namespace)
 	log.Info("handling githubevent command", "type", cmd.Type)
 
+	nn := client.ObjectKeyFromObject(githubeventCR)
+	gen := githubeventCR.GetGeneration()
+
 	switch cmd.Type {
 	case core.CmdCreate, core.CmdUpdate:
 
 		// --------------------------------------------------------
-		// 1. Resolve GitHubEvent contract ONCE
+		// 0. Resolve GitHubEvent contract ONCE
 		// --------------------------------------------------------
 		log.Info("resolving githubevent contract")
 		resolved, err := githubeventResolution.ResolveGitHubEvent(githubeventCR)
@@ -97,6 +103,13 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error 
 			core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventResolved", core.ConditionFalse, "InvalidSpec", err.Error())
 
 			return err
+		}
+
+		//------------------------------------------------
+		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
+		//------------------------------------------------
+		if cerr := d.githubeventCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
+			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 		}
 
 		log.Info("githubevent resolved successfully")
@@ -146,6 +159,12 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error 
 		log.Info("githubevent domain handling complete")
 
 	case core.CmdDelete:
+		// Drop the projection for this object (all generations). No-op on
+		// backends without key enumeration; generation scoping + TTL
+		// covers correctness there.
+		if cerr := d.githubeventCache.Invalidate(ctx, nn); cerr != nil {
+			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
+		}
 		d.events.Info(githubeventCR, "GitHubEventDeleted", "githubevent cleanup not implemented yet")
 	}
 
@@ -169,6 +188,7 @@ func (d *GitHubEventDomain) CanUpdate(oldObj, newObj client.Object) bool {
 	oldEv, okOld := oldObj.(*eventsv1alpha1.GitHubEvent)
 	newEv, okNew := newObj.(*eventsv1alpha1.GitHubEvent)
 
+	// If either object is not a GitHubEvent, we cannot process the update
 	if !okOld || !okNew {
 		return false
 	}

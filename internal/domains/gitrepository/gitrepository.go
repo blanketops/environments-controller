@@ -32,6 +32,7 @@ import (
 
 	"github.com/go-logr/logr"
 	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
+	libgitrepository "github.com/ntlaletsi70/blanketops-environments/cache/gitrepository"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/gitrepository/application"
 	gitrepoResolution "github.com/ntlaletsi70/blanketops-environments/resolution/gitrepository"
@@ -47,8 +48,10 @@ type GitRepositoryDomain struct {
 	gitRepositoryMediator *gitrepository.Mediator
 	// gitRepositoryService handles business logic for gitrepository operations.
 	gitRepositoryService *application.GitRepositoryService
-	// cache provides access to internal state storage.
-	cache *core.Cache
+	// gitRepositoryCache provides generation-scoped, field-level caching for
+	// GitRepository resources. Advisory only: misses and errors fall through
+	// to full computation; correctness never depends on a hit.
+	gitRepositoryCache *libgitrepository.GitRepositoryCache
 	// events handles logging of Kubernetes events.
 	events *core.EventRecorder
 	// log is the logger instance for this domain.
@@ -60,7 +63,7 @@ func New(mediator *gitrepository.Mediator, service *application.GitRepositorySer
 	return &GitRepositoryDomain{
 		gitRepositoryMediator: mediator,
 		gitRepositoryService:  service,
-		cache:                 cache,
+		gitRepositoryCache:    libgitrepository.NewGitRepositoryCache(cache),
 		events:                events,
 		log:                   log,
 	}
@@ -82,13 +85,15 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd core.Command) erro
 	log := d.log.WithValues("domain", "gitrepository", "name", gitrepositoryCR.Name, "namespace", gitrepositoryCR.Namespace)
 	log.Info("handling gitrepository command", "type", cmd.Type)
 
+	nn := client.ObjectKeyFromObject(gitrepositoryCR)
+	gen := gitrepositoryCR.GetGeneration()
+
 	switch cmd.Type {
 	case core.CmdCreate, core.CmdUpdate:
 
 		// --------------------------------------------------------------
-		// 1. Resolve GitRepository ONCE (domain-owned)
+		// 0. Resolve GitRepository ONCE (domain-owned)
 		// --------------------------------------------------------------
-
 		log.Info("resolving gitrepository contract")
 		resolved, err := gitrepoResolution.ResolveGitRepository(gitrepositoryCR)
 
@@ -99,6 +104,13 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd core.Command) erro
 			core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryResolved", core.ConditionFalse, "InvalidSpec", err.Error())
 
 			return err
+		}
+
+		//------------------------------------------------
+		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
+		//------------------------------------------------
+		if cerr := d.gitRepositoryCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
+			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 		}
 
 		log.Info("gitrepository resolved successfully")
@@ -120,8 +132,8 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd core.Command) erro
 		}
 
 		log.Info("gitrepository prerequisites ensured")
-		d.events.Normal(gitrepositoryCR, "GitRepositoryPrerequisitesReady", "all build prerequisites created successfully")
-		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryPrerequisitesReady", core.ConditionTrue, "GitRepositoryPrerequisitesReady", "All build prerequisites satisfied")
+		d.events.Normal(gitrepositoryCR, "GitRepositoryPrerequisitesReady", "all gitrepository prerequisites created successfully")
+		core.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryPrerequisitesReady", core.ConditionTrue, "GitRepositoryPrerequisitesReady", "All gitrepository prerequisites satisfied")
 
 		// ---------------------------------------------------------
 		// 3. Reconcile declarative intent (service)
@@ -147,6 +159,12 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd core.Command) erro
 		log.Info("gitrepository domain handling complete")
 
 	case core.CmdDelete:
+		// Drop the projection for this object (all generations). No-op on
+		// backends without key enumeration; generation scoping + TTL
+		// covers correctness there.
+		if cerr := d.gitRepositoryCache.Invalidate(ctx, nn); cerr != nil {
+			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
+		}
 		d.events.Info(gitrepositoryCR, "GitRepositoryDeleted", "gitrepository cleanup not implemented yet")
 	}
 
@@ -170,9 +188,11 @@ func (d *GitRepositoryDomain) CanUpdate(oldObj, newObj client.Object) bool {
 	oldRepo, okOld := oldObj.(*sourcesv1alpha1.GitRepository)
 	newRepo, okNew := newObj.(*sourcesv1alpha1.GitRepository)
 
+	// If either object is not a GitRepository, we cannot process the update
 	if !okOld || !okNew {
 		return false
 	}
+
 	// Reconcile only if spec changes
 	return !reflect.DeepEqual(oldRepo.Spec, newRepo.Spec)
 }

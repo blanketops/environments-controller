@@ -32,6 +32,7 @@ import (
 
 	"github.com/go-logr/logr"
 	environmentsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	libbuild "github.com/ntlaletsi70/blanketops-environments/cache/build"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 	buildResolution "github.com/ntlaletsi70/blanketops-environments/resolution/build"
@@ -47,8 +48,10 @@ type BuildDomain struct {
 	buildMediator *build.Mediator
 	// buildService handles business logic for build operations.
 	buildService *application.BuildService
-	// cache provides access to internal state storage.
-	cache *core.Cache
+	// buildCache provides generation-scoped, field-level caching for
+	// Build resources. Advisory only: misses and errors fall through
+	// to full computation; correctness never depends on a hit.
+	buildCache *libbuild.BuildCache
 	// events handles logging of Kubernetes events.
 	events *core.EventRecorder
 	// log is the logger instance for this domain.
@@ -60,7 +63,7 @@ func New(buildMediator *build.Mediator, buildService *application.BuildService, 
 	return &BuildDomain{
 		buildMediator: buildMediator,
 		buildService:  buildService,
-		cache:         cache,
+		buildCache:    libbuild.NewBuildCache(cache),
 		events:        events,
 		log:           log,
 	}
@@ -78,26 +81,33 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 	if !ok || buildCR == nil {
 		return fmt.Errorf("invalid object passed to BuildDomain: %T", cmd.Obj)
 	}
+
 	log := d.log.WithValues("domain", "build", "name", buildCR.Name, "namespace", buildCR.Namespace)
 	log.Info("handling build command", "type", cmd.Type)
+
+	nn := client.ObjectKeyFromObject(buildCR)
+	gen := buildCR.GetGeneration()
 
 	switch cmd.Type {
 	case core.CmdCreate, core.CmdUpdate:
 
 		//------------------------------------------------
-		// Stage 1: Resolve build contract
+		// Stage 0: Resolve build contract
 		//------------------------------------------------
-
 		log.Info("resolving build contract")
 		resolved, err := buildResolution.ResolveBuild(buildCR)
-
 		if err != nil {
-
 			log.Error(err, "build resolution failed")
 			d.events.FromError(buildCR, "BuildResolveFailed", err)
 			core.SetCondition(&buildCR.Status.Conditions, "BuildResolved", core.ConditionFalse, "InvalidSpec", err.Error())
-
 			return err
+		}
+
+		//------------------------------------------------
+		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
+		//------------------------------------------------
+		if cerr := d.buildCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
+			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 		}
 
 		log.Info("build resolved successfully")
@@ -107,15 +117,11 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 		//------------------------------------------------
 		// Stage 2: Ensure prerequisites
 		//------------------------------------------------
-
 		log.Info("ensuring build prerequisites")
-
 		if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-
 			log.Error(err, "build prerequisites failed")
 			d.events.FromError(buildCR, "BuildPrerequisitesFailed", err)
 			core.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesReady", core.ConditionFalse, "BuildPrerequisitesFailed", err.Error())
-
 			return err
 		}
 
@@ -126,30 +132,31 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 		//------------------------------------------------
 		// Stage 3: Trigger execution (intent only)
 		//------------------------------------------------
-
 		log.Info("triggering build execution")
-
 		if err := d.buildService.Reconcile(ctx, resolved); err != nil {
 			log.Error(err, "build triggering failed")
 			d.events.FromError(buildCR, "BuildServiceReconFailed", err)
 			core.SetCondition(&buildCR.Status.Conditions, "BuildTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
-
 			return err
 		}
 
 		// ------------------------------------------------
 		// 4. Build Execution completed
 		// ------------------------------------------------
-
 		log.Info("build execution requested")
 		d.events.Normal(buildCR, "BuildTriggered", "Build execution has started")
 		core.SetCondition(&buildCR.Status.Conditions, "BuildTriggered", core.ConditionTrue, "ExecutionStarted", "Build execution has started")
 		log.Info("build domain handling complete")
 
 	case core.CmdDelete:
+		// Drop the projection for this object (all generations). No-op on
+		// backends without key enumeration; generation scoping + TTL
+		// covers correctness there.
+		if cerr := d.buildCache.Invalidate(ctx, nn); cerr != nil {
+			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
+		}
 		d.events.Info(buildCR, "BuildDeleted", "build cleanup not implemented yet")
 	}
-
 	return nil
 }
 
