@@ -147,9 +147,9 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	//---------------------------------------------------------------------
 	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	// cache := r.Runtime.Cache
-	// events := r.Runtime.Events
-	// registry := r.Runtime.Registry
+	cache := r.Runtime.Cache
+	events := r.Runtime.Events
+	registry := r.Runtime.Registry
 
 	//---------------------------------------------------------------------
 	// Mediator (prerequisites only)
@@ -163,25 +163,25 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	//---------------------------------------------------------------------
 	// Providers (github)
 	//---------------------------------------------------------------------
-	// githubProvider := githubeventapi.NewGitHubProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.github"), r.Recorder)
+	githubProvider := githubeventapi.NewGitHubProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.github"), r.Recorder)
 
 	//---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
 	//---------------------------------------------------------------------
-	// backendSelector := githubeventapp.NewBackendSelector(githubProvider)
+	backendSelector := githubeventapp.NewBackendSelector(githubProvider)
 
 	//-----------------------------------------------------------------------------------------
 	// GitHubEvent Service (Mapper and StatiusWriter, domain service for orchestration))
 	//-----------------------------------------------------------------------
-	// mapper := githubeventapp.NewMapper()
-	// statusWriter := githubeventapp.NewStatusWriter(r.Client)
-	// r.Service = githubeventapp.NewGitHubEventService(mapper, statusWriter, backendSelector)
+	mapper := githubeventapp.NewMapper()
+	statusWriter := githubeventapp.NewStatusWriter(r.Client)
+	r.Service = githubeventapp.NewGitHubEventService(mapper, statusWriter, backendSelector)
 
 	//--------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	//--------------------------------------------------------------------------------
-	// eventsDomain := eventsdomain.New(r.Service, r.GitHubEventMediator, r.Events, r.Cache, r.Log.WithName("domain.githubevent"))
-	// r.Registry.RegisterDomain(eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"), eventsDomain)
+	eventsDomain := eventsdomain.New(r.Service, r.GitHubEventMediator, r.Events, r.Cache, r.Log.WithName("domain.githubevent"))
+	r.Registry.RegisterDomain(eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"), eventsDomain)
 
 	// ---------------------------------------------------------------------
 	// Controller registration

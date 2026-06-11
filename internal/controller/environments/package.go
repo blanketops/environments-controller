@@ -22,27 +22,38 @@ import (
 	"github.com/go-logr/logr"
 	packagev1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
+	pkgProvider "github.com/ntlaletsi70/blanketops-environments/pkg/packages/api"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/packages/application"
+	pkgApp "github.com/ntlaletsi70/blanketops-environments/pkg/packages/application"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	pkgMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/packages"
+	pkgDomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/packages"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
 // PackageReconciler reconciles a Package object
 type PackageReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Log      logr.Logger
-	Runtime  *runtimeinfra.Runtime
-	Recorder events.EventRecorder
+	Scheme *runtime.Scheme
+	Log    logr.Logger
+
+	PackageMediator *pkgMediator.Mediator
+	Runtime         *runtimeinfra.Runtime
+	Recorder        events.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=packages,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=packages/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=packages/finalizers,verbs=update
+
+// +kubebuilder:rbac:groups=packaging.carvel.dev,resources=packages;packageinstalls;packagerepositories,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=packaging.carvel.dev,resources=packageinstalls/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=data.packaging.carvel.dev,resources=packages,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -136,37 +147,37 @@ func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	//---------------------------------------------------------------------
 	// Runtime Infrastructure
 	//---------------------------------------------------------------------
-	// cache := r.Runtime.Cache
-	// events := r.Runtime.Events
-	// registry := r.Runtime.Registry
+	cache := r.Runtime.Cache
+	events := r.Runtime.Events
+	registry := r.Runtime.Registry
 
 	// ---------------------------------------------------------------------
 	// Mediator (prerequisites only)
 	// ---------------------------------------------------------------------
-	// r.PackageMediator = pkgMediator.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.package"), r.Recorder)
+	r.PackageMediator = pkgMediator.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.package"), r.Recorder)
 
 	// ---------------------------------------------------------------------
 	// Providers (kapp)
 	// ---------------------------------------------------------------------
-	// kappProvider := pkgProvider.NewApplicationProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.kapp"), r.Recorder)
+	kappProvider := pkgProvider.NewApplicationProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.kapp"), r.Recorder)
 
 	//---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
 	//---------------------------------------------------------------------
-	// backendSelector := application.NewBackendSelector(kappProvider)
+	backendSelector := application.NewBackendSelector(kappProvider)
 
 	//-----------------------------------------------------------------------------------------
 	// Package Service (Mapper and StatiusWriter, domain service for orchestration))
 	//------------------------------------------------------------------------------------------
-	// mapper := pkgAapp.NewMapper()
-	// statusWriter := pkgAapp.NewStatusWriter(r.Client, r.Log.WithName("package-status-writer"))
-	// packageService := application.NewPackageService(mapper, backendSelector, statusWriter)
+	mapper := pkgApp.NewMapper()
+	statusWriter := pkgApp.NewStatusWriter(r.Client, r.Log.WithName("package-status-writer"))
+	packageService := application.NewPackageService(mapper, backendSelector, statusWriter)
 
 	//--------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	//--------------------------------------------------------------------------------
-	// pkgDomain := pkgDomain.New(r.PackageMediator, packageService, cache, events, r.Log.WithName("domain.package"))
-	// registry.RegisterDomain(packagev1alpha1.GroupVersion.WithKind("Package"), pkgDomain)
+	pkgDomain := pkgDomain.New(r.PackageMediator, packageService, cache, events, r.Log.WithName("domain.package"))
+	registry.RegisterDomain(packagev1alpha1.GroupVersion.WithKind("Package"), pkgDomain)
 
 	// ---------------------------------------------------------------------
 	// Controller registration
