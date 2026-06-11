@@ -13,6 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package packages implements the Package resource domain.
+
+The Package domain is responsible for managing the lifecycle of
+Package resources. It receives commands from the Engine, resolves
+resource specifications into validated contracts, delegates
+processing to the application layer, and records reconciliation
+outcomes through conditions and events.
+*/
 package packages
 
 import (
@@ -21,35 +30,37 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-
-	pkgMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/packages"
 	pkgApplication "github.com/ntlaletsi70/blanketops-environments/pkg/packages/application"
 	pkgIntent "github.com/ntlaletsi70/blanketops-environments/pkg/packages/intent"
 	pkgResolution "github.com/ntlaletsi70/blanketops-environments/resolution/packages"
-
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	pkgMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/packages"
 )
 
-// PackageDomain handles Build CRs.
-// This represents a FACT INGESTION boundary.
+// BuildDomain implements the Build resource domain logic.
 type PackageDomain struct {
 	packageMediator *pkgMediator.Mediator
 	packageService  *pkgApplication.PackageService
-	cache           *core.Cache
-	events          *core.EventRecorder
-	log             logr.Logger
+	// packageCache provides generation-scoped, field-level caching for
+	// Package resources. Advisory only: misses and errors fall through
+	// to full computation; correctness never depends on a hit.
+	packageCache *libpackages.PackageCache
+	events       *core.EventRecorder
+	log          logr.Logger
 }
 
+// New returns a new BuildDomain instance configured with the necessary dependencies.
 func New(packageMediator *pkgMediator.Mediator, packageService *pkgApplication.PackageService, cache *core.Cache, events *core.EventRecorder, log logr.Logger,
 ) *PackageDomain {
 	return &PackageDomain{
 		packageMediator: packageMediator,
 		packageService:  packageService,
-		cache:           cache,
+		packageCache:    libpackages.NewPackageCache(cache),
 		events:          events,
 		log:             log,
 	}
@@ -71,85 +82,93 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	log := d.log.WithValues("domain", "package", "name", packageCR.Name, "namespace", packageCR.Namespace)
 	log.Info("handling package command", "type", cmd.Type)
 
-	//------------------------------------------------
-	// Stage 1: Resolve package contract
-	//------------------------------------------------
+	nn := client.ObjectKeyFromObject(packageCR)
+	gen := packageCR.GetGeneration()
 
-	log.Info("resolving package contract")
-	resolved, err := pkgResolution.ResolvePackage(packageCR)
+	switch cmd.Type {
+	case core.CmdCreate, core.CmdUpdate:
 
-	if err != nil {
+		//------------------------------------------------
+		// Stage 0: Resolve package contract
+		//------------------------------------------------
+		log.Info("resolving package contract")
+		resolved, err := pkgResolution.ResolvePackage(packageCR)
+		if err != nil {
+			log.Error(err, "package resolution failed")
+			d.events.FromError(packageCR, "PackageResolveFailed", err)
+			core.SetCondition(&packageCR.Status.Conditions, "PackageResolved", core.ConditionFalse, "InvalidSpec", err.Error())
+			return err
+		}
 
-		log.Error(err, "package resolution failed")
-		d.events.FromError(packageCR, "PackageResolveFailed", err)
-		core.SetCondition(&packageCR.Status.Conditions, "PackageResolved", core.ConditionFalse, "InvalidSpec", err.Error())
+		//------------------------------------------------
+		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
+		//------------------------------------------------
+		if cerr := d.packageCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
+			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
+		}
 
-		return err
+		log.Info("package resolved successfully")
+		d.events.Normal(packageCR, "PackageResolved", "Package specification resolved successfully")
+		core.SetCondition(&packageCR.Status.Conditions, "PackageResolved", core.ConditionTrue, "Resolved", "Package specification resolved successfully")
+
+		// ------------------------------------------------
+		// 2. Ensure prerequisites (secrets, repos, identity)
+		// ------------------------------------------------
+		log.Info("ensuring package prerequisites")
+		if err := d.packageMediator.EnsurePrerequisites(ctx, resolved); err != nil {
+			log.Error(err, "package prerequisites failed")
+			d.events.FromError(packageCR, "PackagePrerequisitesFailed", err)
+			core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionFalse, "PackagePrerequisitesFailed", err.Error())
+			return err
+		}
+
+		log.Info("package prerequisites ensured")
+		d.events.Normal(packageCR, "PackagePrerequisitesReady", "All package prerequisites created successfully")
+		core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionTrue, "PackagePrerequisitesReady", "All package prerequisites created successfully")
+
+		//------------------------------------------------------------------
+		// 3. Build execution intent (INTENT ONLY)
+		//------------------------------------------------------------------
+		log.Info("build package intent execution")
+		intent, err := pkgIntent.BuildPackageIntent(resolved)
+		if err != nil {
+			log.Error(err, "package intent build execution failed")
+			d.events.FromError(packageCR, "PackageIntentBuildExecutionFailed", err)
+			core.SetCondition(&packageCR.Status.Conditions, "PackageIntentBuilt", core.ConditionFalse, "PackageIntentBuildFailed", err.Error())
+			return err
+		}
+
+		log.Info("package intent execution completed")
+		d.events.Normal(packageCR, "PackageIntentBuildComplete", "Package intent built successfully")
+		core.SetCondition(&packageCR.Status.Conditions, "PackageIntentBuilt", core.ConditionTrue, "PackageBuildIntentReady", "Package intent build execution completed successfully")
+
+		// ----------------------------------------------------------------
+		// 4. Trigger execution (authoritative service)
+		// ----------------------------------------------------------------
+		log.Info("triggering package execution")
+
+		if err := d.packageService.Reconcile(ctx, resolved, intent); err != nil {
+			log.Error(err, "package triggering failed")
+			d.events.FromError(packageCR, "PackageTriggerFailed", err)
+			core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
+			return err
+		}
+
+		//-----------------------------------------------------------------
+		// 5. Execution requested (NOT completed)
+		//-----------------------------------------------------------------
+		core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionTrue, "ExecutionRequested", "Package execution has been requested")
+		d.events.Normal(packageCR, "PackageTriggered", "Package execution has been requested")
+
+	case core.CmdDelete:
+		// Drop the projection for this object (all generations). No-op on
+		// backends without key enumeration; generation scoping + TTL
+		// covers correctness there.
+		if cerr := d.packageCache.Invalidate(ctx, nn); cerr != nil {
+			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
+		}
+		d.events.Info(packageCR, "PackageDeleted", "package cleanup not implemented yet")
 	}
-
-	log.Info("package resolved successfully")
-	d.events.Normal(packageCR, "PackageResolved", "Package specification resolved successfully")
-	core.SetCondition(&packageCR.Status.Conditions, "PackageResolved", core.ConditionTrue, "Resolved", "Package specification resolved successfully")
-
-	// ------------------------------------------------
-	// 2. Ensure prerequisites (secrets, repos, identity)
-	// ------------------------------------------------
-
-	log.Info("ensuring package prerequisites")
-
-	if err := d.packageMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-
-		log.Error(err, "package prerequisites failed")
-		d.events.FromError(packageCR, "PackagePrerequisitesFailed", err)
-		core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionFalse, "PackagePrerequisitesFailed", err.Error())
-
-		return err
-	}
-
-	log.Info("package prerequisites ensured")
-	d.events.Normal(packageCR, "PackagePrerequisitesReady", "All package prerequisites created successfully")
-	core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionTrue, "PackagePrerequisitesReady", "All package prerequisites created successfully")
-
-	//------------------------------------------------------------------
-	// 3. Build execution intent (INTENT ONLY)
-	//------------------------------------------------------------------
-
-	log.Info("build package intent execution")
-
-	intent, err := pkgIntent.BuildPackageIntent(resolved)
-
-	if err != nil {
-
-		log.Error(err, "package intent build execution failed")
-		d.events.FromError(packageCR, "PackageIntentBuildExecutionFailed", err)
-		core.SetCondition(&packageCR.Status.Conditions, "PackageIntentBuilt", core.ConditionFalse, "PackageIntentBuildFailed", err.Error())
-
-		return err
-	}
-
-	log.Info("package intent execution completed")
-	d.events.Normal(packageCR, "PackageIntentBuildComplete", "Package intent built successfully")
-	core.SetCondition(&packageCR.Status.Conditions, "PackageIntentBuilt", core.ConditionTrue, "PackageBuildIntentReady", "Package intent build execution completed successfully")
-
-	// ----------------------------------------------------------------
-	// 4. Trigger execution (authoritative service)
-	// ----------------------------------------------------------------
-	log.Info("triggering package execution")
-
-	if err := d.packageService.Reconcile(ctx, resolved, intent); err != nil {
-
-		log.Error(err, "package triggering failed")
-		d.events.FromError(packageCR, "PackageTriggerFailed", err)
-		core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
-
-		return err
-	}
-
-	//-----------------------------------------------------------------
-	// 5. Execution requested (NOT completed)
-	//-----------------------------------------------------------------
-	core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionTrue, "ExecutionRequested", "Package execution has been requested")
-
 	return nil
 }
 
@@ -157,14 +176,20 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 // Predicate hooks
 // -----------------------------------------------------------------------------
 
+// CanCreate reports whether the supplied object can be processed as a Build create operation.
 func (d *PackageDomain) CanCreate(obj client.Object) bool {
 	_, ok := obj.(*environmentv1.Package)
 	return ok
 }
 
+// CanUpdate reports whether the supplied update should trigger Build reconciliation
+// by comparing the specifications of the old and new objects.
 func (d *PackageDomain) CanUpdate(oldObj, newObj client.Object) bool {
+
 	oldPkg, okOld := oldObj.(*environmentv1.Package)
 	newPkg, okNew := newObj.(*environmentv1.Package)
+
+	// If either object is not a Package, we cannot process the update
 	if !okOld || !okNew {
 		return false
 	}
@@ -173,6 +198,7 @@ func (d *PackageDomain) CanUpdate(oldObj, newObj client.Object) bool {
 	return !reflect.DeepEqual(oldPkg.Spec, newPkg.Spec)
 }
 
+// CanDelete reports whether the supplied object can be processed as a Package delete operation.
 func (d *PackageDomain) CanDelete(obj client.Object) bool {
 	_, ok := obj.(*environmentv1.Package)
 	return ok

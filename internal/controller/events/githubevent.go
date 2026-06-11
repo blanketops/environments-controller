@@ -26,6 +26,9 @@ import (
 
 	// githubeventapi "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/api"
 	// githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
+	//githubeventapi "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/api"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
+	//githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -40,9 +43,11 @@ import (
 // GitHubEventReconciler reconciles a GitHubEvent object
 type GitHubEventReconciler struct {
 	client.Client
-	Scheme              *runtime.Scheme
-	Log                 logr.Logger
-	Runtime             *runtimeinfra.Runtime
+	Scheme             *runtime.Scheme
+	Log                logr.Logger
+	Runtime            *runtimeinfra.Runtime
+	GitHubEventService *application.GitHubEventService
+
 	Recorder            events.EventRecorder
 	GitHubEventMediator *githubevent.Mediator
 }
