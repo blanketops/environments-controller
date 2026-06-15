@@ -49,10 +49,10 @@ type Reconciler struct {
 	Recorder *core.EventRecorder
 }
 
-func (r *Reconciler) Reconcile(
-	ctx context.Context,
-	req ctrl.Request,
-) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "deployment", "deployment", req.NamespacedName.String())
+	log.Info("reconcile start")
 
 	var ks fluxkustomize.Kustomization
 	if err := r.Get(ctx, req.NamespacedName, &ks); err != nil {
