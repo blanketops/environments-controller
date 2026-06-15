@@ -1,5 +1,4 @@
 name: Wolfi Image
-
 on:
   workflow_dispatch:
     inputs:
@@ -10,13 +9,11 @@ on:
   push:
     tags:
       - "v*"
-
 permissions:
   contents: read
   packages: write
   id-token: write
   attestations: write
-
 jobs:
   wolfi:
     if: false

@@ -8,27 +8,19 @@ on:
   workflow_dispatch:
     inputs:
       sign_and_attest:
-        description: "Sign and attest the image after build"
+        description: "Sign and attest the image after build, publishes image"
         type: boolean
         default: true
-
 permissions:
   contents: read
   packages: write
   id-token: write
   attestations: write
-
 jobs:
   build:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: false
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
@@ -81,3 +73,52 @@ jobs:
           subject-name: docker.io/nkanyezisolutions/blanketops-environments-controller
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+
+      - name: KO Image Summary
+        run:
+
+  publish:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install ORAS
+        uses: oras-project/setup-oras@v1
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish controller package
+        id: publish
+        run: mage -v publish
+
+      - name: Publish Summary
+        if: always()
+        run: |
+          ref="ghcr.io/${{ github.repository_owner }}/environments-controller:${{ github.ref_name }}"
+          status="✅ published"
+          [ "${{ steps.publish.outcome }}" = "success" ] || status="❌ failed"
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # 📦 Kubernetes Controller Package
+
+          **Status:** $status
+          **Version:** \`${{ github.ref_name }}\`
+          **Registry:** [\`$ref\`](https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}/pkgs/container/environments-controller)
+
+          ## Contents
+          - Kubernetes CRDs (\`crds.yaml\`)
+          - Contract metadata (\`metadata.yaml\`)
+
+          ## Consume
+          \`\`\`bash
+          oras pull $ref
+          kubectl apply -f crds.yaml
+          \`\`\`
+          EOF

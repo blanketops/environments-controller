@@ -25,5 +25,3 @@ import (
 func New(c *core.Cache) *libbuild.BuildCache {
 	return libbuild.NewBuildCache(c)
 }
-
-
