@@ -45,10 +45,10 @@ import (
 type GitHubEventDomain struct {
 	// githubEventMediator manages prerequisite interactions.
 	githubEventMediator *githubeventMediator.Mediator
-	// githubEventService handles business logic for build operations.
+	// githubEventService handles business logic for githubevent operations.
 	githubEventService *application.GitHubEventService
-	// buildCache provides generation-scoped, field-level caching for
-	// Build resources. Advisory only: misses and errors fall through
+	// githubeventCache provides generation-scoped, field-level caching for
+	// GitHubEvent resources. Advisory only: misses and errors fall through
 	// to full computation; correctness never depends on a hit.
 	githubeventCache *libgithubevent.GitHubEventCache
 	// events handles logging of Kubernetes events.
@@ -113,7 +113,7 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error 
 		}
 
 		log.Info("githubevent resolved successfully")
-		d.events.Normal(githubeventCR, "GitHubEventResolved", "Build specification resolved successfully")
+		d.events.Normal(githubeventCR, "GitHubEventResolved", "GitHubEvent specification resolved successfully")
 		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventResolved", core.ConditionTrue, "GitHubEventResolved", "GitHubEvent specification resolved successfully")
 
 		// -----------------------------------------------------------
