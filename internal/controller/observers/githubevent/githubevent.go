@@ -42,6 +42,7 @@ import (
 
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/domain"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -58,6 +59,8 @@ import (
 type Reconciler struct {
 	client.Client
 	// Recorder emits Kubernetes events on the owning GitHubEvent resource.
+	Status *application.StatusWriter
+
 	Recorder *core.EventRecorder
 }
 
@@ -72,7 +75,8 @@ func (r *Reconciler) Reconcile(
 	req ctrl.Request,
 ) (ctrl.Result, error) {
 
-	log := ctrl.LoggerFrom(ctx).WithValues("controller", "githubevent-observer", "payload", req.NamespacedName.String())
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "githubevent", "payload", req.NamespacedName.String())
+
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
