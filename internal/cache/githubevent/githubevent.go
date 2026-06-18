@@ -16,7 +16,7 @@ limitations under the License.
 package githubevent
 
 // import (
-// 
+//
 
 // 	//libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
 // 	libgithubevent "github.com/ntlaletsi70/blanketops-environments/cache/githubevent"

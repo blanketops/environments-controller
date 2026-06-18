@@ -4,7 +4,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+        http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,12 +52,18 @@ import (
 // Reconciler observes Argo Sensor resources on behalf of the GitHubEvent domain.
 // It MUST NOT mutate domain state — its only output is Kubernetes events emitted
 // on the owning GitHubEvent CR.
+// Reconciler observes Argo Sensor resources on behalf of the GitHubEvent domain.
+// It MUST NOT mutate domain state — its only output is Kubernetes events emitted
+// on the owning GitHubEvent CR.
 type Reconciler struct {
 	client.Client
 	// Recorder emits Kubernetes events on the owning GitHubEvent resource.
 	Recorder *core.EventRecorder
 }
 
+// Reconcile is invoked by controller-runtime for every Argo Sensor event. It
+// resolves the owning GitHubEvent CR via label and emits an observation event.
+// Sensors not labelled as BlanketOps-owned are silently ignored.
 // Reconcile is invoked by controller-runtime for every Argo Sensor event. It
 // resolves the owning GitHubEvent CR via label and emits an observation event.
 // Sensors not labelled as BlanketOps-owned are silently ignored.
@@ -88,6 +94,12 @@ func (r *Reconciler) Reconcile(
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// ------------------------------------------------
+	// Resolve the owning GitHubEvent via label.
+	//
+	// The GitHubEvent domain stamps this label on every Sensor it creates.
+	// Sensors without the label are not platform-owned and are ignored.
+	// ------------------------------------------------
 	// ------------------------------------------------
 	// Resolve the owning GitHubEvent via label.
 	//
@@ -160,10 +172,19 @@ func (r *Reconciler) Reconcile(
 // Unstructured is used here to avoid importing the Argo Events API types as
 // a hard dependency. The manager uses the GVK embedded in the object to
 // establish the correct informer watch.
+// SetupWithManager registers the GitHubEvent observer with the controller manager.
+//
+// The observer watches Argo Sensor resources rather than GitHubEvent CRs.
+// This is intentional — the Sensor is the external object whose state changes
+// indicate GitHub webhook activity. Watching the GitHubEvent CR itself would
+// give us no signal about what the external system is doing.
+//
+// Unstructured is used here to avoid importing the Argo Events API types as
+// a hard dependency. The manager uses the GVK embedded in the object to
+// establish the correct informer watch.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("githubevent-observer"))
 
-	// IMPORTANT: watch the external resource, not GitHubEvent
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&unstructured.Unstructured{
 			Object: map[string]any{

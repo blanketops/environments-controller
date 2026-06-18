@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	deploymentv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	libdeployment "github.com/ntlaletsi70/blanketops-environments/cache/deployment"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/api"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
@@ -42,6 +43,8 @@ type DeploymentReconciler struct {
 	client.Client
 	Scheme             *runtime.Scheme
 	Log                logr.Logger
+	deploymentCache    *libdeployment.DeploymentCache
+	reader             client.Reader
 	Recorder           events.EventRecorder
 	Runtime            *runtimeinfra.Runtime
 	DeploymentMediator *deployment.Mediator
@@ -205,7 +208,7 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// ---------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	// ---------------------------------------------------------------------
-	deployDomain := deploydomain.New(r.DeploymentMediator, r.DeploymentService, cache, events, r.Log.WithName("domain.deployment"))
+	deployDomain := deploydomain.New(r.DeploymentMediator, r.DeploymentService, cache, r.reader, events, r.Log.WithName("domain.deployment"))
 	registry.RegisterDomain(deploymentv1alpha1.GroupVersion.WithKind("Deployment"), deployDomain)
 
 	// ---------------------------------------------------------------------
