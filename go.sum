@@ -122,8 +122,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/ntlaletsi70/blanketops-environments-api v0.1.8 h1:XEBVt1NjYJF5cdEtgkLt/BvZBoSn0KqlbBrMr4JXuX0=
 github.com/ntlaletsi70/blanketops-environments-api v0.1.8/go.mod h1:oLoUao8gl8ZZrV5UVifv6ycDToDGzZqvVvxmfmelGJY=
-github.com/ntlaletsi70/blanketops-environments-contract v0.3.3 h1:SmNIP9bEz9G+J7/jiZ9OWV/8LZxbUCzWVc+oZKsVX24=
-github.com/ntlaletsi70/blanketops-environments-contract v0.3.3/go.mod h1:JrkWdzf9UW2bdlQ+bDhxs+W+zc5ax58BQ6Y4f1BoS0k=
+github.com/ntlaletsi70/blanketops-environments-contract v0.4.0 h1:f70V+mr6DrfpZ1GGY5d74tclBtO1+OnCKFl/MRGgBiE=
+github.com/ntlaletsi70/blanketops-environments-contract v0.4.0/go.mod h1:JrkWdzf9UW2bdlQ+bDhxs+W+zc5ax58BQ6Y4f1BoS0k=
 github.com/onsi/ginkgo v1.16.4 h1:29JGrr5oVBm5ulCWet69zQkzWipVXIol6ygQUe/EzNc=
 github.com/onsi/ginkgo/v2 v2.28.1 h1:S4hj+HbZp40fNKuLUQOYLDgZLwNUVn19N3Atb98NCyI=
 github.com/onsi/ginkgo/v2 v2.28.1/go.mod h1:CLtbVInNckU3/+gC8LzkGUb9oF+e8W8TdUsxPwvdOgE=
