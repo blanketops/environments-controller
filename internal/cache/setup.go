@@ -17,7 +17,6 @@ package cache
 
 import (
 	libbuild "github.com/ntlaletsi70/blanketops-environments/cache/build"
-	libbuildtrigger "github.com/ntlaletsi70/blanketops-environments/cache/buildtrigger"
 	libdeployment "github.com/ntlaletsi70/blanketops-environments/cache/deployment"
 	libgithubevent "github.com/ntlaletsi70/blanketops-environments/cache/githubevent"
 	libgitrepository "github.com/ntlaletsi70/blanketops-environments/cache/gitrepository"
@@ -30,7 +29,6 @@ import (
 // injected into reconcilers.
 type Caches struct {
 	Build         *libbuild.BuildCache
-	BuildTrigger  *libbuildtrigger.BuildTriggerCache
 	Deployment    *libdeployment.DeploymentCache
 	GitHubEvent   *libgithubevent.GitHubEventCache
 	GitRepository *libgitrepository.GitRepositoryCache
@@ -41,7 +39,6 @@ type Caches struct {
 func NewCaches(c *core.Cache) *Caches {
 	return &Caches{
 		Build:         libbuild.NewBuildCache(c),
-		BuildTrigger:  libbuildtrigger.NewBuildTriggerCache(c),
 		Deployment:    libdeployment.NewDeploymentCache(c),
 		GitHubEvent:   libgithubevent.NewGitHubEventCache(c),
 		GitRepository: libgitrepository.NewGitRepositoryCache(c),

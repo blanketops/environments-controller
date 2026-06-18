@@ -62,6 +62,7 @@ func main() {
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "ed9f0ef9.blanketops.dev",
 	})
+
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)

@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.4] - 2026-06-11
+
+### 🚀 Features
+
+- *(domain)* Enhance
+- *(domain)* Stubs
+- *(cache)* Init stubs, empty
+- *(cache)* Stub internal cache inertias, update environments deps
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.2.3
+- Sync develop with main after release/v0.2.3
+
+### Bugfix
+
+- *(auth)* Kubebuilder markers per controller related for delegated api surface controll required by manager, rbac role updated
+
+### Release
+
+- Merge release/v0.2.4 into main
+
 ## [0.2.3] - 2026-04-30
 
 ### ⚙️ Miscellaneous Tasks

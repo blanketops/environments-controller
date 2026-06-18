@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	kappctrlv1alpha1 "carvel.dev/kapp-controller/pkg/apis/kappctrl/v1alpha1"
+	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	fluxcdsourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/go-logr/logr"
@@ -50,6 +51,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/environments"
+	eventsContr "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/events"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildrun"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildtrigger"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/deployment"
@@ -69,6 +71,7 @@ func RegisterSchemes(scheme *runtime.Scheme) {
 	utilruntime.Must(sourcesv1alpha1.AddToScheme(scheme))
 	//utilruntime.Must(resultsv1.AddToScheme(scheme))
 	utilruntime.Must(kappctrlv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(argoeventsv1alpha1.AddToScheme(scheme))
 
 	utilruntime.Must(shipwrightv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(shipwrightv1beta1.AddToScheme(scheme))
@@ -208,7 +211,7 @@ func RegisterObservers(mgr ctrl.Manager) error {
 
 func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 
-	// if err := (&obssourcesv1alpha1.GitRepositoryReconciler{
+	// if err := (&sources.GitRepositoryReconciler{
 	// 	Client:  mgr.GetClient(),
 	// 	Scheme:  mgr.GetScheme(),
 	// 	Runtime: rt,
@@ -216,13 +219,19 @@ func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 	// 	return err
 	// }
 
-	// if err := (&obeventsv1alpha1.GitHubEventReconciler{
-	// 	Client:  mgr.GetClient(),
-	// 	Scheme:  mgr.GetScheme(),
-	// 	Runtime: rt,
-	// }).SetupWithManager(mgr); err != nil {
-	// 	return err
-	// }
+	if err := (&eventsContr.GitHubEventReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Runtime: rt,
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+
+	if err := (&eventsContr.GitHubPayload{
+		Client: mgr.GetClient(),
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
 
 	// if err := (&environments.DeploymentReconciler{
 	// 	Client:  mgr.GetClient(),

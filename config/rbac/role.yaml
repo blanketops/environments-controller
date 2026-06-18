@@ -48,7 +48,6 @@ rules:
   - environments.blanketops.dev
   resources:
   - builds
-  - buildtriggers
   - deployments
   - environments
   - packages
@@ -65,7 +64,6 @@ rules:
   - environments.blanketops.dev
   resources:
   - builds/finalizers
-  - buildtriggers/finalizers
   - deployments/finalizers
   - packages/finalizers
   - serviceunits/finalizers
@@ -75,7 +73,6 @@ rules:
   - environments.blanketops.dev
   resources:
   - builds/status
-  - buildtriggers/status
   - deployments/status
   - environments/finalizers
   - environments/status

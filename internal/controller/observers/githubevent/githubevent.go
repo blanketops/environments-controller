@@ -42,6 +42,8 @@ import (
 
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/domain"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -51,12 +53,20 @@ import (
 // Reconciler observes Argo Sensor resources on behalf of the GitHubEvent domain.
 // It MUST NOT mutate domain state — its only output is Kubernetes events emitted
 // on the owning GitHubEvent CR.
+// Reconciler observes Argo Sensor resources on behalf of the GitHubEvent domain.
+// It MUST NOT mutate domain state — its only output is Kubernetes events emitted
+// on the owning GitHubEvent CR.
 type Reconciler struct {
 	client.Client
 	// Recorder emits Kubernetes events on the owning GitHubEvent resource.
+	Status *application.StatusWriter
+
 	Recorder *core.EventRecorder
 }
 
+// Reconcile is invoked by controller-runtime for every Argo Sensor event. It
+// resolves the owning GitHubEvent CR via label and emits an observation event.
+// Sensors not labelled as BlanketOps-owned are silently ignored.
 // Reconcile is invoked by controller-runtime for every Argo Sensor event. It
 // resolves the owning GitHubEvent CR via label and emits an observation event.
 // Sensors not labelled as BlanketOps-owned are silently ignored.
@@ -64,6 +74,10 @@ func (r *Reconciler) Reconcile(
 	ctx context.Context,
 	req ctrl.Request,
 ) (ctrl.Result, error) {
+
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "githubevent", "payload", req.NamespacedName.String())
+
+	log.Info("reconcile start")
 
 	// ------------------------------------------------
 	// Fetch the Argo Sensor as an unstructured object.
@@ -74,15 +88,22 @@ func (r *Reconciler) Reconcile(
 	// ------------------------------------------------
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "argoproj.io",
+		Group:   "events.blanketops.dev",
 		Version: "v1alpha1",
-		Kind:    "Sensor",
+		Kind:    "GitHubPayload",
 	})
 
 	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
+		log.Info("payload not found, ignoring")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// ------------------------------------------------
+	// Resolve the owning GitHubEvent via label.
+	//
+	// The GitHubEvent domain stamps this label on every Sensor it creates.
+	// Sensors without the label are not platform-owned and are ignored.
+	// ------------------------------------------------
 	// ------------------------------------------------
 	// Resolve the owning GitHubEvent via label.
 	//
@@ -105,8 +126,12 @@ func (r *Reconciler) Reconcile(
 		Namespace: namespace,
 		Name:      eventName,
 	}, &ev); err != nil {
+		log.Error(err, "failed to fetch owning githubevent")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
+	log = log.WithValues("githubevent", ev.Name)
+	log.Info("payload linked to githubevent")
 
 	// ------------------------------------------------
 	// Emit observation event on the owning GitHubEvent CR.
@@ -117,14 +142,40 @@ func (r *Reconciler) Reconcile(
 	if r.Recorder != nil {
 		r.Recorder.Normal(
 			&ev,
-			"ExternalEventObserved",
-			"External system reported event activity",
+			"PayloadObserved",
+			"GitHub webhook delivery recorded as %s",
+			obj.GetName(),
 		)
+	}
+
+	// ------------------------------------------------
+	// Close the Loop
+	// ------------------------------------------------
+	if r.Status != nil {
+		log.Info("finalizing githubevent status")
+
+		// Construct the domain result representing the payload arrival
+		result := domain.GitHubEventResult{
+			Phase:          "PayloadReceived",
+			LastPayloadRef: obj.GetName(),
+		}
+
+		return ctrl.Result{}, r.Status.Write(ctx, &ev, result, nil)
 	}
 
 	return ctrl.Result{}, nil
 }
 
+// SetupWithManager registers the GitHubEvent observer with the controller manager.
+//
+// The observer watches Argo Sensor resources rather than GitHubEvent CRs.
+// This is intentional — the Sensor is the external object whose state changes
+// indicate GitHub webhook activity. Watching the GitHubEvent CR itself would
+// give us no signal about what the external system is doing.
+//
+// Unstructured is used here to avoid importing the Argo Events API types as
+// a hard dependency. The manager uses the GVK embedded in the object to
+// establish the correct informer watch.
 // SetupWithManager registers the GitHubEvent observer with the controller manager.
 //
 // The observer watches Argo Sensor resources rather than GitHubEvent CRs.
@@ -141,8 +192,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&unstructured.Unstructured{
 			Object: map[string]any{
-				"apiVersion": "argoproj.io/v1alpha1",
-				"kind":       "Sensor",
+				"apiVersion": "events.blanketops.dev/v1alpha1",
+				"kind":       "GitHubPayload",
 			},
 		}).
 		Complete(r)
