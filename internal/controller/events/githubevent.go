@@ -20,12 +20,14 @@ import (
 	"context"
 
 	//eventsv1alpha1 "k8s.io/api/events/v1alpha1"
+	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	"github.com/go-logr/logr"
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	githubeventapi "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/api"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
 	githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
+
 	//githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,6 +35,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	githubevent "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/githubevent"
 	githubeventdomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/githubevent"
@@ -173,7 +176,7 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// GitHubEvent Service (Mapper and StatiusWriter, domain service for orchestration))
 	//-----------------------------------------------------------------------
 	mapper := githubeventapp.NewMapper()
-	statusWriter := githubeventapp.NewStatusWriter(r.Client)
+	statusWriter := githubeventapp.NewStatusWriter(r.Client, r.Log.WithName("githubevent-status-writer"))
 	r.GitHubEventService = githubeventapp.NewGitHubEventService(mapper, statusWriter, backendSelector)
 
 	//--------------------------------------------------------------------------------
@@ -186,7 +189,14 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Controller registration
 	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&eventsv1alpha1.GitHubEvent{}).
+		For(&eventsv1alpha1.GitHubEvent{}).Watches(
+		&argoeventsv1alpha1.Sensor{},
+		handler.EnqueueRequestForOwner(
+			mgr.GetScheme(),
+			mgr.GetRESTMapper(),
+			&argoeventsv1alpha1.Sensor{},
+		),
+	).
 		Named("events-githubevent").
 		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)

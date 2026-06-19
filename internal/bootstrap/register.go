@@ -53,7 +53,6 @@ import (
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/environments"
 	eventsContr "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/events"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildrun"
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildtrigger"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/deployment"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/githubevent"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/gitrepository"
@@ -91,7 +90,6 @@ func EnsureServiceAccount(ctx context.Context, cfg *rest.Config) error {
 		namespace = "default"              // adjust later
 		name      = "environments-manager" // must match deployment
 	)
-
 	_, err = client.CoreV1().
 		ServiceAccounts(namespace).
 		Get(ctx, name, metav1.GetOptions{})
@@ -134,7 +132,6 @@ func Apply(ctx context.Context, cfg *rest.Config, manifest []byte) error {
 		}
 
 		gvk := obj.GroupVersionKind()
-
 		mapping := schema.GroupVersionResource{
 			Group:    gvk.Group,
 			Version:  gvk.Version,
@@ -182,12 +179,6 @@ func RegisterObservers(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err := (&buildtrigger.Reconciler{
-		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
-		return err
-	}
-
 	if err := (&deployment.Reconciler{
 		Client: mgr.GetClient(),
 	}).SetupWithManager(mgr); err != nil {
@@ -223,12 +214,6 @@ func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
 		Runtime: rt,
-	}).SetupWithManager(mgr); err != nil {
-		return err
-	}
-
-	if err := (&eventsContr.GitHubPayload{
-		Client: mgr.GetClient(),
 	}).SetupWithManager(mgr); err != nil {
 		return err
 	}

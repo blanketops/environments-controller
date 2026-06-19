@@ -74,11 +74,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	var build buildv1.Build
-	if err := r.Get(
-		ctx,
-		client.ObjectKey{Namespace: br.Namespace, Name: buildName},
-		&build,
-	); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Namespace: br.Namespace, Name: buildName}, &build); err != nil {
 		log.Error(err, "failed to fetch owning build")
 		return ctrl.Result{}, err
 	}
@@ -150,20 +146,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// ------------------------------------------------
 	if r.Recorder != nil {
 		if success {
-			r.Recorder.Normal(
-				&build,
-				"BuildSucceeded",
-				"BuildRun %s completed successfully",
-				br.Name,
-			)
+			r.Recorder.Normal(&build, "BuildSucceeded", "BuildRun %s completed successfully", br.Name)
 		} else {
-			r.Recorder.Warn(
-				&build,
-				"BuildFailed",
-				"BuildRun %s failed: %s",
-				br.Name,
-				cond.Message,
-			)
+			r.Recorder.Warn(&build, "BuildFailed", "BuildRun %s failed: %s", br.Name, cond.Message)
 		}
 	}
 
