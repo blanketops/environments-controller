@@ -18,7 +18,7 @@ permissions:
   attestations: write
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -78,7 +78,7 @@ jobs:
         run:
 
   publish:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4

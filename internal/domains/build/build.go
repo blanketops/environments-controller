@@ -99,7 +99,7 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 		if err != nil {
 			log.Error(err, "build resolution failed")
 			d.events.FromError(buildCR, "BuildResolveFailed", err)
-			core.SetCondition(&buildCR.Status.Conditions, "BuildResolved", core.ConditionFalse, "InvalidSpec", err.Error())
+			core.SetCondition(&buildCR.Status.Conditions, "BuildResolveFailed", core.ConditionFalse, "BuildResolve", err.Error())
 			return err
 		}
 
@@ -108,44 +108,50 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 		//------------------------------------------------
 		if cerr := d.buildCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
+			d.events.FromError(buildCR, "BuildCacheFailed", cerr)
+			core.SetCondition(&buildCR.Status.Conditions, "BuildCacheFailed", core.ConditionFalse, "resolved projection publish incomplete", cerr.Error())
 		}
 
 		log.Info("build resolved successfully")
-		d.events.Normal(buildCR, "BuildResolved", "Build specification resolved successfully")
-		core.SetCondition(&buildCR.Status.Conditions, "BuildResolved", core.ConditionTrue, "Resolved", "Build specification resolved successfully")
+		d.events.Normal(buildCR, "BuildResolve", "Build specification resolved successfully")
+		core.SetCondition(&buildCR.Status.Conditions, "BuildResolved", core.ConditionTrue, "BuildSpecResolved", "Build specification resolved successfully")
+
+		log.Info("build cached successfully")
+		d.events.Normal(buildCR, "BuildCache", "Build specification cached successfully")
+		core.SetCondition(&buildCR.Status.Conditions, "BuildCached", core.ConditionTrue, "BuildSpecCached", "Build specification cached successfully")
 
 		//------------------------------------------------
 		// Stage 2: Ensure prerequisites
 		//------------------------------------------------
-		log.Info("ensuring build prerequisites")
+		log.Info("create build prerequisites")
 		if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "build prerequisites failed")
-			d.events.FromError(buildCR, "BuildPrerequisitesFailed", err)
-			core.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesReady", core.ConditionFalse, "BuildPrerequisitesFailed", err.Error())
+			d.events.FromError(buildCR, "BuildPrerequisitesCreateFailed", err)
+			core.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreateFailed", core.ConditionFalse, "build prerequisites failed, internal error", err.Error())
 			return err
 		}
 
-		log.Info("build prerequisites ensured")
-		d.events.Normal(buildCR, "BuildPrerequisitesReady", "all build prerequisites created successfully")
-		core.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesReady", core.ConditionTrue, "BuildPrerequisitesReady", "all build prerequisites satisfied")
+		log.Info("build prerequisites created")
+		d.events.Normal(buildCR, "BuildPrerequisitesCreate", "All build prerequisites created successfully")
+		core.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreated", core.ConditionTrue, "BuildPrerequisitesReady", "All build prerequisites satisfied")
 
 		//------------------------------------------------
-		// Stage 3: Trigger execution (intent only)
+		// Stage 3: Start bukd (intent only)
 		//------------------------------------------------
-		log.Info("triggering build execution")
+		log.Info("starting build run")
 		if err := d.buildService.Reconcile(ctx, resolved); err != nil {
-			log.Error(err, "build triggering failed")
-			d.events.FromError(buildCR, "BuildServiceReconFailed", err)
-			core.SetCondition(&buildCR.Status.Conditions, "BuildTriggered", core.ConditionFalse, "TriggerFailed", err.Error())
+			log.Error(err, "build run failed")
+			d.events.FromError(buildCR, "BuildFailed", err)
+			core.SetCondition(&buildCR.Status.Conditions, "BuildStart", core.ConditionFalse, "starting build run, internal error", err.Error())
 			return err
 		}
 
 		// ------------------------------------------------
-		// 4. Build Execution completed
+		// 4. Build Execution started
 		// ------------------------------------------------
-		log.Info("build execution requested")
-		d.events.Normal(buildCR, "BuildTriggered", "Build execution has started")
-		core.SetCondition(&buildCR.Status.Conditions, "BuildTriggered", core.ConditionTrue, "ExecutionStarted", "Build execution has started")
+		log.Info("build run started")
+		d.events.Normal(buildCR, "BuildRunStarted", "Build run has started")
+		core.SetCondition(&buildCR.Status.Conditions, "BuildStart", core.ConditionTrue, "BuildRunStarted", "Build run has started")
 		log.Info("build domain handling complete")
 
 	case core.CmdDelete:
@@ -155,7 +161,11 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 		if cerr := d.buildCache.Invalidate(ctx, nn); cerr != nil {
 			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
 		}
-		d.events.Info(buildCR, "BuildDeleted", "build cleanup not implemented yet")
+
+		log.Info("build deletion marked")
+		d.events.Normal(buildCR, "BuildDeletion", "build deleted, build cleanup not implemented yet")
+		core.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", core.ConditionTrue, "BuildMarkedDelete", "build deleted, build cleanup not implemented yet")
+		log.Info("build domain handling complete")
 	}
 	return nil
 }

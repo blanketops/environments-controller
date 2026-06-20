@@ -40,12 +40,13 @@ package githubevent
 import (
 	"context"
 
+	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/domain"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	githubeventresolution "github.com/ntlaletsi70/blanketops-environments/resolution/githubevent"
+	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -59,8 +60,7 @@ import (
 type Reconciler struct {
 	client.Client
 	// Recorder emits Kubernetes events on the owning GitHubEvent resource.
-	Status *application.StatusWriter
-
+	Status   *application.StatusWriter
 	Recorder *core.EventRecorder
 }
 
@@ -70,100 +70,89 @@ type Reconciler struct {
 // Reconcile is invoked by controller-runtime for every Argo Sensor event. It
 // resolves the owning GitHubEvent CR via label and emits an observation event.
 // Sensors not labelled as BlanketOps-owned are silently ignored.
-func (r *Reconciler) Reconcile(
-	ctx context.Context,
-	req ctrl.Request,
-) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
-	log := ctrl.LoggerFrom(ctx).WithValues("controller", "githubevent", "payload", req.NamespacedName.String())
-
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "githubevent-observer", "payload", req.NamespacedName.String())
 	log.Info("reconcile start")
 
 	// ------------------------------------------------
-	// Fetch the Argo Sensor as an unstructured object.
-	//
-	// We use unstructured to avoid a hard dependency on the Argo Events
-	// API types. The observer only needs the resource's labels and namespace
-	// to perform ownership resolution — no deep field access required.
+	// Fetch Sensor
 	// ------------------------------------------------
-	obj := &unstructured.Unstructured{}
-	obj.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "events.blanketops.dev",
-		Version: "v1alpha1",
-		Kind:    "GitHubPayload",
-	})
-
-	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
-		log.Info("payload not found, ignoring")
+	var gh argoeventsv1alpha1.Sensor
+	if err := r.Get(ctx, req.NamespacedName, &gh); err != nil {
+		log.Info("argo events sensor not found, ignoring")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	// ------------------------------------------------
-	// Resolve the owning GitHubEvent via label.
-	//
-	// The GitHubEvent domain stamps this label on every Sensor it creates.
-	// Sensors without the label are not platform-owned and are ignored.
+	// Only act on terminal Sensor Payloads
 	// ------------------------------------------------
-	// ------------------------------------------------
-	// Resolve the owning GitHubEvent via label.
-	//
-	// The GitHubEvent domain stamps this label on every Sensor it creates.
-	// Sensors without the label are not platform-owned and are ignored.
-	// ------------------------------------------------
-	labels := obj.GetLabels()
-	eventName := labels["events.blanketops.dev/githubevent"]
-	if eventName == "" {
+	cond := gh.Status.GetCondition("Succeeded")
+	if cond == nil || cond.Status == corev1.ConditionUnknown {
+		log.Info("skipping: sensor payload not terminal yet")
 		return ctrl.Result{}, nil
 	}
 
-	namespace := obj.GetNamespace()
-	if namespace == "" {
-		namespace = "default"
-	}
-
-	var ev eventsv1alpha1.GitHubEvent
-	if err := r.Get(ctx, client.ObjectKey{
-		Namespace: namespace,
-		Name:      eventName,
-	}, &ev); err != nil {
-		log.Error(err, "failed to fetch owning githubevent")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	log = log.WithValues("githubevent", ev.Name)
-	log.Info("payload linked to githubevent")
+	success := cond.Status == corev1.ConditionTrue
+	log = log.WithValues("succeeded", success, "reason", cond.Reason)
 
 	// ------------------------------------------------
-	// Emit observation event on the owning GitHubEvent CR.
-	//
-	// This is the observer's sole output. No domain state is written.
-	// A nil Recorder is safe and results in a no-op.
+	// Resolve owning GitHubEvent
+	// ------------------------------------------------
+	githubEventName := gh.Labels["events.blanketops.dev/githubevent"]
+	if githubEventName == "" {
+		log.Info("skipping: sensor payload has no owning build label")
+		return ctrl.Result{}, nil
+	}
+
+	var githubevent eventsv1alpha1.GitHubEvent
+	if err := r.Get(ctx, client.ObjectKey{Namespace: gh.Namespace, Name: githubEventName}, &githubevent); err != nil {
+		log.Error(err, "failed to fetch owning githubevent")
+		return ctrl.Result{}, err
+	}
+
+	log = log.WithValues("githubevent", githubevent.Name, "namespace", githubevent.Namespace)
+	// ------------------------------------------------
+	// Resolve runtime Build (AUTHORITATIVE)
+	// ------------------------------------------------
+	_, err := githubeventresolution.ResolveGitHubEvent(&githubevent)
+	if err != nil {
+		log.Error(err, "failed to resolve githubvent contract")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("githubevent payload recieved")
+	// ------------------------------------------------
+	// Emit events (terminal only)
 	// ------------------------------------------------
 	if r.Recorder != nil {
-		r.Recorder.Normal(
-			&ev,
-			"PayloadObserved",
-			"GitHub webhook delivery recorded as %s",
-			obj.GetName(),
-		)
-	}
-
-	// ------------------------------------------------
-	// Close the Loop
-	// ------------------------------------------------
-	if r.Status != nil {
-		log.Info("finalizing githubevent status")
-
-		// Construct the domain result representing the payload arrival
-		result := domain.GitHubEventResult{
-			Phase:          "PayloadReceived",
-			LastPayloadRef: obj.GetName(),
+		if success {
+			r.Recorder.Normal(
+				&githubevent,
+				"GitHubEventProcess",
+				"GitHubEventProcess %s completed successfully",
+				gh.Name,
+			)
+		} else {
+			r.Recorder.Warn(
+				&githubevent,
+				"GitHubEventProcess",
+				"GitHubEventProcess %s failed: %s",
+				gh.Name,
+				cond.Message,
+			)
 		}
-
-		return ctrl.Result{}, r.Status.Write(ctx, &ev, result, nil)
 	}
 
-	return ctrl.Result{}, nil
+	log.Info("finalizing githubevent status")
+
+	result := domain.GitHubEventResult{
+		Success:         success,
+		Message:         cond.Message,
+		PayloadRecieved: true,
+	}
+
+	return ctrl.Result{}, r.Status.Write(ctx, &githubevent, result, nil)
 }
 
 // SetupWithManager registers the GitHubEvent observer with the controller manager.
@@ -190,11 +179,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("githubevent-observer"))
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&unstructured.Unstructured{
-			Object: map[string]any{
-				"apiVersion": "events.blanketops.dev/v1alpha1",
-				"kind":       "GitHubPayload",
-			},
-		}).
+		For(&argoeventsv1alpha1.Sensor{}).
 		Complete(r)
 }

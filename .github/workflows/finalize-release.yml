@@ -9,7 +9,7 @@ permissions:
   contents: write
 jobs:
   finalize:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout

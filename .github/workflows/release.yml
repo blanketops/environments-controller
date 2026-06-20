@@ -7,7 +7,7 @@ permissions:
     contents: write
 jobs:
     release:
-      runs-on: self-hosted
+      runs-on: ubuntu-latest
       steps:
         - name: Checkout tag
           uses: actions/checkout@v4
