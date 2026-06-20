@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
 jobs:
   create:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout develop
         uses: actions/checkout@v4
