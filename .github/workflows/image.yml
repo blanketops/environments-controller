@@ -11,17 +11,15 @@ on:
                 description: "Sign and attest the image after build"
                 type: boolean
                 default: true
-
 permissions:
     contents: read
     packages: write
     id-token: write
     attestations: write
-
 jobs:
     build:
         if: false
-        runs-on: self-hosted
+        runs-on: ubuntu-latest
         steps:
             - name: Checkout
               uses: actions/checkout@v4
@@ -70,3 +68,6 @@ jobs:
                   subject-name: docker.io/nkanyezisolutions/blanketops-environments-controller
                   subject-digest: ${{ steps.build.outputs.digest }}
                   push-to-registry: true
+                  
+            - name: Image Summary
+              run:       

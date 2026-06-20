@@ -62,6 +62,7 @@ func main() {
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "ed9f0ef9.blanketops.dev",
 	})
+
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
@@ -87,10 +88,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := bootstrap.RegisterBuild(mgr, rt, setupLog, mgr.GetEventRecorder("blanketops-environments")); err != nil {
-		setupLog.Error(err, "failed to register build subsystem")
-		os.Exit(1)
-	}
+	// if err := bootstrap.RegisterBuild(mgr, rt, setupLog, mgr.GetEventRecorder("blanketops-environments")); err != nil {
+	// 	setupLog.Error(err, "failed to register build subsystem")
+	// 	os.Exit(1)
+	// }
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to add health check")

@@ -20,14 +20,14 @@ import (
 	"context"
 
 	//eventsv1alpha1 "k8s.io/api/events/v1alpha1"
+	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	"github.com/go-logr/logr"
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-
-	// githubeventapi "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/api"
-	// githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
-	//githubeventapi "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/api"
+	githubeventapi "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/api"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
+	githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
+
 	//githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,8 +35,10 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	githubevent "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/githubevent"
+	githubeventdomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/githubevent"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
@@ -174,20 +176,27 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// GitHubEvent Service (Mapper and StatiusWriter, domain service for orchestration))
 	//-----------------------------------------------------------------------
 	mapper := githubeventapp.NewMapper()
-	statusWriter := githubeventapp.NewStatusWriter(r.Client)
-	r.Service = githubeventapp.NewGitHubEventService(mapper, statusWriter, backendSelector)
+	statusWriter := githubeventapp.NewStatusWriter(r.Client, r.Log.WithName("githubevent-status-writer"))
+	r.GitHubEventService = githubeventapp.NewGitHubEventService(mapper, statusWriter, backendSelector)
 
 	//--------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	//--------------------------------------------------------------------------------
-	eventsDomain := eventsdomain.New(r.Service, r.GitHubEventMediator, r.Events, r.Cache, r.Log.WithName("domain.githubevent"))
-	r.Registry.RegisterDomain(eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"), eventsDomain)
+	eventsDomain := githubeventdomain.New(r.GitHubEventService, r.GitHubEventMediator, events, cache, r.Log.WithName("domain.githubevent"))
+	registry.RegisterDomain(eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"), eventsDomain)
 
 	// ---------------------------------------------------------------------
 	// Controller registration
 	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&eventsv1alpha1.GitHubEvent{}).
+		For(&eventsv1alpha1.GitHubEvent{}).Watches(
+		&argoeventsv1alpha1.Sensor{},
+		handler.EnqueueRequestForOwner(
+			mgr.GetScheme(),
+			mgr.GetRESTMapper(),
+			&argoeventsv1alpha1.Sensor{},
+		),
+	).
 		Named("events-githubevent").
 		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)

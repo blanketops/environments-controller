@@ -45,10 +45,10 @@ import (
 type GitHubEventDomain struct {
 	// githubEventMediator manages prerequisite interactions.
 	githubEventMediator *githubeventMediator.Mediator
-	// githubEventService handles business logic for build operations.
+	// githubEventService handles business logic for githubevent operations.
 	githubEventService *application.GitHubEventService
-	// buildCache provides generation-scoped, field-level caching for
-	// Build resources. Advisory only: misses and errors fall through
+	// githubeventCache provides generation-scoped, field-level caching for
+	// GitHubEvent resources. Advisory only: misses and errors fall through
 	// to full computation; correctness never depends on a hit.
 	githubeventCache *libgithubevent.GitHubEventCache
 	// events handles logging of Kubernetes events.
@@ -58,10 +58,10 @@ type GitHubEventDomain struct {
 }
 
 // New constructs a new GitHubEventDomain instance.
-func New(service *application.GitHubEventService, mediator *githubeventMediator.Mediator, events *core.EventRecorder, cache *core.Cache, log logr.Logger) *GitHubEventDomain {
+func New(buildService *application.GitHubEventService, githubEventMediator *githubeventMediator.Mediator, events *core.EventRecorder, cache *core.Cache, log logr.Logger) *GitHubEventDomain {
 	return &GitHubEventDomain{
-		githubEventMediator: mediator,
-		githubEventService:  service,
+		githubEventMediator: githubEventMediator,
+		githubEventService:  buildService,
 		githubeventCache:    libgithubevent.NewGitHubEventCache(cache),
 		events:              events,
 		log:                 log,
@@ -90,18 +90,15 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error 
 	switch cmd.Type {
 	case core.CmdCreate, core.CmdUpdate:
 
-		// --------------------------------------------------------
+		//---------------------------------------------------------
 		// 0. Resolve GitHubEvent contract ONCE
-		// --------------------------------------------------------
+		//---------------------------------------------------------
 		log.Info("resolving githubevent contract")
 		resolved, err := githubeventResolution.ResolveGitHubEvent(githubeventCR)
-
 		if err != nil {
-
 			log.Error(err, "githubevent resolution failed")
 			d.events.FromError(githubeventCR, "GitHubEventResolveFailed", err)
-			core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventResolved", core.ConditionFalse, "InvalidSpec", err.Error())
-
+			core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventResolveFailed", core.ConditionFalse, "GitHubEventResolve", err.Error())
 			return err
 		}
 
@@ -110,52 +107,50 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error 
 		//------------------------------------------------
 		if cerr := d.githubeventCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
+			d.events.FromError(githubeventCR, "GitHubEventCacheFailed", cerr)
+			core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventCacheFailed", core.ConditionFalse, "resolved projection publish incomplete", cerr.Error())
 		}
 
 		log.Info("githubevent resolved successfully")
-		d.events.Normal(githubeventCR, "GitHubEventResolved", "Build specification resolved successfully")
+		d.events.Normal(githubeventCR, "GitHubEventResolve", "GitHubEvent specification resolved successfully")
 		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventResolved", core.ConditionTrue, "GitHubEventResolved", "GitHubEvent specification resolved successfully")
+
+		log.Info("githubevent cached successfully")
+		d.events.Normal(githubeventCR, "GitHubEventCache", "GitHubEvent specification cached successfully")
+		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventCached", core.ConditionTrue, "GitHubEventSpecCached", "GitHubEvent specification cached successfully")
 
 		// -----------------------------------------------------------
 		// 2. Ensure prerequisites (secrets, webhooks, etc.)
 		// -----------------------------------------------------------
-		log.Info("ensuring githubevent prerequisites")
-
+		log.Info("create githubevent prerequisites")
 		if err := d.githubEventMediator.EnsurePrerequisites(ctx, resolved); err != nil {
-
 			log.Error(err, "githubevent prerequisites failed")
-			d.events.FromError(githubeventCR, "GitHubEventPrerequisitesFailed", err)
-			core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventPrerequisitesReady", core.ConditionFalse, "GitHubEventPrerequisitesFailed", err.Error())
-
+			d.events.FromError(githubeventCR, "GitHubEventPrerequisitesCreateFailed", err)
+			core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventPrerequisitesCreateFailed", core.ConditionFalse, "GitHubEventPrerequisitesFailed", err.Error())
 			return err
 		}
 
-		log.Info("githubevent prerequisites ensured")
-		d.events.Normal(githubeventCR, "GitHubEventPrerequisitesReady", "all githubevent prerequisites created successfully")
-		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventPrerequisitesReady", core.ConditionTrue, "GitHubEventPrerequisitesReady", "All prerequisites created successfully")
+		log.Info("githubevent prerequisites created")
+		d.events.Normal(githubeventCR, "GitHubEventPrerequisitesCreate", "All githubevent prerequisites created successfully")
+		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventPrerequisitesCreated", core.ConditionTrue, "GitHubEventPrerequisitesReady", "All prerequisites created successfully")
 
 		// ---------------------------------------------------------
 		// 3. Domain application logic
 		// ---------------------------------------------------------
-
 		log.Info("triggering githubevent execution")
-
 		if err := d.githubEventService.Reconcile(ctx, resolved); err != nil {
-
 			log.Error(err, "triggering githubevent failed")
 			d.events.FromError(githubeventCR, "GitHubEventRejected", err)
 			core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventOrganized", core.ConditionFalse, "GitHubEventRejected", err.Error())
-
 			return err
 		}
 
 		// --------------------------------------------------------
 		// 4. Execution requested
 		// --------------------------------------------------------
-
 		log.Info("githubevent execution requested")
 		d.events.Normal(githubeventCR, "GitHubEventOrganized", "GitHubEvent organization process  has started")
-		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventOrganized", core.ConditionTrue, "EventingStarted", "GitHubEvent organization has started")
+		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventOrganized", core.ConditionTrue, "GitHubEventOrganized", "GitHubEvent organization has started")
 		log.Info("githubevent domain handling complete")
 
 	case core.CmdDelete:
