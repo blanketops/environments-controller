@@ -181,10 +181,6 @@ func RegisterObservers(mgr ctrl.Manager) error {
 		return err
 	}
 
-	if err := (&buildrun.Reconciler{Client: mgr.GetClient(), Status: statusWriter}).SetupWithManager(mgr); err != nil {
-		return err
-	}
-
 	if err := (&deployment.Reconciler{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
 		return err
 	}
