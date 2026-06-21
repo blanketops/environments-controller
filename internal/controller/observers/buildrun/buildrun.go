@@ -17,7 +17,6 @@ package buildrun
 
 import (
 	"context"
-	"strconv"
 
 	buildv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
@@ -30,8 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const retryAttemptAnnotation = "build.blanketops.dev/retry-attempt"
-
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
@@ -39,22 +36,15 @@ type Reconciler struct {
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "buildrun-observer", "buildRun", req.NamespacedName.String())
 	log.Info("reconcile start")
 
-	// ------------------------------------------------
-	// Fetch BuildRun
-	// ------------------------------------------------
 	var br shipwrightv1beta1.BuildRun
 	if err := r.Get(ctx, req.NamespacedName, &br); err != nil {
 		log.Info("buildrun not found, ignoring")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ------------------------------------------------
-	// Only act on terminal BuildRuns
-	// ------------------------------------------------
 	cond := br.Status.GetCondition("Succeeded")
 	if cond == nil || cond.Status == corev1.ConditionUnknown {
 		log.Info("skipping: buildrun not terminal yet")
@@ -64,9 +54,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	success := cond.Status == corev1.ConditionTrue
 	log = log.WithValues("succeeded", success, "reason", cond.Reason)
 
-	// ------------------------------------------------
-	// Resolve owning Build
-	// ------------------------------------------------
 	buildName := br.Labels["build.blanketops.dev/name"]
 	if buildName == "" {
 		log.Info("skipping: buildrun has no owning build label")
@@ -81,10 +68,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	log = log.WithValues("build", build.Name, "namespace", build.Namespace)
 
-	// ------------------------------------------------
-	// Resolve runtime Build (AUTHORITATIVE)
-	// ------------------------------------------------
-	resolved, err := buildresolution.ResolveBuild(&build)
+	_, err := buildresolution.ResolveBuild(&build)
 	if err != nil {
 		log.Error(err, "failed to resolve build contract")
 		return ctrl.Result{}, err
@@ -94,56 +78,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	log = log.WithValues("buildHash", buildHash)
 	log.Info("buildrun completed")
 
-	// ------------------------------------------------
-	// Retry-on-failure (AUTHORITATIVE)
-	// ------------------------------------------------
-	if !success &&
-		resolved.Spec.Policy != nil &&
-		resolved.Spec.Policy.Retry != nil &&
-		resolved.Spec.Policy.Retry.OnFailure {
-		retry := resolved.Spec.Policy.Retry
-
-		var runs shipwrightv1beta1.BuildRunList
-		if err := r.List(
-			ctx,
-			&runs,
-			client.InNamespace(br.Namespace),
-			client.MatchingLabels{
-				"build.blanketops.dev/name": build.Name,
-				"build-hash":                buildHash,
-			},
-		); err != nil {
-			log.Error(err, "failed to list buildruns")
-			return ctrl.Result{}, err
-		}
-
-		attempts := len(runs.Items)
-		log.Info("retry evaluation",
-			"attempts", attempts,
-			"maxAttempts", retry.MaxAttempts,
-		)
-
-		if attempts < int(retry.MaxAttempts) {
-			patch := client.MergeFrom(build.DeepCopy())
-			if build.Annotations == nil {
-				build.Annotations = map[string]string{}
-			}
-			build.Annotations[retryAttemptAnnotation] = strconv.Itoa(attempts + 1)
-			log.Info("retry scheduled", "nextAttempt", attempts+1)
-
-			if err := r.Patch(ctx, &build, patch); err != nil {
-				log.Error(err, "failed to persist retry attempt")
-				return ctrl.Result{}, err
-			}
-			return ctrl.Result{}, nil
-		}
-
-		log.Info("retry limit reached, finalizing build as failed")
-	}
-
-	// ------------------------------------------------
-	// Emit events (terminal only)
-	// ------------------------------------------------
 	if r.Recorder != nil {
 		if success {
 			r.Recorder.Normal(&build, "BuildSucceeded", "BuildRun %s completed successfully", br.Name)

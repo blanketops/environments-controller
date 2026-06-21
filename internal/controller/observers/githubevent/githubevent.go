@@ -39,6 +39,7 @@ package githubevent
 
 import (
 	"context"
+	"encoding/json"
 
 	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
@@ -104,42 +105,57 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// ------------------------------------------------
-	// Check Sensor health for Success (best effort)
+	// Preserve Triggered/Success from existing status
+	// The controller set these during provisioning.
+	// ------------------------------------------------
+	var existingStatus domain.GitHubEventStatus
+	triggered := false
+	success := false
+	if len(githubevent.Status.Contract.Raw) > 0 {
+		if err := json.Unmarshal(githubevent.Status.Contract.Raw, &existingStatus); err == nil {
+			triggered = existingStatus.Triggered
+			success = existingStatus.Success
+			log.Info("preserved existing status values", "triggered", triggered, "success", success)
+		}
+	}
+
+	// ------------------------------------------------
+	// Check Sensor health for Success (best effort, don't overwrite)
+	// Only update success if sensor is actually healthy
 	// ------------------------------------------------
 	var sensor argoeventsv1alpha1.Sensor
 	sensorName := "github-sensor-" + githubevent.Name
 	if err := r.Get(ctx, client.ObjectKey{Namespace: githubevent.Namespace, Name: sensorName}, &sensor); err != nil {
 		log.Error(err, "failed to fetch sensor", "sensor", sensorName)
-		// Don't fail — payload arrived, sensor health is secondary
-	}
-
-	success := false
-	message := ""
-	if cond := sensor.Status.GetCondition("Succeeded"); cond != nil {
-		success = cond.Status == corev1.ConditionTrue
-		message = cond.Message
-		log = log.WithValues("sensorSucceeded", success, "reason", cond.Reason)
+	} else if cond := sensor.Status.GetCondition("Succeeded"); cond != nil {
+		if cond.Status == corev1.ConditionTrue {
+			success = true
+		}
+		log = log.WithValues("sensorSucceeded", cond.Status == corev1.ConditionTrue, "reason", cond.Reason)
 	}
 
 	// ------------------------------------------------
 	// Emit events
 	// ------------------------------------------------
 	if r.Recorder != nil {
-		if success {
-			r.Recorder.Normal(&githubevent, "GitHubEventPayloadReceived", "Payload received, sensor healthy")
-		} else {
-			r.Recorder.Warn(&githubevent, "GitHubEventPayloadReceived", "Payload received, sensor condition: %s", message)
+		if payloadReceived {
+			if success {
+				r.Recorder.Normal(&githubevent, "GitHubEventPayloadReceived", "Payload received for %s, sensor healthy", sensorName)
+			} else {
+				r.Recorder.Warn(&githubevent, "GitHubEventPayloadReceived", "Payload received for %s, sensor condition: %s", sensorName, "unknown")
+			}
 		}
 	}
 
 	log.Info("finalizing githubevent status")
 
 	// ------------------------------------------------
-	// Finalize status
+	// Finalize status — preserve controller's Triggered, update Success
 	// ------------------------------------------------
 	result := domain.GitHubEventResult{
 		Success:         success,
-		Message:         message,
+		Message:         "Payload received",
+		Triggered:       triggered, // PRESERVED from controller
 		PayloadRecieved: payloadReceived,
 	}
 

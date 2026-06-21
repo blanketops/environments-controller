@@ -52,6 +52,7 @@ import (
 
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/environments"
 	eventsContr "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/events"
+	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/build"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildrun"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/deployment"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/githubevent"
@@ -171,6 +172,14 @@ func resourceName(kind string) string {
 
 func RegisterObservers(mgr ctrl.Manager) error {
 	statusWriter := buildapp.NewStatusWriter(mgr.GetClient(), mgr.GetLogger().WithName("buildrun-status-writer"))
+
+	if err := (&build.Reconciler{Client: mgr.GetClient(), Status: statusWriter}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+
+	if err := (&buildrun.Reconciler{Client: mgr.GetClient(), Status: statusWriter}).SetupWithManager(mgr); err != nil {
+		return err
+	}
 
 	if err := (&buildrun.Reconciler{Client: mgr.GetClient(), Status: statusWriter}).SetupWithManager(mgr); err != nil {
 		return err
