@@ -172,28 +172,19 @@ func resourceName(kind string) string {
 func RegisterObservers(mgr ctrl.Manager) error {
 	statusWriter := buildapp.NewStatusWriter(mgr.GetClient(), mgr.GetLogger().WithName("buildrun-status-writer"))
 
-	if err := (&buildrun.Reconciler{
-		Client: mgr.GetClient(),
-		Status: statusWriter,
-	}).SetupWithManager(mgr); err != nil {
+	if err := (&buildrun.Reconciler{Client: mgr.GetClient(), Status: statusWriter}).SetupWithManager(mgr); err != nil {
 		return err
 	}
 
-	if err := (&deployment.Reconciler{
-		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
+	if err := (&deployment.Reconciler{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
 		return err
 	}
 
-	if err := (&githubevent.Reconciler{
-		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
+	if err := (&githubevent.Reconciler{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
 		return err
 	}
 
-	if err := (&gitrepository.Reconciler{
-		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
+	if err := (&gitrepository.Reconciler{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
 		return err
 	}
 
