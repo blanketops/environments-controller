@@ -1,10 +1,11 @@
 /*
-Copyright 2026 The BlanketOps Authors.
+Copyright 2026.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,20 +18,21 @@ package buildrun
 
 import (
 	"context"
-	"strconv"
+	"encoding/json"
+	"time"
 
+	"github.com/go-logr/logr"
 	buildv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/domain"
-	buildresolution "github.com/ntlaletsi70/blanketops-environments/resolution/build"
 	shipwrightv1beta1 "github.com/shipwright-io/build/pkg/apis/build/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-const retryAttemptAnnotation = "build.blanketops.dev/retry-attempt"
 
 type Reconciler struct {
 	client.Client
@@ -39,22 +41,15 @@ type Reconciler struct {
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "buildrun-observer", "buildRun", req.NamespacedName.String())
 	log.Info("reconcile start")
 
-	// ------------------------------------------------
-	// Fetch BuildRun
-	// ------------------------------------------------
 	var br shipwrightv1beta1.BuildRun
 	if err := r.Get(ctx, req.NamespacedName, &br); err != nil {
 		log.Info("buildrun not found, ignoring")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ------------------------------------------------
-	// Only act on terminal BuildRuns
-	// ------------------------------------------------
 	cond := br.Status.GetCondition("Succeeded")
 	if cond == nil || cond.Status == corev1.ConditionUnknown {
 		log.Info("skipping: buildrun not terminal yet")
@@ -64,9 +59,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	success := cond.Status == corev1.ConditionTrue
 	log = log.WithValues("succeeded", success, "reason", cond.Reason)
 
-	// ------------------------------------------------
-	// Resolve owning Build
-	// ------------------------------------------------
 	buildName := br.Labels["build.blanketops.dev/name"]
 	if buildName == "" {
 		log.Info("skipping: buildrun has no owning build label")
@@ -80,70 +72,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	log = log.WithValues("build", build.Name, "namespace", build.Namespace)
-
-	// ------------------------------------------------
-	// Resolve runtime Build (AUTHORITATIVE)
-	// ------------------------------------------------
-	resolved, err := buildresolution.ResolveBuild(&build)
-	if err != nil {
-		log.Error(err, "failed to resolve build contract")
-		return ctrl.Result{}, err
-	}
-
-	buildHash := br.Labels["build-hash"]
-	log = log.WithValues("buildHash", buildHash)
 	log.Info("buildrun completed")
 
-	// ------------------------------------------------
-	// Retry-on-failure (AUTHORITATIVE)
-	// ------------------------------------------------
-	if !success &&
-		resolved.Spec.Policy != nil &&
-		resolved.Spec.Policy.Retry != nil &&
-		resolved.Spec.Policy.Retry.OnFailure {
-		retry := resolved.Spec.Policy.Retry
-
-		var runs shipwrightv1beta1.BuildRunList
-		if err := r.List(
-			ctx,
-			&runs,
-			client.InNamespace(br.Namespace),
-			client.MatchingLabels{
-				"build.blanketops.dev/name": build.Name,
-				"build-hash":                buildHash,
-			},
-		); err != nil {
-			log.Error(err, "failed to list buildruns")
-			return ctrl.Result{}, err
-		}
-
-		attempts := len(runs.Items)
-		log.Info("retry evaluation",
-			"attempts", attempts,
-			"maxAttempts", retry.MaxAttempts,
-		)
-
-		if attempts < int(retry.MaxAttempts) {
-			patch := client.MergeFrom(build.DeepCopy())
-			if build.Annotations == nil {
-				build.Annotations = map[string]string{}
-			}
-			build.Annotations[retryAttemptAnnotation] = strconv.Itoa(attempts + 1)
-			log.Info("retry scheduled", "nextAttempt", attempts+1)
-
-			if err := r.Patch(ctx, &build, patch); err != nil {
-				log.Error(err, "failed to persist retry attempt")
-				return ctrl.Result{}, err
-			}
-			return ctrl.Result{}, nil
-		}
-
-		log.Info("retry limit reached, finalizing build as failed")
-	}
-
-	// ------------------------------------------------
-	// Emit events (terminal only)
-	// ------------------------------------------------
 	if r.Recorder != nil {
 		if success {
 			r.Recorder.Normal(&build, "BuildSucceeded", "BuildRun %s completed successfully", br.Name)
@@ -152,20 +82,66 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	log.Info("finalizing build status")
+	conditions := r.buildContractAndConditions(&build, &br, success, cond.Message, log)
 
-	result := domain.BuildResult{
+	return ctrl.Result{}, r.Status.Write(ctx, &build, conditions...)
+}
+
+func (r *Reconciler) buildContractAndConditions(
+	build *buildv1.Build,
+	br *shipwrightv1beta1.BuildRun,
+	success bool,
+	message string,
+	log logr.Logger,
+) []metav1.Condition {
+	now := metav1.NewTime(time.Now())
+
+	var currentStatus domain.BuildStatus
+	if len(build.Status.Contract.Raw) > 0 {
+		_ = json.Unmarshal(build.Status.Contract.Raw, &currentStatus)
+	}
+
+	buildHash := br.Labels["build-hash"]
+
+	contractStatus := domain.BuildStatus{
 		Success:      success,
-		Message:      cond.Message,
+		Message:      message,
 		ExecutionRef: br.Name,
 		BuildHash:    buildHash,
+		Triggered:    currentStatus.Triggered,
 	}
 
 	if br.Status.Output != nil && br.Status.Output.Digest != "" {
-		result.ArtifactRef = br.Status.Output.Digest
+		//contractStatus.ArtifactRef = br.Status.Output.Digest
 	}
 
-	return ctrl.Result{}, r.Status.Write(ctx, &build, result, nil)
+	raw, err := json.Marshal(contractStatus)
+	if err != nil {
+		log.Error(err, "failed to marshal contract status")
+	} else {
+		build.Status.Contract = runtime.RawExtension{Raw: raw}
+	}
+
+	var condition metav1.Condition
+	if success {
+		condition = metav1.Condition{
+			Type:               "BuildSuccess",
+			Status:             metav1.ConditionTrue,
+			Reason:             "BuildSucceeded",
+			Message:            message,
+			LastTransitionTime: now,
+		}
+	} else {
+		condition = metav1.Condition{
+			Type:               "BuildFailed",
+			Status:             metav1.ConditionFalse,
+			Reason:             "BuildFailed",
+			Message:            message,
+			LastTransitionTime: now,
+		}
+	}
+
+	return []metav1.Condition{condition}
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
