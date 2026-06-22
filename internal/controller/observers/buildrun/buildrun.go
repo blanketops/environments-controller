@@ -26,7 +26,7 @@ import (
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/domain"
-	shipwrightv1beta1 "github.com/shipwright-io/build/pkg/apis/build/v1beta1"
+	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -44,7 +44,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "buildrun-observer", "buildRun", req.NamespacedName.String())
 	log.Info("reconcile start")
 
-	var br shipwrightv1beta1.BuildRun
+	var br shipwrightv1alpha1.BuildRun
 	if err := r.Get(ctx, req.NamespacedName, &br); err != nil {
 		log.Info("buildrun not found, ignoring")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -89,7 +89,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 func (r *Reconciler) buildContractAndConditions(
 	build *buildv1.Build,
-	br *shipwrightv1beta1.BuildRun,
+	br *shipwrightv1alpha1.BuildRun,
 	success bool,
 	message string,
 	log logr.Logger,
@@ -108,7 +108,7 @@ func (r *Reconciler) buildContractAndConditions(
 		Message:      message,
 		ExecutionRef: br.Name,
 		BuildHash:    buildHash,
-		Triggered:    currentStatus.Triggered,
+		Triggered:    true,
 	}
 
 	if br.Status.Output != nil && br.Status.Output.Digest != "" {
@@ -147,6 +147,6 @@ func (r *Reconciler) buildContractAndConditions(
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("buildrun-observer"))
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&shipwrightv1beta1.BuildRun{}).
+		For(&shipwrightv1alpha1.BuildRun{}).
 		Complete(r)
 }

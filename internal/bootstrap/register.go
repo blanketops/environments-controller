@@ -32,7 +32,6 @@ import (
 	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/build/api"
 	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
-	shipwrightv1beta1 "github.com/shipwright-io/build/pkg/apis/build/v1beta1"
 	shipwrightclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -74,7 +73,7 @@ func RegisterSchemes(scheme *runtime.Scheme) {
 	utilruntime.Must(argoeventsv1alpha1.AddToScheme(scheme))
 
 	utilruntime.Must(shipwrightv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(shipwrightv1beta1.AddToScheme(scheme))
+	// /utilruntime.Must(shipwrightv1beta1.AddToScheme(scheme))
 	utilruntime.Must(pipelinev1beta1.AddToScheme(scheme))
 
 	utilruntime.Must(fluxcdsourcev1.AddToScheme(scheme))
