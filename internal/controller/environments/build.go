@@ -25,7 +25,6 @@ import (
 	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/build/api"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
 	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
-	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	buildclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,7 +33,6 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/build"
 	builddomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/build"
@@ -201,17 +199,18 @@ func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// ---------------------------------------------------------------------
 	// Controller registration
 	// ---------------------------------------------------------------------
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&buildv1alpha1.Build{}).
-		Watches(
-			&shipwrightv1alpha1.BuildRun{},
-			handler.EnqueueRequestForOwner(
-				mgr.GetScheme(),
-				mgr.GetRESTMapper(),
-				&shipwrightv1alpha1.BuildRun{},
-			),
-		).
-		WithEventFilter(core.MeaningfulChangePredicate()).
+		// Watches(
+		// 	&shipwrightv1alpha1.BuildRun{},
+		// 	handler.EnqueueRequestForOwner(
+		// 		mgr.GetScheme(),
+		// 		mgr.GetRESTMapper(),
+		// 		&shipwrightv1alpha1.BuildRun{},
+		// 	),
+		// ).
+		// WithEventFilter(core.MeaningfulChangePredicate()).
 		Named("environments-build").
 		Complete(r)
 }
