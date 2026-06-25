@@ -38,7 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	githubeventMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/githubevent"
+	githubeventMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/githubevent"
 )
 
 // GitHubEventDomain implements the GitHubEvent resource domain.

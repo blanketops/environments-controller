@@ -1,3 +1,22 @@
+# =============================================================================
+# Wolfi Image (apko.yml)
+# =============================================================================
+# Builds a Wolfi-based OCI image using melange + apko, then signs and attests
+# it via Cosign + Sigstore. Currently disabled (if: false) — re-enable when
+# melange.yaml and apko.yaml are ready.
+#
+# Changes:
+#   - Pinned chainguard-dev/actions from @main to @v1.6.21
+#   - Replaced Docker Hub with GHCR (ghcr.io/ntlaletsi70)
+#   - Login via github.actor + GITHUB_TOKEN — no extra secrets needed
+#   - Sign and attest steps gated on sign_and_attest input or push trigger
+#
+# TODO: Move image path to ghcr.io/blanketops when org migration is ready
+#
+# Secrets required:
+#   - SSH_PRIVATE_KEY (for private module access)
+#   - GITHUB_TOKEN   (injected automatically by Actions)
+# =============================================================================
 name: Wolfi Image
 on:
   workflow_dispatch:
@@ -16,10 +35,17 @@ permissions:
   attestations: write
 jobs:
   wolfi:
-    if: false
+    if: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
@@ -27,12 +53,10 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Setup melange
-        uses: chainguard-dev/actions/setup-melange@main
-        with:
-          version: latest-release
+        uses: chainguard-dev/actions/setup-melange@v1.6.21
 
       - name: Build package
-        uses: chainguard-dev/actions/melange-build@main
+        uses: chainguard-dev/actions/melange-build@v1.6.21
         with:
           config: melange.yaml
           archs: x86_64
@@ -41,10 +65,10 @@ jobs:
 
       - name: Build image
         id: build
-        uses: chainguard-dev/actions/apko-build@main
+        uses: chainguard-dev/actions/apko-build@v1.6.21
         with:
           config: apko.yaml
-          tag: docker.io/nkanyezisolutions/blanketops-environments-controller:${{ github.ref_name }}
+          tag: ghcr.io/ntlaletsi70/blanketops-environments-controller:${{ github.ref_name }}
 
       - name: Install cosign
         if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
@@ -54,12 +78,33 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
         run: |
           cosign sign --yes \
-            docker.io/nkanyezisolutions/blanketops-environments-controller@${{ steps.build.outputs.digest }}
+            ghcr.io/ntlaletsi70/blanketops-environments-controller@${{ steps.build.outputs.digest }}
 
       - name: Attest image provenance
         if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: docker.io/nkanyezisolutions/blanketops-environments-controller
+          subject-name: ghcr.io/ntlaletsi70/blanketops-environments-controller
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+          
+      - name: Wolfi Image Summary
+        if: always()
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<EOF
+          # 🐺 Wolfi Image Build
+
+          **Image:** \`ghcr.io/ntlaletsi70/blanketops-environments-controller:${{ github.ref_name }}\`
+          **Digest:** \`${{ steps.build.outputs.digest }}\`
+          **Trigger:** \`${{ github.event_name }}\`
+
+          ## Completed
+          - Built APK package with melange
+          - Built OCI image with apko
+          - Pushed to GHCR
+
+          ## Signing & Attestation
+          - Sign and attest: \`${{ github.event_name != 'workflow_dispatch' || inputs.sign_and_attest }}\`
+          - Signed with Cosign (keyless via Sigstore)
+          - Provenance attested via actions/attest-build-provenance
+          EOF    

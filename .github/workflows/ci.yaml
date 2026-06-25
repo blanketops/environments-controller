@@ -1,3 +1,16 @@
+# =============================================================================
+# CI (ci.yaml)
+# =============================================================================
+# Runs on every push to main and every pull request.
+# Builds the controller and runs staticcheck lint.
+#
+# Changes:
+#   - Added actions/setup-go@v5 with go-version-file and caching
+#   - Added CI Step Summary
+#
+# Secrets required:
+#   - GH_PAT (for private module access via git config rewrite)
+# =============================================================================
 name: CI
 on:
   pull_request:
@@ -13,6 +26,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
       - name: Configure Git for private modules
         run: |
             git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
@@ -26,7 +45,27 @@ jobs:
       - name: Build
         run: go build ./...
 
-      - name: Lint (optional)
+      - name: Lint
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@latest
           staticcheck ./...
+
+      - name: CI Summary
+        if: always()
+        run: |
+          {
+            echo "# 🔧 CI Build"
+            echo ""
+            echo "**Branch:** \`${{ github.ref_name }}\`"
+            echo "**Trigger:** \`${{ github.event_name }}\`"
+            echo "**Commit:** \`${{ github.sha }}\`"
+            echo ""
+            echo "## Steps"
+            echo "- Checkout"
+            echo "- Setup Go (from go.mod)"
+            echo "- Configure private module access"
+            echo "- Drop local replace directive"
+            echo "- go mod tidy"
+            echo "- go build ./..."
+            echo "- staticcheck lint"
+          } >> $GITHUB_STEP_SUMMARY
