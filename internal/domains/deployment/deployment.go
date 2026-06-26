@@ -41,8 +41,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/deployment"
-	deploymediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/deployment"
+	"github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/deployment"
+	deploymediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/deployment"
 )
 
 // DeployDomain implements the Deployment resource domain.

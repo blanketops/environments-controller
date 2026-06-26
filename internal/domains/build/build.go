@@ -39,7 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/build"
+	"github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/build"
 )
 
 // BuildDomain implements the Build resource domain logic.

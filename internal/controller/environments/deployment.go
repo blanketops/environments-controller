@@ -33,8 +33,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	deployment "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/deployment"
 	deploydomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/deployment"
+	deployment "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/deployment"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 

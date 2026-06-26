@@ -50,12 +50,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/environments"
-	eventsContr "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/events"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/build"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildrun"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/deployment"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/githubevent"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/gitrepository"
+	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/sources"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
@@ -197,21 +197,21 @@ func RegisterObservers(mgr ctrl.Manager) error {
 
 func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 
-	// if err := (&sources.GitRepositoryReconciler{
-	// 	Client:  mgr.GetClient(),
-	// 	Scheme:  mgr.GetScheme(),
-	// 	Runtime: rt,
-	// }).SetupWithManager(mgr); err != nil {
-	// 	return err
-	// }
-
-	if err := (&eventsContr.GitHubEventReconciler{
+	if err := (&sources.GitRepositoryReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
 		Runtime: rt,
 	}).SetupWithManager(mgr); err != nil {
 		return err
 	}
+
+	// if err := (&eventsContr.GitHubEventReconciler{
+	// 	Client:  mgr.GetClient(),
+	// 	Scheme:  mgr.GetScheme(),
+	// 	Runtime: rt,
+	// }).SetupWithManager(mgr); err != nil {
+	// 	return err
+	// }
 
 	// if err := (&environments.DeploymentReconciler{
 	// 	Client:  mgr.GetClient(),

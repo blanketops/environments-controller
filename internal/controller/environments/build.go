@@ -34,8 +34,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/build"
 	builddomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/build"
+	"github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/build"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 

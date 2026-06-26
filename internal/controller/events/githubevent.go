@@ -37,8 +37,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
-	githubevent "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/mediators/githubevent"
 	githubeventdomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/githubevent"
+	githubevent "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/githubevent"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
