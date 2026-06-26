@@ -10,7 +10,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
 	github.com/magefile/mage v1.17.2
-	github.com/ntlaletsi70/blanketops-environments v0.5.4
+	github.com/ntlaletsi70/blanketops-environments v0.5.5
 	github.com/ntlaletsi70/blanketops-environments-api v0.1.8
 	github.com/shipwright-io/build v0.20.2
 	github.com/tektoncd/pipeline v1.13.1
