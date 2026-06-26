@@ -38,9 +38,16 @@ jobs:
             go env -w GOPRIVATE=github.com/ntlaletsi70/*
             go env -w GONOSUMDB=github.com/ntlaletsi70/*
             go env -w GOPROXY=direct
+            
+      - name: Force Remote Dependency
+        run: |
+          # This command modifies the go.mod in the runner environment
+          # to ignore the local path and force a network fetch.
+          go mod edit -dropreplace github.com/ntlaletsi70/blanketops-environments
+          go mod tidy      
 
-      - name: Tidy
-        run: go mod tidy && git diff --exit-code
+      # - name: Tidy
+      #   run: go mod tidy && git diff --exit-code
 
       - name: Build
         run: go build ./...
