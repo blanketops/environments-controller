@@ -1,11 +1,10 @@
 /*
-Copyright 2026.
-
+Copyright 2026 The BlanketOps Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +12,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 package environments
 
 import (
@@ -22,16 +20,18 @@ import (
 	"github.com/go-logr/logr"
 	environmentv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	environmentdomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/environment"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
-// EnvironmentReconciler reconciles a Environment object
+// EnvironmentReconciler reconciles an Environment object.
 type EnvironmentReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
@@ -40,120 +40,103 @@ type EnvironmentReconciler struct {
 	Recorder events.EventRecorder
 }
 
-// +kubebuilder:rbac:groups=environments.blanketops.dev,resources=environments/finalizers,verbs=update
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=environments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=environments.blanketops.dev,resources=environments/status;environments/finalizers,verbs=get;update;patch
-// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=kappctrl.k14s.io,resources=apps,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=kappctrl.k14s.io,resources=apps/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="",resources=serviceaccounts;secrets;configmaps;events;namespaces,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=serviceaccounts/token,verbs=create
-// +kubebuilder:rbac:groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
+// +kubebuilder:rbac:groups=environments.blanketops.dev,resources=environments/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=environments.blanketops.dev,resources=environments/finalizers,verbs=update
+// +kubebuilder:rbac:groups=external-secrets.io,resources=clustersecretstores,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Environment object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
-	log := ctrl.LoggerFrom(ctx).WithValues("controller", "environment", "namespace", req.Namespace, "name", req.Name)
+	log := ctrl.LoggerFrom(ctx).WithValues(
+		"controller", "environment",
+		"namespace", req.Namespace,
+		"name", req.Name,
+	)
 	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
-	// ------------------------------------------------
-	// Fetch Environment
-	// ------------------------------------------------
+	// ── Fetch ─────────────────────────────────────────────────────────────────
 	var environment environmentv1alpha1.Environment
 	if err := r.Get(ctx, req.NamespacedName, &environment); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			log.Info("reconcile exit: environment not found (deleted)")
 			return ctrl.Result{}, nil
 		}
-
 		log.Error(err, "failed to fetch environment")
 		return ctrl.Result{}, err
 	}
 
-	log.Info("environment fetched", "generation", environment.Generation, "resourceVersion", environment.ResourceVersion)
+	log.Info("environment fetched",
+		"generation", environment.Generation,
+		"resourceVersion", environment.ResourceVersion,
+	)
 
-	// ------------------------------------------------
-	// Construct core command
-	// ------------------------------------------------
+	// ── Route to engine ───────────────────────────────────────────────────────
 	cmd := core.Command{
 		GVK:  environmentv1alpha1.GroupVersion.WithKind("Environment"),
 		Type: core.CmdUpdate,
 		Obj:  &environment,
 	}
 
-	log.Info("routing environment to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
+	log.Info("routing environment to core engine",
+		"gvk", cmd.GVK.String(),
+		"command", cmd.Type,
+	)
 
-	// ------------------------------------------------
-	// Execute domain logic via engine
-	// ------------------------------------------------
-	// if err := r.Engine.Execute(ctx, cmd); err != nil {
-
-	// 	log.Error(err, "engine execution failed")
-	// 	r.Recorder.Eventf(&environment, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
-	// 	log.Info("reconcile exit: engine error")
-
-	// 	return ctrl.Result{}, err
-	// }
+	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
+		log.Error(err, "engine execution failed")
+		r.Recorder.Eventf(&environment, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
+		return ctrl.Result{}, err
+	}
 
 	log.Info("engine execution completed")
 
-	// ------------------------------------------------
-	// Persist status (retry-on-conflict)
-	// ------------------------------------------------
+	// ── Persist status ────────────────────────────────────────────────────────
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest environmentv1alpha1.Environment
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
 			return err
 		}
-
 		latest.Status = environment.Status
 		return r.Status().Update(ctx, &latest)
-
 	}); err != nil {
 		log.Error(err, "failed to update environment status")
 		return ctrl.Result{}, err
 	}
 
-	log.Info("environment status updated successfully")
 	log.Info("reconcile done")
-
 	return ctrl.Result{}, nil
 }
 
-// -----------------------------------------------------------------
-// SetupWithManager sets up the controller with the Manager.
-// -----------------------------------------------------------------
 func (r *EnvironmentReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
-	//---------------------------------------------------------------------
-	// Logging & events
-	//---------------------------------------------------------------------
+	// ── Logging & events ──────────────────────────────────────────────────────
 	r.Log = ctrl.Log.WithName("controllers").WithName("Environment")
 	r.Recorder = mgr.GetEventRecorder("environment-controller")
 
-	//---------------------------------------------------------------------
-	// Runtime Infrastructure
-	//---------------------------------------------------------------------
-	// cache := r.Runtime.Cache
-	// events := r.Runtime.Events
-	// registry := r.Runtime.Registry
+	// ── Runtime infrastructure ────────────────────────────────────────────────
+	cache := r.Runtime.Cache
+	evts := r.Runtime.Events
+	registry := r.Runtime.Registry
 
-	//---------------------------------------------------------------------
-	// Final Kustomize Patch And Release
-	//---------------------------------------------------------------------
+	// ── Domain ────────────────────────────────────────────────────────────────
+	// Environment domain is intentionally minimal at this stage:
+	// - Resolves the environment contract
+	// - Validates secretStore provider is declared
+	// - Secret store connection testing deferred (next phase)
+	// - Observer (ref patcher) deferred (next phase)
+	environmentDomain := environmentdomain.New(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		cache,
+		evts,
+		r.Log.WithName("domain.environment"),
+	)
+	registry.RegisterDomain(
+		environmentv1alpha1.GroupVersion.WithKind("Environment"),
+		environmentDomain,
+	)
 
-	// ---------------------------------------------------------------------
-	// Controller registration
-	// ---------------------------------------------------------------------
+	// ── Controller registration ───────────────────────────────────────────────
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&environmentv1alpha1.Environment{}).
 		Named("environments").
