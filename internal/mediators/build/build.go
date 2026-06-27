@@ -12,7 +12,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 package build
 
 import (
@@ -23,14 +22,13 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-
 	env1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/environment/query"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/git"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/registry"
+	serviceaccounts "github.com/ntlaletsi70/blanketops-environments/pkg/serviceaccounts"
 	buildResolution "github.com/ntlaletsi70/blanketops-environments/resolution/build"
 	environmentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/environment"
-
-	serviceaccounts "github.com/ntlaletsi70/blanketops-environments/pkg/serviceaccounts"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,25 +37,20 @@ import (
 )
 
 type Mediator struct {
-	Client   client.Client
-	Scheme   *runtime.Scheme
-	Log      logr.Logger
-	Recorder events.EventRecorder
-
-	BuildGitSSHSecretReconciler      *git.BuildGitSSHSecretReconciler
-	RegistryExternalSecretReconciler *registry.BuildRegistryExternalSecretReconciler
-	ServiceAccountReconciler         *serviceaccounts.ServiceAccountReconciler
+	Client                   client.Client
+	Scheme                   *runtime.Scheme
+	Log                      logr.Logger
+	Recorder                 events.EventRecorder
+	ServiceAccountReconciler *serviceaccounts.ServiceAccountReconciler
 }
 
-func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, Recorder events.EventRecorder) *Mediator {
+func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder events.EventRecorder) *Mediator {
 	return &Mediator{
-		Client:                           c,
-		Scheme:                           scheme,
-		Log:                              log,
-		Recorder:                         Recorder,
-		BuildGitSSHSecretReconciler:      git.NewBuildGitSSHSecretReconciler(c, log),
-		RegistryExternalSecretReconciler: registry.NewBuildRegistryExternalSecretReconciler(c, log),
-		ServiceAccountReconciler:         serviceaccounts.NewServiceAccountReconciler(c, scheme, log),
+		Client:                   c,
+		Scheme:                   scheme,
+		Log:                      log,
+		Recorder:                 recorder,
+		ServiceAccountReconciler: serviceaccounts.NewServiceAccountReconciler(c, scheme, log),
 	}
 }
 
@@ -65,28 +58,33 @@ func (m *Mediator) EnsurePrerequisites(
 	ctx context.Context,
 	resolved *buildResolution.ResolvedBuild,
 ) error {
-	// build := resolved.Build
-	// spec := resolved.Spec
+	// ── Step 0: Environment lookup ────────────────────────────────────────────
+	// Environment must pre-exist — it is the root of the delivery chain and
+	// the sole authority for the ClusterSecretStore binding.
+	envCtx, err := query.Lookup(ctx, m.Client, resolved.Build.Namespace, resolved.Build.Labels)
+	if err != nil {
+		return fmt.Errorf("environment lookup: %w", err)
+	}
 
-	// -------------------------------------------------
-	// Ensure + Patch Environment aggregate
-	// -------------------------------------------------
-	// if err := m.ensureAndPatchEnvironment(ctx, build, spec); err != nil {
-	// 	return fmt.Errorf("ensure environment: %w", err)
-	// }
+	m.Log.Info("environment context resolved",
+		"environment", envCtx.Name,
+		"type", envCtx.EnvironmentType,
+		"store", envCtx.StoreName,
+	)
 
-	// -------------------------------------------------
-	// Prerequisites
-	// -------------------------------------------------
-
-	if err := m.BuildGitSSHSecretReconciler.Reconcile(ctx, resolved); err != nil {
+	// ── Step 1: Git SSH secret ────────────────────────────────────────────────
+	gitSSH := git.NewBuildGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName)
+	if err := gitSSH.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("reconcile git ssh secret: %w", err)
 	}
 
-	if err := m.RegistryExternalSecretReconciler.Reconcile(ctx, resolved); err != nil {
+	// ── Step 2: Registry secret ───────────────────────────────────────────────
+	reg := registry.NewBuildRegistryExternalSecretReconciler(m.Client, m.Log, envCtx.StoreName)
+	if err := reg.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("reconcile registry secret: %w", err)
 	}
 
+	// ── Step 3: Service account ───────────────────────────────────────────────
 	if err := m.ServiceAccountReconciler.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("reconcile service account: %w", err)
 	}
@@ -96,21 +94,18 @@ func (m *Mediator) EnsurePrerequisites(
 
 func ToRawContract(spec *environmentResolution.ResolvedEnvironmentSpec) (runtime.RawExtension, error) {
 	contract := spec.ToEnvironmentContract()
-
 	raw, err := json.Marshal(contract)
 	if err != nil {
 		return runtime.RawExtension{}, err
 	}
-
 	return runtime.RawExtension{Raw: raw}, nil
 }
+
 func EnvironmentSpecFromBuild(
 	build *env1alpha1.Build,
 	rb *buildResolution.ResolvedBuildSpec,
 ) *environmentResolution.ResolvedEnvironmentSpec {
-
 	labels := build.GetLabels()
-
 	return &environmentResolution.ResolvedEnvironmentSpec{
 		ApplicationName: labels["environments.blanketops.dev/name"],
 		EnvironmentType: labels["environments.blanketops.dev/type"],
@@ -124,35 +119,28 @@ func deriveGitOwner(repoURL string) string {
 	if repoURL == "" {
 		return ""
 	}
-
-	// --- SSH form: git@github.com:owner/repo.git
 	if strings.HasPrefix(repoURL, "git@") {
 		parts := strings.Split(repoURL, ":")
 		if len(parts) != 2 {
 			return ""
 		}
-
 		path := strings.TrimSuffix(parts[1], ".git")
 		segs := strings.Split(path, "/")
 		if len(segs) >= 1 {
 			return segs[0]
 		}
 	}
-
-	// --- HTTPS form: https://github.com/owner/repo(.git)
 	if strings.HasPrefix(repoURL, "http://") || strings.HasPrefix(repoURL, "https://") {
 		u, err := url.Parse(repoURL)
 		if err != nil {
 			return ""
 		}
-
 		path := strings.TrimSuffix(u.Path, ".git")
 		segs := strings.Split(strings.TrimPrefix(path, "/"), "/")
 		if len(segs) >= 1 {
 			return segs[0]
 		}
 	}
-
 	return ""
 }
 
@@ -161,11 +149,9 @@ func (m *Mediator) ensureAndPatchEnvironment(
 	build *env1alpha1.Build,
 	rb *buildResolution.ResolvedBuildSpec,
 ) error {
-
 	labels := build.GetLabels()
 	envName := labels["environments.blanketops.dev/name"]
 	envType := labels["environments.blanketops.dev/type"]
-
 	if envName == "" || envType == "" {
 		return nil
 	}
@@ -178,21 +164,13 @@ func (m *Mediator) ensureAndPatchEnvironment(
 	var env env1alpha1.Environment
 	err := m.Client.Get(ctx, key, &env)
 
-	// -------------------------------------------------
-	// Build contribution
-	// -------------------------------------------------
 	contribution := EnvironmentSpecFromBuild(build, rb)
 
-	// -------------------------------------------------
-	// CREATE
-	// -------------------------------------------------
 	if apierrors.IsNotFound(err) {
-
 		raw, err := ToRawContract(contribution)
 		if err != nil {
 			return err
 		}
-
 		env = env1alpha1.Environment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      envName,
@@ -206,7 +184,6 @@ func (m *Mediator) ensureAndPatchEnvironment(
 				Contract: raw,
 			},
 		}
-
 		m.Log.Info("creating environment shell", "environment", envName)
 		return m.Client.Create(ctx, &env)
 	}
@@ -215,15 +192,11 @@ func (m *Mediator) ensureAndPatchEnvironment(
 		return err
 	}
 
-	// -------------------------------------------------
-	// PATCH (aggregate merge)
-	// -------------------------------------------------
 	resolvedEnv, err := environmentResolution.ResolveEnvironment(&env)
 	if err != nil {
 		return err
 	}
 
-	// 🔥 Aggregate mutation (build contribution)
 	resolvedEnv.Spec.Build = build.Name
 	resolvedEnv.Spec.GitOwner = contribution.GitOwner
 	resolvedEnv.Spec.Branch = contribution.Branch
@@ -236,7 +209,6 @@ func (m *Mediator) ensureAndPatchEnvironment(
 	}
 
 	env.Spec.Contract = raw
-
 	m.Log.Info("patching environment aggregate", "environment", envName)
 	return m.Client.Update(ctx, &env)
 }

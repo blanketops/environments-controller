@@ -14,3 +14,26 @@ limitations under the License.
 */
 
 package route
+
+import (
+	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/events"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+type Mediator struct {
+	Client   client.Client
+	Scheme   *runtime.Scheme
+	Log      logr.Logger
+	Recorder events.EventRecorder
+}
+
+func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, Recorder events.EventRecorder) *Mediator {
+	return &Mediator{
+		Client:   c,
+		Scheme:   scheme,
+		Log:      log,
+		Recorder: Recorder,
+	}
+}
