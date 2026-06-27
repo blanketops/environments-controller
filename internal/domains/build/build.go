@@ -91,9 +91,9 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 	switch cmd.Type {
 	case core.CmdCreate, core.CmdUpdate:
 
-		//------------------------------------------------
+		// ------------------------------------------------
 		// Stage 0: Resolve build contract
-		//------------------------------------------------
+		// ------------------------------------------------
 		log.Info("resolving build contract")
 		resolved, err := buildResolution.ResolveBuild(buildCR)
 		if err != nil {
@@ -103,9 +103,9 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 			return err
 		}
 
-		//------------------------------------------------
+		// ------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		//------------------------------------------------
+		// ------------------------------------------------
 		if cerr := d.buildCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(buildCR, "BuildCacheFailed", cerr)
@@ -120,9 +120,9 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 		d.events.Normal(buildCR, "BuildCache", "Build specification cached successfully")
 		core.SetCondition(&buildCR.Status.Conditions, "BuildCached", core.ConditionTrue, "BuildSpecCached", "Build specification cached successfully")
 
-		//------------------------------------------------
+		// ------------------------------------------------
 		// Stage 2: Ensure prerequisites
-		//------------------------------------------------
+		// ------------------------------------------------
 		log.Info("create build prerequisites")
 		if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "build prerequisites failed")
@@ -135,9 +135,9 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 		d.events.Normal(buildCR, "BuildPrerequisitesCreate", "All build prerequisites created successfully")
 		core.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreated", core.ConditionTrue, "BuildPrerequisitesReady", "All build prerequisites satisfied")
 
-		//------------------------------------------------
+		// ------------------------------------------------
 		// Stage 3: Start bukd (intent only)
-		//------------------------------------------------
+		// ------------------------------------------------
 		log.Info("starting build run")
 		if err := d.buildService.Reconcile(ctx, resolved); err != nil {
 			log.Error(err, "build run failed")

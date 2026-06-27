@@ -50,7 +50,7 @@ type RouteReconciler struct {
 // Reconcile fetches the Route, resolves its contract, and delegates to the
 // application service. See file header for the responsibility split.
 func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	//log := log.FromContext(ctx).WithValues("route", req.NamespacedName)
+	// log := log.FromContext(ctx).WithValues("route", req.NamespacedName)
 
 	var route networksv1alpha1.Route
 	if err := r.Client.Get(ctx, req.NamespacedName, &route); err != nil {

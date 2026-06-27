@@ -88,9 +88,9 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 	switch cmd.Type {
 	case core.CmdCreate, core.CmdUpdate:
 
-		//------------------------------------------------
+		// ------------------------------------------------
 		// Stage 0: Resolve package contract
-		//------------------------------------------------
+		// ------------------------------------------------
 		log.Info("resolving package contract")
 		resolved, err := pkgResolution.ResolvePackage(packageCR)
 		if err != nil {
@@ -100,9 +100,9 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 			return err
 		}
 
-		//------------------------------------------------
+		// ------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		//------------------------------------------------
+		// ------------------------------------------------
 		if cerr := d.packageCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 		}
@@ -126,9 +126,9 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 		d.events.Normal(packageCR, "PackagePrerequisitesReady", "All package prerequisites created successfully")
 		core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionTrue, "PackagePrerequisitesReady", "All package prerequisites created successfully")
 
-		//------------------------------------------------------------------
+		// ------------------------------------------------------------------
 		// 3. Build execution intent (INTENT ONLY)
-		//------------------------------------------------------------------
+		// ------------------------------------------------------------------
 		log.Info("build package intent execution")
 		intent, err := pkgIntent.BuildPackageIntent(resolved)
 		if err != nil {
@@ -154,9 +154,9 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 			return err
 		}
 
-		//-----------------------------------------------------------------
+		// -----------------------------------------------------------------
 		// 5. Execution requested (NOT completed)
-		//-----------------------------------------------------------------
+		// -----------------------------------------------------------------
 		core.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", core.ConditionTrue, "ExecutionRequested", "Package execution has been requested")
 		d.events.Normal(packageCR, "PackageTriggered", "Package execution has been requested")
 

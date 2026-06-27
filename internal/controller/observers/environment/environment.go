@@ -69,7 +69,7 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues(
 		"controller", "environment-observer",
-		"environment", req.NamespacedName.String(),
+		"environment", req.String(),
 	)
 	log.Info("reconcile start")
 
@@ -330,7 +330,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&environmentsv1alpha1.Build{}, handler.EnqueueRequestsFromMapFunc(r.mapToEnvironment)).
 		Watches(&sourcesv1alpha1.GitRepository{}, handler.EnqueueRequestsFromMapFunc(r.mapToEnvironment)).
 		Watches(&environmentsv1alpha1.Deployment{}, handler.EnqueueRequestsFromMapFunc(r.mapToEnvironment)).
-		//Watches(&networksv1alpha1.Route{}, handler.EnqueueRequestsFromMapFunc(r.mapToEnvironment)).
+		// Watches(&networksv1alpha1.Route{}, handler.EnqueueRequestsFromMapFunc(r.mapToEnvironment)).
 		Watches(&environmentsv1alpha1.Package{}, handler.EnqueueRequestsFromMapFunc(r.mapToEnvironment)).
 		Watches(&environmentsv1alpha1.ServiceUnit{}, handler.EnqueueRequestsFromMapFunc(r.mapToEnvironment)).
 		Complete(r)

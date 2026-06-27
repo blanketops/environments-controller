@@ -32,10 +32,7 @@ func Init(cfg Config) (logr.Logger, *zap.Logger, error) {
 	var err error
 
 	once.Do(func() {
-		rootZap, err = buildZap(cfg)
-		if err != nil {
-			return
-		}
+		rootZap = buildZap(cfg)
 		rootLog = AsLogr(rootZap)
 	})
 

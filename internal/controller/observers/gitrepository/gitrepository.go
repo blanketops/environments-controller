@@ -113,7 +113,7 @@ func extractReady(obj unstructured.Unstructured) (bool, string) {
 	}
 
 	for _, c := range conds {
-		cond, ok := c.(map[string]interface{})
+		cond, ok := c.(map[string]any)
 		if !ok {
 			continue
 		}

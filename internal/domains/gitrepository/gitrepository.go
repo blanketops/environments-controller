@@ -106,9 +106,9 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd core.Command) erro
 			return err
 		}
 
-		//------------------------------------------------
+		// ------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		//------------------------------------------------
+		// ------------------------------------------------
 		if cerr := d.gitRepositoryCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 		}

@@ -21,7 +21,6 @@ import (
 
 	"github.com/go-logr/logr"
 	serviceunitResolution "github.com/ntlaletsi70/blanketops-environments/resolution/serviceunit"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -47,16 +46,18 @@ func (m *Mediator) EnsurePrerequisites(
 	resolved *serviceunitResolution.ResolvedServiceUnit,
 ) error {
 
-	log := m.Log.WithValues(
-		"serviceunit", resolved.ServiceUnit.Name,
-		"namespace", resolved.ServiceUnit.Namespace,
-	)
-
-	log.Info("mediator start")
-
 	if resolved == nil || resolved.Spec == nil {
 		return fmt.Errorf("nil ResolvedServiceUnit (resolver bug)")
 	}
+
+	s := resolved.ServiceUnit
+	l := m.Log.WithValues(
+		"serviceunit", s.Name,
+		"namespace", resolved.ServiceUnit.Namespace,
+	)
+	log := l
+
+	log.Info("mediator start")
 
 	spec := resolved.Spec
 

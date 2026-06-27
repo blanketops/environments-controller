@@ -34,14 +34,12 @@ import (
 	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	libdeployment "github.com/ntlaletsi70/blanketops-environments/cache/deployment"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
 	deployapp "github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
 	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
 	"github.com/ntlaletsi70/blanketops-environments/resolution/serviceunit"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/deployment"
 	deploymediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/deployment"
 )
 
@@ -69,7 +67,7 @@ type DeployDomain struct {
 }
 
 // New returns a new DeployDomain instance configured with the necessary dependencies.
-func New(deploymentMediator *deployment.Mediator, deploymentService *application.DeploymentService, cache *core.Cache, reader client.Reader, events *core.EventRecorder, log logr.Logger) *DeployDomain {
+func New(deploymentMediator *deploymediator.Mediator, deploymentService *deployapp.DeploymentService, cache *core.Cache, reader client.Reader, events *core.EventRecorder, log logr.Logger) *DeployDomain {
 	return &DeployDomain{
 		deployMediator:  deploymentMediator,
 		deployService:   deploymentService,
@@ -102,9 +100,9 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 	switch cmd.Type {
 	case core.CmdCreate, core.CmdUpdate:
 
-		//------------------------------------------------
+		// ------------------------------------------------
 		// Stage 0: Resolve deployment contract
-		//------------------------------------------------
+		// ------------------------------------------------
 		log.Info("resolving deployment contract")
 		resolved, err := deploymentResolution.ResolveDeployment(deployCR)
 		if err != nil {
@@ -114,9 +112,9 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 			return err
 		}
 
-		//------------------------------------------------
+		// ------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		//------------------------------------------------
+		// ------------------------------------------------
 		if cerr := d.deploymentCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 		}
@@ -125,9 +123,9 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		d.events.Normal(deployCR, "DeploymentResolved", "Deployment specification resolved successfully")
 		core.SetCondition(&deployCR.Status.Conditions, "DeploymentResolved", core.ConditionTrue, "Resolved", "Deployment specification resolved successfully")
 
-		//------------------------------------------------
+		// ------------------------------------------------
 		// Stage 2: Ensure prerequisites
-		//------------------------------------------------
+		// ------------------------------------------------
 		log.Info("ensuring deployment prerequisites")
 		if err := d.deployMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "deployment prerequisites failed")

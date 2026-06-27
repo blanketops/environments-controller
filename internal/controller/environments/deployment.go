@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-logr/logr"
 	deploymentv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	libdeployment "github.com/ntlaletsi70/blanketops-environments/cache/deployment"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/api"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
@@ -41,9 +40,9 @@ import (
 // DeploymentReconciler reconciles a Deployment object
 type DeploymentReconciler struct {
 	client.Client
-	Scheme             *runtime.Scheme
-	Log                logr.Logger
-	deploymentCache    *libdeployment.DeploymentCache
+	Scheme *runtime.Scheme
+	Log    logr.Logger
+	// deploymentCache    *libdeployment.DeploymentCache
 	reader             client.Reader
 	Recorder           events.EventRecorder
 	Runtime            *runtimeinfra.Runtime
@@ -80,8 +79,8 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// ------------------------------------------------
 	// Fetch Deployment
 	// ------------------------------------------------
-	var deployment deploymentv1alpha1.Deployment
-	if err := r.Get(ctx, req.NamespacedName, &deployment); err != nil {
+	var deploymentCR deploymentv1alpha1.Deployment
+	if err := r.Get(ctx, req.NamespacedName, &deploymentCR); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			log.Info("reconcile exit: deployment not found (deleted)")
 			return ctrl.Result{}, nil
@@ -91,7 +90,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	log.Info("deployment fetched", "generation", deployment.Generation, "resourceVersion", deployment.ResourceVersion)
+	log.Info("deployment fetched", "generation", deploymentCR.Generation, "resourceVersion", deploymentCR.ResourceVersion)
 
 	// ------------------------------------------------
 	// Construct core command
@@ -100,7 +99,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	cmd := core.Command{
 		GVK:  deploymentv1alpha1.GroupVersion.WithKind("Deployment"),
 		Type: core.CmdUpdate,
-		Obj:  &deployment,
+		Obj:  &deploymentCR,
 	}
 
 	log.Info("routing deployment to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
@@ -111,7 +110,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 
 		log.Error(err, "engine execution failed")
-		r.Recorder.Eventf(&deployment, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
+		r.Recorder.Eventf(&deploymentCR, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
 		log.Info("reconcile exit: engine error")
 
 		return ctrl.Result{}, err
@@ -128,11 +127,11 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return err
 		}
 
-		if reflect.DeepEqual(latest.Status, deployment.Status) {
+		if reflect.DeepEqual(latest.Status, deploymentCR.Status) {
 			return nil
 		}
 
-		latest.Status = deployment.Status
+		latest.Status = deploymentCR.Status
 		return r.Status().Update(ctx, &latest)
 
 	}); err != nil {
@@ -150,17 +149,17 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 // SetupWithManager sets up the controller with the Manager.
 // -----------------------------------------------------------------
 func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Logging & events
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("Deployment")
 	r.Recorder = mgr.GetEventRecorder("deployment-controller")
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
-	events := r.Runtime.Events
+	eventsRecorder := r.Runtime.Events
 	registry := r.Runtime.Registry
 
 	// ---------------------------------------------------------------------
@@ -208,7 +207,7 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// ---------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	// ---------------------------------------------------------------------
-	deployDomain := deploydomain.New(r.DeploymentMediator, r.DeploymentService, cache, r.reader, events, r.Log.WithName("domain.deployment"))
+	deployDomain := deploydomain.New(r.DeploymentMediator, r.DeploymentService, cache, r.reader, eventsRecorder, r.Log.WithName("domain.deployment"))
 	registry.RegisterDomain(deploymentv1alpha1.GroupVersion.WithKind("Deployment"), deployDomain)
 
 	// ---------------------------------------------------------------------

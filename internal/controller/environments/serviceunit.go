@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	packagev1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	serviceunitv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	corev1 "k8s.io/api/core/v1"
@@ -129,15 +128,15 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 // SetupWithManager sets up the controller with the Manager.
 // -----------------------------------------------------------------
 func (r *ServiceUnitReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Logging & events
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("ServiceUnit")
 	r.Recorder = mgr.GetEventRecorder("serviceunit-controller")
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// cache := r.Runtime.Cache
 	// events := r.Runtime.Events
 	// registry := r.Runtime.Registry
@@ -146,7 +145,7 @@ func (r *ServiceUnitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Controller registration
 	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&packagev1alpha1.ServiceUnit{}).
+		For(&serviceunitv1alpha1.ServiceUnit{}).
 		Named("environments-serviceunit").
 		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)

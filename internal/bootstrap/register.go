@@ -49,7 +49,7 @@ import (
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	//cacheEnvironment "github.com/ntlaletsi70/blanketops-environments-controller/internal/cache/environment"
+	// cacheEnvironment "github.com/ntlaletsi70/blanketops-environments-controller/internal/cache/environment"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/environments"
 	eventsContr "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/events"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/build"
@@ -66,12 +66,12 @@ func RegisterSchemes(scheme *runtime.Scheme) {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(environmentsv1alpha1.AddToScheme(scheme))
-	//utilruntime.Must(externalsecretsv1.AddToScheme(scheme))
-	//utilruntime.Must(externalsecretsv1beta1.AddToScheme(scheme))
+	// utilruntime.Must(externalsecretsv1.AddToScheme(scheme))
+	// utilruntime.Must(externalsecretsv1beta1.AddToScheme(scheme))
 
 	utilruntime.Must(eventsv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(sourcesv1alpha1.AddToScheme(scheme))
-	//utilruntime.Must(resultsv1.AddToScheme(scheme))
+	// utilruntime.Must(resultsv1.AddToScheme(scheme))
 	utilruntime.Must(kappctrlv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(argoeventsv1alpha1.AddToScheme(scheme))
 

@@ -41,7 +41,7 @@ type Reconciler struct {
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx).WithValues("controller", "buildrun-observer", "buildRun", req.NamespacedName.String())
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "buildrun-observer", "buildRun", req.String())
 	log.Info("reconcile start")
 
 	var br shipwrightv1alpha1.BuildRun
@@ -109,10 +109,6 @@ func (r *Reconciler) buildContractAndConditions(
 		ExecutionRef: br.Name,
 		BuildHash:    buildHash,
 		Triggered:    true,
-	}
-
-	if br.Status.Output != nil && br.Status.Output.Digest != "" {
-		//contractStatus.ArtifactRef = br.Status.Output.Digest
 	}
 
 	raw, err := json.Marshal(contractStatus)
