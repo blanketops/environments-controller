@@ -107,21 +107,39 @@ func (m *Mediator) ensureManifestsRepo(
 			if err := os.MkdirAll(localPath, 0755); err != nil {
 				return fmt.Errorf("mkdir failed: %w", err)
 			}
-			utils.RunGit(localPath, "init")
-			utils.RunGit(localPath, "checkout", "-b", branch)
-			utils.RunGit(localPath, "remote", "add", "origin", sshURL)
+			_, err = utils.RunGit(localPath, "init")
+			if err != nil {
+				return err
+			}
+			_, err = utils.RunGit(localPath, "checkout", "-b", branch)
+			if err != nil {
+				return err
+			}
+			_, err = utils.RunGit(localPath, "remote", "add", "origin", sshURL)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		fmt.Printf("[bootstrap] local path exists, syncing remote\n")
-		utils.RunGitWithEnv(localPath,
+		_, err = utils.RunGitWithEnv(localPath,
 			[]string{"GIT_SSH_COMMAND=" + gitSSHCmd},
 			"fetch", "--all",
 		)
-		utils.RunGit(localPath, "checkout", branch)
-		utils.RunGitWithEnv(localPath,
+		if err != nil {
+			return err
+		}
+		_, err = utils.RunGit(localPath, "checkout", branch)
+		if err != nil {
+			return err
+		}
+		_, err = utils.RunGitWithEnv(localPath,
 			[]string{"GIT_SSH_COMMAND=" + gitSSHCmd},
 			"pull", "--ff-only", "origin", branch,
 		)
+		if err != nil {
+			return err
+		}
 	}
 
 	// ------------------------------------------------
@@ -178,11 +196,23 @@ func (m *Mediator) ensureManifestsRepo(
 	// ------------------------------------------------
 	// 7. Commit & push
 	// ------------------------------------------------
-	utils.RunGit(localPath, "add", ".")
+	_, err = utils.RunGit(localPath, "add", ".")
+	if err != nil {
+		return err
+	}
 	if _, err := utils.RunGit(localPath, "diff", "--cached", "--quiet"); err != nil {
-		utils.RunGit(localPath, "config", "user.email", "ntlaletsi86@gmail.com")
-		utils.RunGit(localPath, "config", "user.name", "Neo Tlaletsi")
-		utils.RunGit(localPath, "commit", "-m", "bootstrap: ensure base and overlays")
+		_, err = utils.RunGit(localPath, "config", "user.email", "ntlaletsi86@gmail.com")
+		if err != nil {
+			return err
+		}
+		_, err = utils.RunGit(localPath, "config", "user.name", "Neo Tlaletsi")
+		if err != nil {
+			return err
+		}
+		_, err = utils.RunGit(localPath, "commit", "-m", "bootstrap: ensure base and overlays")
+		if err != nil {
+			return err
+		}
 	}
 
 	if out, err := utils.RunGitWithEnv(
@@ -240,22 +270,39 @@ func (m *Mediator) writeSSHKeyToDisk(
 	}
 
 	f, err := os.CreateTemp("", "blanketops-ssh-*")
-	if err != nil {
+	if nil != err {
 		return "", nil, err
 	}
 	if _, err := f.Write(secret.Data["identity"]); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		err = f.Close()
+		if err != nil {
+			return "", nil, err
+		}
+		err = os.Remove(f.Name())
+		if err != nil {
+			return "", nil, err
+		}
 		return "", nil, err
 	}
-	f.Close()
+	err = f.Close()
+	if err != nil {
+		return "", nil, err
+	}
 	// SSH requires 0600
 	if err := os.Chmod(f.Name(), 0600); err != nil {
-		os.Remove(f.Name())
+		err = os.Remove(f.Name())
+		if err != nil {
+			return "", nil, err
+		}
 		return "", nil, err
 	}
 
-	cleanup := func() { os.Remove(f.Name()) }
+	cleanup := func() {
+		err = os.Remove(f.Name())
+		if err != nil {
+			panic(err)
+		}
+	}
 	return f.Name(), cleanup, nil
 }
 
@@ -283,7 +330,7 @@ func ensureDeployKey(owner, repo, publicKey, token string) error {
 	if err != nil {
 		return fmt.Errorf("list deploy keys: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("list deploy keys: status %d", resp.StatusCode)
@@ -326,13 +373,18 @@ func ensureDeployKey(owner, repo, publicKey, token string) error {
 
 	addResp, err := http.DefaultClient.Do(addReq)
 	if err != nil {
-		return fmt.Errorf("add deploy key: %w", err)
+		return err
+	} else {
+
 	}
-	defer addResp.Body.Close()
+	defer func() { _ = addResp.Body.Close() }()
 
 	if addResp.StatusCode != http.StatusCreated {
 		var buf bytes.Buffer
-		buf.ReadFrom(addResp.Body)
+		_, err = buf.ReadFrom(addResp.Body)
+		if err != nil {
+			return err
+		}
 		return fmt.Errorf("failed to add deploy key: %d - %s", addResp.StatusCode, buf.String())
 	}
 
@@ -358,7 +410,7 @@ func ensureGitHubRepoPrivate(owner, repo, token string) error {
 	if err != nil {
 		return fmt.Errorf("create repo request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	switch resp.StatusCode {
 	case 201:

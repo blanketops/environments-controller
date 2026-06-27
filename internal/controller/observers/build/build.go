@@ -78,7 +78,7 @@ type Reconciler struct {
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx).WithValues("controller", "build-observer", "build", req.NamespacedName.String())
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "build-observer", "build", req.String())
 	log.Info("reconcile start")
 
 	var build buildv1.Build

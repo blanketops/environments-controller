@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-logr/logr"
 	deploymentv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	libdeployment "github.com/ntlaletsi70/blanketops-environments/cache/deployment"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/api"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
@@ -41,9 +40,9 @@ import (
 // DeploymentReconciler reconciles a Deployment object
 type DeploymentReconciler struct {
 	client.Client
-	Scheme             *runtime.Scheme
-	Log                logr.Logger
-	deploymentCache    *libdeployment.DeploymentCache
+	Scheme *runtime.Scheme
+	Log    logr.Logger
+	//deploymentCache    *libdeployment.DeploymentCache
 	reader             client.Reader
 	Recorder           events.EventRecorder
 	Runtime            *runtimeinfra.Runtime

@@ -21,14 +21,11 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	env1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/environment/query"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/git"
 	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
 	environmentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/environment"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -133,62 +130,62 @@ func toRawContract(spec *environmentResolution.ResolvedEnvironmentSpec) (runtime
 	return runtime.RawExtension{Raw: raw}, nil
 }
 
-func (m *Mediator) ensureAndPatchEnvironment(
-	ctx context.Context,
-	resolved *deploymentResolution.ResolvedDeployment,
-) error {
-	deploy := resolved.Deployment
-	labels := deploy.GetLabels()
+// func (m *Mediator) ensureAndPatchEnvironment(
+// 	ctx context.Context,
+// 	resolved *deploymentResolution.ResolvedDeployment,
+// ) error {
+// 	deploy := resolved.Deployment
+// 	labels := deploy.GetLabels()
 
-	envName := labels["environments.blanketops.dev/name"]
-	envType := labels["environments.blanketops.dev/type"]
-	if envName == "" || envType == "" {
-		return nil
-	}
+// 	envName := labels["environments.blanketops.dev/name"]
+// 	envType := labels["environments.blanketops.dev/type"]
+// 	if envName == "" || envType == "" {
+// 		return nil
+// 	}
 
-	key := client.ObjectKey{Name: envName, Namespace: deploy.Namespace}
-	var env env1alpha1.Environment
-	err := m.Client.Get(ctx, key, &env)
+// 	key := client.ObjectKey{Name: envName, Namespace: deploy.Namespace}
+// 	var env env1alpha1.Environment
+// 	err := m.Client.Get(ctx, key, &env)
 
-	if apierrors.IsNotFound(err) {
-		spec := &environmentResolution.ResolvedEnvironmentSpec{
-			ApplicationName: envName,
-			EnvironmentType: envType,
-			Deployment:      deploy.Name,
-		}
-		raw, err := toRawContract(spec)
-		if err != nil {
-			return err
-		}
-		env = env1alpha1.Environment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      envName,
-				Namespace: deploy.Namespace,
-				Labels: map[string]string{
-					"environments.blanketops.dev/name": envName,
-					"environments.blanketops.dev/type": envType,
-				},
-			},
-			Spec: env1alpha1.EnvironmentSpec{Contract: raw},
-		}
-		return m.Client.Create(ctx, &env)
-	}
-	if err != nil {
-		return err
-	}
+// 	if apierrors.IsNotFound(err) {
+// 		spec := &environmentResolution.ResolvedEnvironmentSpec{
+// 			ApplicationName: envName,
+// 			EnvironmentType: envType,
+// 			Deployment:      deploy.Name,
+// 		}
+// 		raw, err := toRawContract(spec)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		env = env1alpha1.Environment{
+// 			ObjectMeta: metav1.ObjectMeta{
+// 				Name:      envName,
+// 				Namespace: deploy.Namespace,
+// 				Labels: map[string]string{
+// 					"environments.blanketops.dev/name": envName,
+// 					"environments.blanketops.dev/type": envType,
+// 				},
+// 			},
+// 			Spec: env1alpha1.EnvironmentSpec{Contract: raw},
+// 		}
+// 		return m.Client.Create(ctx, &env)
+// 	}
+// 	if err != nil {
+// 		return err
+// 	}
 
-	resolvedEnv, err := environmentResolution.ResolveEnvironment(&env)
-	if err != nil {
-		return err
-	}
-	if resolvedEnv.Spec.Deployment == deploy.Name {
-		return nil
-	}
-	resolvedEnv.Spec.Deployment = deploy.Name
-	raw, err := toRawContract(resolvedEnv.Spec)
-	if err != nil {
-		return err
-	}
-	env.Spec.Contract = raw
-	return m.Client.Update(ctx, &env)
-}
+// 	resolvedEnv, err := environmentResolution.ResolveEnvironment(&env)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	if resolvedEnv.Spec.Deployment == deploy.Name {
+// 		return nil
+// 	}
+// 	resolvedEnv.Spec.Deployment = deploy.Name
+// 	raw, err := toRawContract(resolvedEnv.Spec)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	env.Spec.Contract = raw
+// 	return m.Client.Update(ctx, &env)
+// }

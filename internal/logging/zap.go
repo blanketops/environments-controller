@@ -58,7 +58,6 @@ func buildZap(cfg Config) (*zap.Logger, error) {
 
 	// 👇 ADD THIS
 	if pt := buildPapertrailCore(cfg, zapcore.NewJSONEncoder(encCfg)); pt != nil {
-		cores = append(cores, pt)
 	}
 
 	return zap.New(

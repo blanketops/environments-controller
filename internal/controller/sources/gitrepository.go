@@ -133,48 +133,48 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 // SetupWithManager sets up the controller with the Manager.
 // -----------------------------------------------------------------
 func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Logging & events
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("GitRepository")
 	r.Recorder = mgr.GetEventRecorder("gitrepository-controller")
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
 	events := r.Runtime.Events
 	registry := r.Runtime.Registry
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Mediator (prerequisites only)
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	r.GitRepositoryMediator = gitrepository.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.gitrepository"), r.Recorder)
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Providers (strategy handlers)
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Providers (github)
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	githubProvider := gitrepoapi.NewGitHubProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.github"), r.Recorder)
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	backendSelector := application.NewBackendSelector(githubProvider)
 
-	//-----------------------------------------------------------------------------------------
+	// -----------------------------------------------------------------------------------------
 	// GitRepository Service (Mapper and StatiusWriter, domain service for orchestration))
-	//------------------------------------------------------------------------------------------
+	// ------------------------------------------------------------------------------------------
 	mapper := application.NewMapper()
 	statusWriter := application.NewStatusWriter() //check args for a fix here please, extra argument required
 	r.GitRepositoryService = application.NewGitRepositoryService(mapper, statusWriter, backendSelector)
 
-	//--------------------------------------------------------------------------------
+	// --------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
-	//--------------------------------------------------------------------------------
+	// --------------------------------------------------------------------------------
 	gitrepositorydomain := gitrepositorydomain.New(r.GitRepositoryMediator, r.GitRepositoryService, cache, events, r.Log.WithName("domain.gitrepository"))
 	registry.RegisterDomain(sourcesv1alpha1.GroupVersion.WithKind("GitRepository"), gitrepositorydomain)
 

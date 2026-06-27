@@ -42,7 +42,8 @@ type Reconciler struct {
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx).WithValues("controller", "githubevent-observer", "githubevent", req.NamespacedName.String())
+	n := req.NamespacedName
+	log := ctrl.LoggerFrom(ctx).WithValues("controller", "githubevent-observer", "githubevent", n.String())
 	log.Info("reconcile start")
 
 	var gh eventsv1alpha1.GitHubEvent

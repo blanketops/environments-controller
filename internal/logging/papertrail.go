@@ -77,7 +77,7 @@ func SetupPapertrailJSONIngest(token string) func(msg string) error {
 	}
 
 	return func(msg string) error {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"message":   msg,
 			"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
 		}
@@ -99,7 +99,7 @@ func SetupPapertrailJSONIngest(token string) func(msg string) error {
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode >= 300 {
 			return fmt.Errorf("papertrail ingest error: %s", resp.Status)

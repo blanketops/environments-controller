@@ -29,8 +29,6 @@ import (
 	serviceaccounts "github.com/ntlaletsi70/blanketops-environments/pkg/serviceaccounts"
 	buildResolution "github.com/ntlaletsi70/blanketops-environments/resolution/build"
 	environmentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/environment"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -144,71 +142,71 @@ func deriveGitOwner(repoURL string) string {
 	return ""
 }
 
-func (m *Mediator) ensureAndPatchEnvironment(
-	ctx context.Context,
-	build *env1alpha1.Build,
-	rb *buildResolution.ResolvedBuildSpec,
-) error {
-	labels := build.GetLabels()
-	envName := labels["environments.blanketops.dev/name"]
-	envType := labels["environments.blanketops.dev/type"]
-	if envName == "" || envType == "" {
-		return nil
-	}
+// func (m *Mediator) ensureAndPatchEnvironment(
+// 	ctx context.Context,
+// 	build *env1alpha1.Build,
+// 	rb *buildResolution.ResolvedBuildSpec,
+// ) error {
+// 	labels := build.GetLabels()
+// 	envName := labels["environments.blanketops.dev/name"]
+// 	envType := labels["environments.blanketops.dev/type"]
+// 	if envName == "" || envType == "" {
+// 		return nil
+// 	}
 
-	key := client.ObjectKey{
-		Name:      envName,
-		Namespace: build.Namespace,
-	}
+// 	key := client.ObjectKey{
+// 		Name:      envName,
+// 		Namespace: build.Namespace,
+// 	}
 
-	var env env1alpha1.Environment
-	err := m.Client.Get(ctx, key, &env)
+// 	var env env1alpha1.Environment
+// 	err := m.Client.Get(ctx, key, &env)
 
-	contribution := EnvironmentSpecFromBuild(build, rb)
+// 	contribution := EnvironmentSpecFromBuild(build, rb)
 
-	if apierrors.IsNotFound(err) {
-		raw, err := ToRawContract(contribution)
-		if err != nil {
-			return err
-		}
-		env = env1alpha1.Environment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      envName,
-				Namespace: build.Namespace,
-				Labels: map[string]string{
-					"environments.blanketops.dev/name": envName,
-					"environments.blanketops.dev/type": envType,
-				},
-			},
-			Spec: env1alpha1.EnvironmentSpec{
-				Contract: raw,
-			},
-		}
-		m.Log.Info("creating environment shell", "environment", envName)
-		return m.Client.Create(ctx, &env)
-	}
+// 	if apierrors.IsNotFound(err) {
+// 		raw, err := ToRawContract(contribution)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		env = env1alpha1.Environment{
+// 			ObjectMeta: metav1.ObjectMeta{
+// 				Name:      envName,
+// 				Namespace: build.Namespace,
+// 				Labels: map[string]string{
+// 					"environments.blanketops.dev/name": envName,
+// 					"environments.blanketops.dev/type": envType,
+// 				},
+// 			},
+// 			Spec: env1alpha1.EnvironmentSpec{
+// 				Contract: raw,
+// 			},
+// 		}
+// 		m.Log.Info("creating environment shell", "environment", envName)
+// 		return m.Client.Create(ctx, &env)
+// 	}
 
-	if err != nil {
-		return err
-	}
+// 	if err != nil {
+// 		return err
+// 	}
 
-	resolvedEnv, err := environmentResolution.ResolveEnvironment(&env)
-	if err != nil {
-		return err
-	}
+// 	resolvedEnv, err := environmentResolution.ResolveEnvironment(&env)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	resolvedEnv.Spec.Build = build.Name
-	resolvedEnv.Spec.GitOwner = contribution.GitOwner
-	resolvedEnv.Spec.Branch = contribution.Branch
-	resolvedEnv.Spec.EnvironmentType = contribution.EnvironmentType
-	resolvedEnv.Spec.ApplicationName = contribution.ApplicationName
+// 	resolvedEnv.Spec.Build = build.Name
+// 	resolvedEnv.Spec.GitOwner = contribution.GitOwner
+// 	resolvedEnv.Spec.Branch = contribution.Branch
+// 	resolvedEnv.Spec.EnvironmentType = contribution.EnvironmentType
+// 	resolvedEnv.Spec.ApplicationName = contribution.ApplicationName
 
-	raw, err := ToRawContract(resolvedEnv.Spec)
-	if err != nil {
-		return err
-	}
+// 	raw, err := ToRawContract(resolvedEnv.Spec)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	env.Spec.Contract = raw
-	m.Log.Info("patching environment aggregate", "environment", envName)
-	return m.Client.Update(ctx, &env)
-}
+// 	env.Spec.Contract = raw
+// 	m.Log.Info("patching environment aggregate", "environment", envName)
+// 	return m.Client.Update(ctx, &env)
+// }

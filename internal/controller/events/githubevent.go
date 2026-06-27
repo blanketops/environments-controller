@@ -27,7 +27,6 @@ import (
 	githubeventapi "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/api"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
 	githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
-
 	//githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -150,7 +149,6 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Runtime Infrastructure
 	//---------------------------------------------------------------------
 	cache := r.Runtime.Cache
-	events := r.Runtime.Events
 	registry := r.Runtime.Registry
 
 	//---------------------------------------------------------------------
@@ -182,7 +180,7 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	//--------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	//--------------------------------------------------------------------------------
-	eventsDomain := githubeventdomain.New(r.GitHubEventService, r.GitHubEventMediator, events, cache, r.Log.WithName("domain.githubevent"))
+	eventsDomain := githubeventdomain.New(r.GitHubEventService, r.GitHubEventMediator, r.Runtime.Events, cache, r.Log.WithName("domain.githubevent"))
 	registry.RegisterDomain(eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"), eventsDomain)
 
 	// ---------------------------------------------------------------------

@@ -69,7 +69,7 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues(
 		"controller", "environment-observer",
-		"environment", req.NamespacedName.String(),
+		"environment", req.String(),
 	)
 	log.Info("reconcile start")
 
