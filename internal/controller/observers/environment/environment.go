@@ -21,16 +21,25 @@ It fans in from all composed CR types — Build, GitRepository, Deployment,
 Route, Package, and ServiceUnit — and aggregates their readiness into a
 single EnvironmentStatus: phase + per-resource conditions.
 
-Sole writer to EnvironmentStatus. Never touches composed CR specs.
-CQRS boundary: this reconciler has no command authority.
+It also auto-discovers composed CRs by label and patches their refs back
+into spec.contract so the Environment stays current without requiring the
+operator to declare them upfront.
 
-All composed CR refs are resolved through ResolveEnvironment — never via
-direct field access on env.Spec. The Environment CR stores its spec as
-raw JSON in Spec.Contract.
+Sole writer to EnvironmentStatus. Spec contract ref patching is additive only.
+CQRS boundary: this reconciler never touches composed CR specs.
+
+Readiness is per-domain:
+  - Build       → BuildSuccess=True (set by buildrun-observer)
+  - GitRepository → Ready=True
+  - Deployment  → Ready=True
+  - Route       → Ready=True
+  - Package     → Ready=True
+  - ServiceUnit → Ready=True
 
 Phase computation:
-  - All conditions True → ENVIRONMENT_PHASE_READY
-  - Any condition False → ENVIRONMENT_PHASE_PENDING
+  - All conditions True  → ENVIRONMENT_PHASE_READY
+  - Any condition False  → ENVIRONMENT_PHASE_PENDING
+  - No conditions        → ENVIRONMENT_PHASE_PENDING
 */
 package environment
 
@@ -44,7 +53,6 @@ import (
 	networksv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/networks/v1alpha1"
 	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	environmentresolution "github.com/ntlaletsi70/blanketops-environments/resolution/environment"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -70,113 +78,165 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ── Resolve environment contract ──────────────────────────────────────────
-	// All CR refs live in Spec.Contract.Raw — never access env.Spec fields directly.
-	resolved, err := environmentresolution.ResolveEnvironment(&env)
-	if err != nil {
-		log.Error(err, "failed to resolve environment contract")
-		return ctrl.Result{}, err
-	}
-
 	ns := env.Namespace
+	appName := env.Name
 	now := metav1.NewTime(time.Now())
 	conditions := make([]metav1.Condition, 0)
 
-	// ── Build ──────────────────────────────────────────────────────────────────
-	if resolved.Spec.Build != "" {
-		var build environmentsv1alpha1.Build
-		ready, msg := false, ""
-		if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: resolved.Spec.Build}, &build); err != nil {
-			msg = fmt.Sprintf("Build %s not found", resolved.Spec.Build)
-		} else {
-			ready, msg = checkReady(build.Status.Conditions)
+	labelSelector := client.MatchingLabels{"environments.blanketops.dev/name": appName}
+
+	// ── Decode current spec contract ──────────────────────────────────────────
+	// We patch refs additively — never remove what's already there.
+	var contractRaw map[string]any
+	if len(env.Spec.Contract.Raw) > 0 {
+		if err := json.Unmarshal(env.Spec.Contract.Raw, &contractRaw); err != nil {
+			log.Error(err, "failed to decode spec contract")
+			return ctrl.Result{}, err
 		}
-		conditions = append(conditions, makeCondition("BuildReady", ready, "Build", msg, now))
+	} else {
+		contractRaw = map[string]any{}
+	}
+	contractChanged := false
+
+	// ── Build ──────────────────────────────────────────────────────────────────
+	var builds environmentsv1alpha1.BuildList
+	if err := r.List(ctx, &builds, client.InNamespace(ns), labelSelector); err == nil {
+		for _, build := range builds.Items {
+			// Patch ref into spec.contract if not already there.
+			if _, ok := contractRaw["build"]; !ok {
+				contractRaw["build"] = map[string]any{"name": build.Name}
+				contractChanged = true
+				log.Info("patching build ref into spec.contract", "build", build.Name)
+			}
+			ready, msg := checkBuildReady(build.Status.Conditions)
+			conditions = append(conditions, makeCondition(
+				fmt.Sprintf("Build.%s.Ready", build.Name), ready, "Build", msg, now,
+			))
+		}
 	}
 
 	// ── GitRepository ──────────────────────────────────────────────────────────
-	if resolved.Spec.GitRepository != "" {
-		var repo sourcesv1alpha1.GitRepository
-		ready, msg := false, ""
-		if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: resolved.Spec.GitRepository}, &repo); err != nil {
-			msg = fmt.Sprintf("GitRepository %s not found", resolved.Spec.GitRepository)
-		} else {
-			ready, msg = checkReady(repo.Status.Conditions)
+	var repos sourcesv1alpha1.GitRepositoryList
+	if err := r.List(ctx, &repos, client.InNamespace(ns), labelSelector); err == nil {
+		for _, repo := range repos.Items {
+			if _, ok := contractRaw["gitRepository"]; !ok {
+				contractRaw["gitRepository"] = map[string]any{"name": repo.Name}
+				contractChanged = true
+				log.Info("patching gitRepository ref into spec.contract", "gitRepository", repo.Name)
+			}
+			ready, msg := checkReady(repo.Status.Conditions)
+			conditions = append(conditions, makeCondition(
+				fmt.Sprintf("GitRepository.%s.Ready", repo.Name), ready, "GitRepository", msg, now,
+			))
 		}
-		conditions = append(conditions, makeCondition("GitRepositoryReady", ready, "GitRepository", msg, now))
 	}
 
 	// ── Deployment ─────────────────────────────────────────────────────────────
-	if resolved.Spec.Deployment != "" {
-		var deployment environmentsv1alpha1.Deployment
-		ready, msg := false, ""
-		if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: resolved.Spec.Deployment}, &deployment); err != nil {
-			msg = fmt.Sprintf("Deployment %s not found", resolved.Spec.Deployment)
-		} else {
-			ready, msg = checkReady(deployment.Status.Conditions)
+	var deployments environmentsv1alpha1.DeploymentList
+	if err := r.List(ctx, &deployments, client.InNamespace(ns), labelSelector); err == nil {
+		for _, deployment := range deployments.Items {
+			if _, ok := contractRaw["deployment"]; !ok {
+				contractRaw["deployment"] = map[string]any{"name": deployment.Name}
+				contractChanged = true
+				log.Info("patching deployment ref into spec.contract", "deployment", deployment.Name)
+			}
+			ready, msg := checkReady(deployment.Status.Conditions)
+			conditions = append(conditions, makeCondition(
+				fmt.Sprintf("Deployment.%s.Ready", deployment.Name), ready, "Deployment", msg, now,
+			))
 		}
-		conditions = append(conditions, makeCondition("DeploymentReady", ready, "Deployment", msg, now))
 	}
 
-	// ── Route (optional) ──────────────────────────────────────────────────────
-	if resolved.Spec.Route != "" {
-		var route networksv1alpha1.Route
-		ready, msg := false, ""
-		if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: resolved.Spec.Route}, &route); err != nil {
-			msg = fmt.Sprintf("Route %s not found", resolved.Spec.Route)
-		} else {
-			ready, msg = checkReady(route.Status.Conditions)
+	// ── Route ─────────────────────────────────────────────────────────────────
+	var routes networksv1alpha1.RouteList
+	if err := r.List(ctx, &routes, client.InNamespace(ns), labelSelector); err == nil {
+		for _, route := range routes.Items {
+			if _, ok := contractRaw["route"]; !ok {
+				contractRaw["route"] = map[string]any{"name": route.Name}
+				contractChanged = true
+				log.Info("patching route ref into spec.contract", "route", route.Name)
+			}
+			ready, msg := checkReady(route.Status.Conditions)
+			conditions = append(conditions, makeCondition(
+				fmt.Sprintf("Route.%s.Ready", route.Name), ready, "Route", msg, now,
+			))
 		}
-		conditions = append(conditions, makeCondition("RouteReady", ready, "Route", msg, now))
 	}
 
-	// ── Package (optional) ────────────────────────────────────────────────────
-	if resolved.Spec.Package != "" {
-		var pkg environmentsv1alpha1.Package
-		ready, msg := false, ""
-		if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: resolved.Spec.Package}, &pkg); err != nil {
-			msg = fmt.Sprintf("Package %s not found", resolved.Spec.Package)
-		} else {
-			ready, msg = checkReady(pkg.Status.Conditions)
+	// ── Package ───────────────────────────────────────────────────────────────
+	var packages environmentsv1alpha1.PackageList
+	if err := r.List(ctx, &packages, client.InNamespace(ns), labelSelector); err == nil {
+		for _, pkg := range packages.Items {
+			if _, ok := contractRaw["package"]; !ok {
+				contractRaw["package"] = map[string]any{"name": pkg.Name}
+				contractChanged = true
+				log.Info("patching package ref into spec.contract", "package", pkg.Name)
+			}
+			ready, msg := checkReady(pkg.Status.Conditions)
+			conditions = append(conditions, makeCondition(
+				fmt.Sprintf("Package.%s.Ready", pkg.Name), ready, "Package", msg, now,
+			))
 		}
-		conditions = append(conditions, makeCondition("PackageReady", ready, "Package", msg, now))
 	}
 
 	// ── ServiceUnits ──────────────────────────────────────────────────────────
-	for _, ref := range resolved.Spec.ServiceUnits {
-		if ref == "" {
-			continue
+	var sus environmentsv1alpha1.ServiceUnitList
+	if err := r.List(ctx, &sus, client.InNamespace(ns), labelSelector); err == nil {
+		existing, _ := contractRaw["serviceUnits"].([]any)
+		for _, su := range sus.Items {
+			found := false
+			for _, e := range existing {
+				if m, ok := e.(map[string]any); ok {
+					if m["name"] == su.Name {
+						found = true
+						break
+					}
+				}
+			}
+			if !found {
+				existing = append(existing, map[string]any{"name": su.Name})
+				contractRaw["serviceUnits"] = existing
+				contractChanged = true
+				log.Info("patching serviceUnit ref into spec.contract", "serviceUnit", su.Name)
+			}
+			ready, msg := checkReady(su.Status.Conditions)
+			conditions = append(conditions, makeCondition(
+				fmt.Sprintf("ServiceUnit.%s.Ready", su.Name), ready, su.Name, msg, now,
+			))
 		}
-		var su environmentsv1alpha1.ServiceUnit
-		ready, msg := false, ""
-		if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref}, &su); err != nil {
-			msg = fmt.Sprintf("ServiceUnit %s not found", ref)
-		} else {
-			ready, msg = checkReady(su.Status.Conditions)
-		}
-		conditions = append(conditions, makeCondition(
-			fmt.Sprintf("ServiceUnit.%s.Ready", ref),
-			ready, ref, msg, now,
-		))
 	}
 
-	// ── Patch status ──────────────────────────────────────────────────────────
+	// ── Patch spec.contract if refs changed ───────────────────────────────────
+	if contractChanged {
+		newRaw, err := json.Marshal(contractRaw)
+		if err != nil {
+			log.Error(err, "failed to marshal updated spec contract")
+			return ctrl.Result{}, err
+		}
+		original := env.DeepCopy()
+		env.Spec.Contract = runtime.RawExtension{Raw: newRaw}
+		if err := r.Patch(ctx, &env, client.MergeFrom(original)); err != nil {
+			log.Error(err, "failed to patch spec contract")
+			return ctrl.Result{}, err
+		}
+		log.Info("spec.contract patched with discovered refs")
+		// Re-fetch after spec patch to get latest resourceVersion for status patch.
+		if err := r.Get(ctx, req.NamespacedName, &env); err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
+	}
+
 	// ── Patch status ──────────────────────────────────────────────────────────
 	phase := aggregatePhase(conditions)
-
-	// Phase is a domain concern — written to Status.Contract.Raw.
-	// Conditions are Kubernetes-native — written to Status.Conditions.
-	contractStatus := map[string]any{
-		"phase": phase,
-	}
-	raw, err := json.Marshal(contractStatus)
+	contractStatus := map[string]any{"phase": phase}
+	rawStatus, err := json.Marshal(contractStatus)
 	if err != nil {
 		log.Error(err, "failed to marshal environment status contract")
 		return ctrl.Result{}, err
 	}
 
 	original := env.DeepCopy()
-	env.Status.Contract = runtime.RawExtension{Raw: raw}
+	env.Status.Contract = runtime.RawExtension{Raw: rawStatus}
 	env.Status.Conditions = conditions
 
 	if err := r.Status().Patch(ctx, &env, client.MergeFrom(original)); err != nil {
@@ -188,11 +248,24 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrl.Result{}, nil
 }
 
-// checkReady returns true when a Ready=True condition exists in the slice.
+// checkBuildReady returns true when BuildSuccess=True is present.
+// BuildSuccess is written by buildrun-observer on terminal success.
+// BuildReady is dispatch intent only — not a terminal readiness signal.
+func checkBuildReady(conditions []metav1.Condition) (bool, string) {
+	for _, c := range conditions {
+		if c.Type == "BuildSuccess" && c.Status == metav1.ConditionTrue {
+			return true, c.Message
+		}
+	}
+	return false, "no BuildSuccess condition"
+}
+
+// checkReady returns true when Ready=True is present.
+// Used for all non-Build composed CR types.
 func checkReady(conditions []metav1.Condition) (bool, string) {
 	for _, c := range conditions {
-		if c.Type == "Ready" {
-			return c.Status == metav1.ConditionTrue, c.Message
+		if c.Type == "Ready" && c.Status == metav1.ConditionTrue {
+			return true, c.Message
 		}
 	}
 	return false, "no Ready condition"
