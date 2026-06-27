@@ -1,3 +1,15 @@
+## [0.3.0] - 2026-06-27
+
+### 💼 Other
+
+- *(release)* Fixes for lint
+- *(release)* Fixes for lint
+- *(release)* Fixes for lint
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.2.9
+- Sync develop with main after release/v0.2.9
 ## [0.2.9] - 2026-06-27
 
 ### 💼 Other
