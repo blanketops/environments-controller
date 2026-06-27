@@ -88,10 +88,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// if err := bootstrap.RegisterBuild(mgr, rt, setupLog, mgr.GetEventRecorder("blanketops-environments")); err != nil {
-	// 	setupLog.Error(err, "failed to register build subsystem")
-	// 	os.Exit(1)
-	// }
+	if err := bootstrap.RegisterBuild(mgr, rt, setupLog, mgr.GetEventRecorder("blanketops-environments")); err != nil {
+		setupLog.Error(err, "failed to register build subsystem")
+		os.Exit(1)
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to add health check")

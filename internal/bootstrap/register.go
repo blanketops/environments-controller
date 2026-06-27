@@ -49,10 +49,13 @@ import (
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	//cacheEnvironment "github.com/ntlaletsi70/blanketops-environments-controller/internal/cache/environment"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/environments"
+	eventsContr "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/events"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/build"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/buildrun"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/deployment"
+	environment "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/environment"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/githubevent"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/observers/gitrepository"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/sources"
@@ -184,6 +187,10 @@ func RegisterObservers(mgr ctrl.Manager) error {
 		return err
 	}
 
+	if err := (&environment.Reconciler{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+
 	if err := (&githubevent.Reconciler{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
 		return err
 	}
@@ -205,7 +212,31 @@ func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 		return err
 	}
 
-	// if err := (&eventsContr.GitHubEventReconciler{
+	if err := (&eventsContr.GitHubEventReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Runtime: rt,
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+
+	if err := (&environments.DeploymentReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Runtime: rt,
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+
+	if err := (&environments.ServiceUnitReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Runtime: rt,
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+
+	// if err := (&networks.RouteReconciler{
 	// 	Client:  mgr.GetClient(),
 	// 	Scheme:  mgr.GetScheme(),
 	// 	Runtime: rt,
@@ -213,7 +244,7 @@ func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 	// 	return err
 	// }
 
-	// if err := (&environments.DeploymentReconciler{
+	// if err := (&networks.DomainReconciler{
 	// 	Client:  mgr.GetClient(),
 	// 	Scheme:  mgr.GetScheme(),
 	// 	Runtime: rt,
@@ -221,29 +252,21 @@ func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 	// 	return err
 	// }
 
-	// if err := (&environments.ServiceUnitReconciler{
-	// 	Client:  mgr.GetClient(),
-	// 	Scheme:  mgr.GetScheme(),
-	// 	Runtime: rt,
-	// }).SetupWithManager(mgr); err != nil {
-	// 	return err
-	// }
+	if err := (&environments.PackageReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Runtime: rt,
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
 
-	// if err := (&environments.RouteReconciler{
-	// 	Client:  mgr.GetClient(),
-	// 	Scheme:  mgr.GetScheme(),
-	// 	Runtime: rt,
-	// }).SetupWithManager(mgr); err != nil {
-	// 	return err
-	// }
-
-	// if err := (&environments.PackageReconciler{
-	// 	Client:  mgr.GetClient(),
-	// 	Scheme:  mgr.GetScheme(),
-	// 	Runtime: rt,
-	// }).SetupWithManager(mgr); err != nil {
-	// 	return err
-	// }
+	if err := (&environments.EnvironmentReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Runtime: rt,
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
 
 	return nil
 }

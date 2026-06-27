@@ -7,31 +7,10 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - configmaps
   - events
-  - namespaces
-  - secrets
-  - serviceaccounts
   verbs:
   - create
-  - delete
-  - get
-  - list
   - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts/token
-  verbs:
-  - create
-- apiGroups:
-  - authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
 - apiGroups:
   - data.packaging.carvel.dev
   resources:
@@ -65,6 +44,7 @@ rules:
   resources:
   - builds/finalizers
   - deployments/finalizers
+  - environments/finalizers
   - packages/finalizers
   - serviceunits/finalizers
   verbs:
@@ -74,7 +54,6 @@ rules:
   resources:
   - builds/status
   - deployments/status
-  - environments/finalizers
   - environments/status
   - packages/status
   - serviceunits/status
@@ -111,14 +90,10 @@ rules:
 - apiGroups:
   - external-secrets.io
   resources:
-  - externalsecrets
+  - clustersecretstores
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - helm.toolkit.fluxcd.io
@@ -144,14 +119,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - kappctrl.k14s.io
-  resources:
-  - apps/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - kustomize.toolkit.fluxcd.io
   resources:
