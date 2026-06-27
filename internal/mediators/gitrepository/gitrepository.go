@@ -20,8 +20,9 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/environment/query"
 	providerconfig "github.com/ntlaletsi70/blanketops-environments/pkg/providerconfig"
-	github "github.com/ntlaletsi70/blanketops-environments/pkg/secrets/github"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/github"
 	gitrepoResolution "github.com/ntlaletsi70/blanketops-environments/resolution/gitrepository"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -33,11 +34,8 @@ type Mediator struct {
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
 	Recorder events.EventRecorder
-
-	// Platform prerequisites
-	GitHubProviderSecretReconciler *github.GitHubProviderSecretReconciler
+	// GitHubProviderConfigReconciler has no store dependency.
 	GitHubProviderConfigReconciler *providerconfig.GitHubProviderConfigReconciler
-	HookURLSecretReconciler        *github.HookURLExternalSecretReconciler
 }
 
 func New(
@@ -47,42 +45,43 @@ func New(
 	rec events.EventRecorder,
 ) *Mediator {
 	return &Mediator{
-		Client:   c,
-		Scheme:   scheme,
-		Log:      log,
-		Recorder: rec,
-
-		GitHubProviderSecretReconciler: github.NewGitHubProviderSecretReconciler(c, log),
+		Client:                         c,
+		Scheme:                         scheme,
+		Log:                            log,
+		Recorder:                       rec,
 		GitHubProviderConfigReconciler: providerconfig.NewGitHubProviderConfigReconciler(c, log),
-		HookURLSecretReconciler:        github.NewHookURLExternalSecretReconciler(c, log),
 	}
 }
 
-func (m *Mediator) EnsurePrerequisites(
-	ctx context.Context,
-	resolved *gitrepoResolution.ResolvedGitRepository,
-) error {
-
+func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *gitrepoResolution.ResolvedGitRepository) error {
 	repo := resolved.Repository
 
-	// ---------------------------------------------------------------------
-	// 1. GitHub provider credentials (ExternalSecret -> Secret)
-	// ---------------------------------------------------------------------
-	if err := m.GitHubProviderSecretReconciler.Reconcile(ctx); err != nil {
+	// ── Step 0: Environment lookup ────────────────────────────────────────────
+	envCtx, err := query.Lookup(ctx, m.Client, repo.Namespace, repo.Labels)
+	if err != nil {
+		return fmt.Errorf("environment lookup: %w", err)
+	}
+
+	m.Log.Info("environment context resolved",
+		"environment", envCtx.Name,
+		"type", envCtx.EnvironmentType,
+		"store", envCtx.StoreName,
+	)
+
+	// ── Step 1: GitHub provider credentials (store-dependent) ─────────────────
+	providerSecret := github.NewGitHubProviderSecretReconciler(m.Client, m.Log, envCtx.StoreName)
+	if err := providerSecret.Reconcile(ctx); err != nil {
 		return fmt.Errorf("github provider credentials: %w", err)
 	}
 
-	// ---------------------------------------------------------------------
-	// 2. GitHub ProviderConfig (binds provider to credentials)
-	// ---------------------------------------------------------------------
+	// ── Step 2: GitHub ProviderConfig (no store dependency) ───────────────────
 	if err := m.GitHubProviderConfigReconciler.Reconcile(ctx); err != nil {
 		return fmt.Errorf("github providerconfig: %w", err)
 	}
 
-	// ---------------------------------------------------------------------
-	// 3. Webhook URL secret (per GitRepository)
-	// ---------------------------------------------------------------------
-	if err := m.HookURLSecretReconciler.Reconcile(ctx, repo); err != nil {
+	// ── Step 3: Webhook URL secret (store-dependent, per GitRepository) ───────
+	hookURL := github.NewHookURLExternalSecretReconciler(m.Client, m.Log, envCtx.StoreName)
+	if err := hookURL.Reconcile(ctx, repo); err != nil {
 		return fmt.Errorf("hookurl secret: %w", err)
 	}
 

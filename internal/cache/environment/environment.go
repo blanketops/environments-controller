@@ -13,27 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package route
+package environment
 
 import (
-	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/events"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	libbuild "github.com/ntlaletsi70/blanketops-environments/cache/environment"
+	//libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
+	"github.com/ntlaletsi70/blanketops-environments/core"
 )
 
-type Mediator struct {
-	Client   client.Client
-	Scheme   *runtime.Scheme
-	Log      logr.Logger
-	Recorder events.EventRecorder
-}
-
-func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, Recorder events.EventRecorder) *Mediator {
-	return &Mediator{
-		Client:   c,
-		Scheme:   scheme,
-		Log:      log,
-		Recorder: Recorder,
-	}
+// New constructs the Build domain cache for this controller runtime.
+func New(c *core.Cache) *libbuild.EnvironmentCache {
+	return libbuild.NewEnvironmentCache(c)
 }

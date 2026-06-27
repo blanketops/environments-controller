@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/environment/query"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/github"
 	githubeventResolution "github.com/ntlaletsi70/blanketops-environments/resolution/githubevent"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,9 +33,6 @@ type Mediator struct {
 	Scheme   *runtime.Scheme
 	Log      logr.Logger
 	Recorder events.EventRecorder
-
-	GitHubWebhookSecretReconciler *github.GitHubWebhookSecretReconciler
-	// EventSourceReconciler will come next
 }
 
 func New(
@@ -44,11 +42,10 @@ func New(
 	rec events.EventRecorder,
 ) *Mediator {
 	return &Mediator{
-		Client:                        c,
-		Scheme:                        scheme,
-		Log:                           log,
-		Recorder:                      rec,
-		GitHubWebhookSecretReconciler: github.NewGitHubWebhookSecretReconciler(c, log),
+		Client:   c,
+		Scheme:   scheme,
+		Log:      log,
+		Recorder: rec,
 	}
 }
 
@@ -56,14 +53,29 @@ func (m *Mediator) EnsurePrerequisites(
 	ctx context.Context,
 	resolved *githubeventResolution.ResolvedGitHubEvent,
 ) error {
-
 	if resolved == nil || resolved.Event == nil || resolved.Spec == nil {
 		return fmt.Errorf("nil ResolvedGitHubEvent provided to mediator")
 	}
 
-	// 1️⃣ GitHub webhook secret (Argo Events requirement)
-	if err := m.GitHubWebhookSecretReconciler.Reconcile(ctx, resolved); err != nil {
+	event := resolved.Event
+
+	// ── Step 0: Environment lookup ────────────────────────────────────────────
+	envCtx, err := query.Lookup(ctx, m.Client, event.Namespace, event.Labels)
+	if err != nil {
+		return fmt.Errorf("environment lookup: %w", err)
+	}
+
+	m.Log.Info("environment context resolved",
+		"environment", envCtx.Name,
+		"type", envCtx.EnvironmentType,
+		"store", envCtx.StoreName,
+	)
+
+	// ── Step 1: GitHub webhook secret ─────────────────────────────────────────
+	webhookSecret := github.NewGitHubWebhookSecretReconciler(m.Client, m.Log, envCtx.StoreName)
+	if err := webhookSecret.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("github webhook secret: %w", err)
 	}
+
 	return nil
 }
