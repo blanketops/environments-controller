@@ -26,7 +26,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'  # or 'stable' — pins the version and adds $HOME/go/bin to PATH
+          go-version: '1.23'
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
@@ -49,10 +49,19 @@ jobs:
         with:
           cosign-release: 'v2.4.1'
 
+      - name: Install ORAS
+        uses: oras-project/setup-oras@v1
+        with:
+          version: 1.2.0
+
+      # Both ko and oras have separate credential stores — login both here.
       - name: Login to GHCR
         run: |
           echo "${{ secrets.GH_PAT }}" | ko login ghcr.io \
-            --username ${{ github.actor }} \
+            --username "${{ github.actor }}" \
+            --password-stdin
+          echo "${{ secrets.GH_PAT }}" | oras login ghcr.io \
+            --username "${{ github.actor }}" \
             --password-stdin
 
       - name: Build and Push Controller
@@ -60,46 +69,65 @@ jobs:
         env:
           KO_DOCKER_REPO: ghcr.io/${{ github.repository }}/controller
         run: |
-          ko build ./cmd --bare --platform linux/amd64,linux/arm64 --tags ${{ github.ref_name }},latest --image-refs /tmp/ko-image-refs
+          ko build ./cmd --bare \
+            --platform linux/amd64,linux/arm64 \
+            --tags "${{ github.ref_name }},latest" \
+            --image-refs /tmp/ko-image-refs
           echo "digest=$(tail -1 /tmp/ko-image-refs | cut -d@ -f2)" >> $GITHUB_OUTPUT
 
       - name: Sign and Attest
         if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
         run: |
-          cosign sign --yes ghcr.io/${{ github.repository }}/controller@${{ steps.ko-build.outputs.digest }}
+          cosign sign --yes \
+            ghcr.io/${{ github.repository }}/controller@${{ steps.ko-build.outputs.digest }}
 
-      - name: Install ORAS
-        uses: oras-project/setup-oras@v1
-        with:
-          version: 1.2.0
+      # Regenerate CRDs from markers so the pushed artifact is always current.
+      - name: Generate Manifests
+        run: mage manifests
 
-      - name: Publish Artifacts (Mage + ORAS)
+      # Replaced: mage publish (target did not exist).
+      # Pushes all CRD YAMLs from config/crd/bases/ as a typed OCI artifact.
+      - name: Publish Artifacts (ORAS)
         id: publish
-        run: mage -v publish
+        env:
+          ARTIFACT_REF: ghcr.io/${{ github.repository_owner }}/environments-controller:${{ github.ref_name }}
+        run: |
+          FILE_ARGS=()
+          for f in config/crd/bases/*.yaml; do
+            [[ -f "$f" ]] || { echo "::error::No CRD manifests found in config/crd/bases/"; exit 1; }
+            FILE_ARGS+=("${f}:application/vnd.blanketops.crd.v1+yaml")
+          done
+
+          oras push "$ARTIFACT_REF" \
+            --annotation "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --annotation "org.opencontainers.image.revision=${{ github.sha }}" \
+            "${FILE_ARGS[@]}"
+
+          echo "ref=$ARTIFACT_REF" >> $GITHUB_OUTPUT
 
       - name: CI Summary
         if: always()
         run: |
           IMAGE_REF="ghcr.io/${{ github.repository }}/controller"
           ARTIFACT_REF="ghcr.io/${{ github.repository_owner }}/environments-controller:${{ github.ref_name }}"
-          
-          cat >> $GITHUB_STEP_SUMMARY <<EOF
-          # 🚀 BlanketOps v1.0.0 Pipeline
-          
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          # 🚀 BlanketOps Environments Pipeline
+
           ## 🐳 Controller Image
-          - **Registry:** \`$IMAGE_REF\`
+          - **Registry:** \`${IMAGE_REF}\`
           - **Digest:** \`${{ steps.ko-build.outputs.digest }}\`
-          
+
           ## 📦 Artifact Package
           - **Status:** ${{ steps.publish.outcome == 'success' && '✅ Published' || '❌ Failed' }}
-          - **Ref:** \`$ARTIFACT_REF\`
-          
+          - **Ref:** \`${ARTIFACT_REF}\`
+
           ## How to Consume
           \`\`\`bash
           # Pull the artifact package
-          oras pull $ARTIFACT_REF
-          
-          # Apply manifest
-          kubectl apply -f crds.yaml
+          oras pull ${ARTIFACT_REF}
+
+          # Apply CRDs
+          kubectl apply -f .
           \`\`\`
           EOF

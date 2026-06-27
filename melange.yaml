@@ -33,21 +33,9 @@ environment:
     GONOSUMDB: github.com/ntlaletsi70/*
     GOPROXY: direct
     CGO_ENABLED: "0"
+    GOFLAGS: "-mod=vendor"
 
 pipeline:
-- uses: git-checkout
-  with:
-    repository: https://github.com/ntlaletsi70/blanketops-environments-controller
-    tag: ${{package.version}}
-    expected-commit: ""
-
-- name: Configure SSH for private modules
-  runs: |
-    mkdir -p /root/.ssh
-    chmod 700 /root/.ssh
-    ssh-keyscan github.com >> /root/.ssh/known_hosts
-    git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
-
 - uses: go/build
   with:
     packages: ./cmd
