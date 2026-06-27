@@ -1,3 +1,17 @@
+## [0.2.9] - 2026-06-27
+
+### 💼 Other
+
+- *(release)* Add route and domain stub controllers, update mnod for environments to tag latest
+- *(release)* Register and complete controller for gitrepository
+- *(release)* Update environment internal, go mod updated 0.5.8
+- *(release)* Update environment internal, go mod updated 0.5.8
+- *(release)* Update environment internal, go mod updated 0.5.8
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.2.8
+- *(release)* Update changelog for v0.2.8
 ## [0.2.8] - 2026-06-22
 
 ### 💼 Other
