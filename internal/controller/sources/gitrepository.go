@@ -70,8 +70,8 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// ------------------------------------------------
 	// Fetch GitRepository
 	// ------------------------------------------------
-	var gitrepository sourcesv1alpha1.GitRepository
-	if err := r.Get(ctx, req.NamespacedName, &gitrepository); err != nil {
+	var gitRepositoryCR sourcesv1alpha1.GitRepository
+	if err := r.Get(ctx, req.NamespacedName, &gitRepositoryCR); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			log.Info("reconcile exit: gitrepository not found (deleted)")
 			return ctrl.Result{}, nil
@@ -81,7 +81,7 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	log.Info("gitrepository fetched", "generation", gitrepository.Generation, "resourceVersion", gitrepository.ResourceVersion)
+	log.Info("gitrepository fetched", "generation", gitRepositoryCR.Generation, "resourceVersion", gitRepositoryCR.ResourceVersion)
 
 	// ------------------------------------------------
 	// Construct core command
@@ -89,7 +89,7 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	cmd := core.Command{
 		GVK:  sourcesv1alpha1.GroupVersion.WithKind("GitRepository"),
 		Type: core.CmdUpdate,
-		Obj:  &gitrepository,
+		Obj:  &gitRepositoryCR,
 	}
 
 	log.Info("routing gitrepository to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
@@ -99,7 +99,7 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// ------------------------------------------------
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 		log.Error(err, "engine execution failed")
-		r.Recorder.Eventf(&gitrepository, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
+		r.Recorder.Eventf(&gitRepositoryCR, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
 		log.Info("reconcile exit: engine error")
 		return ctrl.Result{}, err
 	}
@@ -115,7 +115,7 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return err
 		}
 
-		latest.Status = gitrepository.Status
+		latest.Status = gitRepositoryCR.Status
 		return r.Status().Update(ctx, &latest)
 
 	}); err != nil {
@@ -143,7 +143,7 @@ func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Runtime Infrastructure
 	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
-	events := r.Runtime.Events
+	eventsRecorder := r.Runtime.Events
 	registry := r.Runtime.Registry
 
 	// ---------------------------------------------------------------------
@@ -169,14 +169,14 @@ func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// GitRepository Service (Mapper and StatiusWriter, domain service for orchestration))
 	// ------------------------------------------------------------------------------------------
 	mapper := application.NewMapper()
-	statusWriter := application.NewStatusWriter() //check args for a fix here please, extra argument required
+	statusWriter := application.NewStatusWriter() // check args for a fix here please, extra argument required
 	r.GitRepositoryService = application.NewGitRepositoryService(mapper, statusWriter, backendSelector)
 
 	// --------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	// --------------------------------------------------------------------------------
-	gitrepositorydomain := gitrepositorydomain.New(r.GitRepositoryMediator, r.GitRepositoryService, cache, events, r.Log.WithName("domain.gitrepository"))
-	registry.RegisterDomain(sourcesv1alpha1.GroupVersion.WithKind("GitRepository"), gitrepositorydomain)
+	gitRepoDomainInst := gitrepositorydomain.New(r.GitRepositoryMediator, r.GitRepositoryService, cache, eventsRecorder, r.Log.WithName("domain.gitrepository"))
+	registry.RegisterDomain(sourcesv1alpha1.GroupVersion.WithKind("GitRepository"), gitRepoDomainInst)
 
 	// ---------------------------------------------------------------------
 	// Controller registration

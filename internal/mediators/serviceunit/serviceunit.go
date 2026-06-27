@@ -46,6 +46,10 @@ func (m *Mediator) EnsurePrerequisites(
 	resolved *serviceunitResolution.ResolvedServiceUnit,
 ) error {
 
+	if resolved == nil || resolved.Spec == nil {
+		return fmt.Errorf("nil ResolvedServiceUnit (resolver bug)")
+	}
+
 	s := resolved.ServiceUnit
 	l := m.Log.WithValues(
 		"serviceunit", s.Name,
@@ -54,10 +58,6 @@ func (m *Mediator) EnsurePrerequisites(
 	log := l
 
 	log.Info("mediator start")
-
-	if resolved == nil || resolved.Spec == nil {
-		return fmt.Errorf("nil ResolvedServiceUnit (resolver bug)")
-	}
 
 	spec := resolved.Spec
 

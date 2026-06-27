@@ -23,7 +23,6 @@ import (
 	packagev1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	pkgProvider "github.com/ntlaletsi70/blanketops-environments/pkg/packages/api"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/packages/application"
 	pkgApp "github.com/ntlaletsi70/blanketops-environments/pkg/packages/application"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -103,7 +102,7 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 
 		log.Error(err, "engine execution failed")
-		//r.Recorder.Eventf(&packages, nil, corev1.EventTypeWarning, "EngineFailure", "%v", err)
+		// r.Recorder.Eventf(&packages, nil, corev1.EventTypeWarning, "EngineFailure", "%v", err)
 		log.Info("reconcile exit: engine error")
 
 		return ctrl.Result{}, err
@@ -138,17 +137,17 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 // SetupWithManager sets up the controller with the Manager.
 // -----------------------------------------------------------------
 func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Logging & events
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("Package")
 	r.Recorder = mgr.GetEventRecorder("package-controller")
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
-	events := r.Runtime.Events
+	eventsRecorder := r.Runtime.Events
 	registry := r.Runtime.Registry
 
 	// ---------------------------------------------------------------------
@@ -161,23 +160,23 @@ func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// ---------------------------------------------------------------------
 	kappProvider := pkgProvider.NewApplicationProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.kapp"), r.Recorder)
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
-	//---------------------------------------------------------------------
-	backendSelector := application.NewBackendSelector(kappProvider)
+	// ---------------------------------------------------------------------
+	backendSelector := pkgApp.NewBackendSelector(kappProvider)
 
-	//-----------------------------------------------------------------------------------------
+	// -----------------------------------------------------------------------------------------
 	// Package Service (Mapper and StatiusWriter, domain service for orchestration))
-	//------------------------------------------------------------------------------------------
+	// ------------------------------------------------------------------------------------------
 	mapper := pkgApp.NewMapper()
 	statusWriter := pkgApp.NewStatusWriter(r.Client, r.Log.WithName("package-status-writer"))
-	packageService := application.NewPackageService(mapper, backendSelector, statusWriter)
+	packageService := pkgApp.NewPackageService(mapper, backendSelector, statusWriter)
 
-	//--------------------------------------------------------------------------------
+	// --------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
-	//--------------------------------------------------------------------------------
-	pkgDomain := pkgDomain.New(r.PackageMediator, packageService, cache, events, r.Log.WithName("domain.package"))
-	registry.RegisterDomain(packagev1alpha1.GroupVersion.WithKind("Package"), pkgDomain)
+	// --------------------------------------------------------------------------------
+	pkgDomainInst := pkgDomain.New(r.PackageMediator, packageService, cache, eventsRecorder, r.Log.WithName("domain.package"))
+	registry.RegisterDomain(packagev1alpha1.GroupVersion.WithKind("Package"), pkgDomainInst)
 
 	// ---------------------------------------------------------------------
 	// Controller registration

@@ -111,10 +111,6 @@ func (r *Reconciler) buildContractAndConditions(
 		Triggered:    true,
 	}
 
-	if br.Status.Output != nil && br.Status.Output.Digest != "" {
-		//contractStatus.ArtifactRef = br.Status.Output.Digest
-	}
-
 	raw, err := json.Marshal(contractStatus)
 	if err != nil {
 		log.Error(err, "failed to marshal contract status")

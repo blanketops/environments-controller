@@ -90,9 +90,9 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error 
 	switch cmd.Type {
 	case core.CmdCreate, core.CmdUpdate:
 
-		//---------------------------------------------------------
+		// ---------------------------------------------------------
 		// 0. Resolve GitHubEvent contract ONCE
-		//---------------------------------------------------------
+		// ---------------------------------------------------------
 		log.Info("resolving githubevent contract")
 		resolved, err := githubeventResolution.ResolveGitHubEvent(githubeventCR)
 		if err != nil {
@@ -102,9 +102,9 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error 
 			return err
 		}
 
-		//------------------------------------------------
+		// ------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		//------------------------------------------------
+		// ------------------------------------------------
 		if cerr := d.githubeventCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(githubeventCR, "GitHubEventCacheFailed", cerr)

@@ -19,16 +19,13 @@ package events
 import (
 	"context"
 
-	//eventsv1alpha1 "k8s.io/api/events/v1alpha1"
+	// eventsv1alpha1 "k8s.io/api/events/v1alpha1"
 	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	"github.com/go-logr/logr"
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	githubeventapi "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/api"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
 	githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
-
-	//githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -48,7 +45,7 @@ type GitHubEventReconciler struct {
 	Scheme             *runtime.Scheme
 	Log                logr.Logger
 	Runtime            *runtimeinfra.Runtime
-	GitHubEventService *application.GitHubEventService
+	GitHubEventService *githubeventapp.GitHubEventService
 
 	Recorder            events.EventRecorder
 	GitHubEventMediator *githubevent.Mediator
@@ -75,8 +72,8 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// ------------------------------------------------
 	// Fetch GitHubEvent
 	// ------------------------------------------------
-	var githubevent eventsv1alpha1.GitHubEvent
-	if err := r.Get(ctx, req.NamespacedName, &githubevent); err != nil {
+	var gitHubEvent eventsv1alpha1.GitHubEvent
+	if err := r.Get(ctx, req.NamespacedName, &gitHubEvent); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			log.Info("reconcile exit: githubevent not found (deleted)")
 			return ctrl.Result{}, nil
@@ -86,7 +83,7 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	log.Info("githubevent fetched", "generation", githubevent.Generation, "resourceVersion", githubevent.ResourceVersion)
+	log.Info("githubevent fetched", "generation", gitHubEvent.Generation, "resourceVersion", gitHubEvent.ResourceVersion)
 
 	// ------------------------------------------------
 	// Construct core command
@@ -94,7 +91,7 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	cmd := core.Command{
 		GVK:  eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"),
 		Type: core.CmdUpdate,
-		Obj:  &githubevent,
+		Obj:  &gitHubEvent,
 	}
 
 	log.Info("routing githubevent to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
@@ -105,7 +102,7 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 
 		log.Error(err, "engine execution failed")
-		r.Recorder.Eventf(&githubevent, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
+		r.Recorder.Eventf(&gitHubEvent, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
 		log.Info("reconcile exit: engine error")
 
 		return ctrl.Result{}, err
@@ -122,7 +119,7 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			return err
 		}
 
-		latest.Status = githubevent.Status
+		latest.Status = gitHubEvent.Status
 		return r.Status().Update(ctx, &latest)
 
 	}); err != nil {
@@ -140,47 +137,47 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 // SetupWithManager sets up the controller with the Manager.
 // -----------------------------------------------------------------
 func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Logging & events
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("GitHubEvent")
 	r.Recorder = mgr.GetEventRecorder("githubevent-controller")
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
 	registry := r.Runtime.Registry
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Mediator (prerequisites only)
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	r.GitHubEventMediator = githubevent.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.githubevent"), r.Recorder)
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Providers (strategy handlers)
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// Providers (github)
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	githubProvider := githubeventapi.NewGitHubProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.github"), r.Recorder)
 
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
-	//---------------------------------------------------------------------
+	// ---------------------------------------------------------------------
 	backendSelector := githubeventapp.NewBackendSelector(githubProvider)
 
-	//-----------------------------------------------------------------------------------------
+	// -----------------------------------------------------------------------------------------
 	// GitHubEvent Service (Mapper and StatiusWriter, domain service for orchestration))
-	//-----------------------------------------------------------------------
+	// -----------------------------------------------------------------------
 	mapper := githubeventapp.NewMapper()
 	statusWriter := githubeventapp.NewStatusWriter(r.Client, r.Log.WithName("githubevent-status-writer"))
 	r.GitHubEventService = githubeventapp.NewGitHubEventService(mapper, statusWriter, backendSelector)
 
-	//--------------------------------------------------------------------------------
+	// --------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
-	//--------------------------------------------------------------------------------
+	// --------------------------------------------------------------------------------
 	eventsDomain := githubeventdomain.New(r.GitHubEventService, r.GitHubEventMediator, r.Runtime.Events, cache, r.Log.WithName("domain.githubevent"))
 	registry.RegisterDomain(eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"), eventsDomain)
 
