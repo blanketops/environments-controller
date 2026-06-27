@@ -17,15 +17,12 @@ package deployment
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/go-logr/logr"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/environment/query"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/git"
 	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
-	environmentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/environment"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -109,26 +106,26 @@ func (m *Mediator) ensureRuntime(
 	return nil
 }
 
-func (m *Mediator) ensureKubernetesRuntime(
-	ctx context.Context,
-	namespace string,
-) error {
-	m.Log.Info("ensuring Kubernetes runtime", "namespace", namespace)
-	ns := &corev1.Namespace{}
-	if err := m.Client.Get(ctx, client.ObjectKey{Name: namespace}, ns); err != nil {
-		return fmt.Errorf("kubernetes namespace %q not available: %w", namespace, err)
-	}
-	return nil
-}
+// func (m *Mediator) ensureKubernetesRuntime(
+// 	ctx context.Context,
+// 	namespace string,
+// ) error {
+// 	m.Log.Info("ensuring Kubernetes runtime", "namespace", namespace)
+// 	ns := &corev1.Namespace{}
+// 	if err := m.Client.Get(ctx, client.ObjectKey{Name: namespace}, ns); err != nil {
+// 		return fmt.Errorf("kubernetes namespace %q not available: %w", namespace, err)
+// 	}
+// 	return nil
+// }
 
-func toRawContract(spec *environmentResolution.ResolvedEnvironmentSpec) (runtime.RawExtension, error) {
-	contract := spec.ToEnvironmentContract()
-	raw, err := json.Marshal(contract)
-	if err != nil {
-		return runtime.RawExtension{}, err
-	}
-	return runtime.RawExtension{Raw: raw}, nil
-}
+// func toRawContract(spec *environmentResolution.ResolvedEnvironmentSpec) (runtime.RawExtension, error) {
+// 	contract := spec.ToEnvironmentContract()
+// 	raw, err := json.Marshal(contract)
+// 	if err != nil {
+// 		return runtime.RawExtension{}, err
+// 	}
+// 	return runtime.RawExtension{Raw: raw}, nil
+// }
 
 // func (m *Mediator) ensureAndPatchEnvironment(
 // 	ctx context.Context,

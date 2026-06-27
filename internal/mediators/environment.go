@@ -18,7 +18,6 @@ package environment
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	env1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	environmentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/environment"
@@ -102,37 +101,37 @@ func PatchEnvironmentAggregate(
 	return c.Update(ctx, env)
 }
 
-func patchAndMergeRule(
-	ctx context.Context,
-	c client.Client,
-	env *env1alpha1.Environment,
-	mutate func(contract map[string]any),
-) error {
+// func patchAndMergeRule(
+// 	ctx context.Context,
+// 	c client.Client,
+// 	env *env1alpha1.Environment,
+// 	mutate func(contract map[string]any),
+// ) error {
 
-	// 1. Take a deep copy for merge base
-	original := env.DeepCopy()
+// 	// 1. Take a deep copy for merge base
+// 	original := env.DeepCopy()
 
-	// 2. Decode existing contract (or initialize)
-	var contract map[string]any
-	if len(env.Spec.Contract.Raw) > 0 {
-		if err := json.Unmarshal(env.Spec.Contract.Raw, &contract); err != nil {
-			return fmt.Errorf("decode environment contract: %w", err)
-		}
-	} else {
-		contract = make(map[string]any)
-	}
+// 	// 2. Decode existing contract (or initialize)
+// 	var contract map[string]any
+// 	if len(env.Spec.Contract.Raw) > 0 {
+// 		if err := json.Unmarshal(env.Spec.Contract.Raw, &contract); err != nil {
+// 			return fmt.Errorf("decode environment contract: %w", err)
+// 		}
+// 	} else {
+// 		contract = make(map[string]any)
+// 	}
 
-	// 3. Apply ONLY this controller's mutation
-	mutate(contract)
+// 	// 3. Apply ONLY this controller's mutation
+// 	mutate(contract)
 
-	// 4. Re-encode contract
-	raw, err := json.Marshal(contract)
-	if err != nil {
-		return fmt.Errorf("encode environment contract: %w", err)
-	}
+// 	// 4. Re-encode contract
+// 	raw, err := json.Marshal(contract)
+// 	if err != nil {
+// 		return fmt.Errorf("encode environment contract: %w", err)
+// 	}
 
-	env.Spec.Contract.Raw = raw
+// 	env.Spec.Contract.Raw = raw
 
-	// 5. Strategic merge patch
-	return c.Patch(ctx, env, client.MergeFrom(original))
-}
+// 	// 5. Strategic merge patch
+// 	return c.Patch(ctx, env, client.MergeFrom(original))
+// }

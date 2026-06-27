@@ -20,7 +20,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	buildv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
+	environmentsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/build/api"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
@@ -79,7 +79,7 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	// ------------------------------------------------
 	// Fetch Build
 	// ------------------------------------------------
-	var build buildv1alpha1.Build
+	var build environmentsv1alpha1.Build
 	if err := r.Get(ctx, req.NamespacedName, &build); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			log.Info("reconcile exit: build not found (deleted)")
@@ -95,7 +95,7 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	// Construct core command
 	//-------------------------------------------------
 	cmd := core.Command{
-		GVK:  buildv1alpha1.GroupVersion.WithKind("Build"),
+		GVK:  environmentsv1alpha1.GroupVersion.WithKind("Build"),
 		Type: core.CmdUpdate,
 		Obj:  &build,
 	}
@@ -118,7 +118,7 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	// Persist status (retry-on-conflict)
 	// ------------------------------------------------
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var latest buildv1alpha1.Build
+		var latest environmentsv1alpha1.Build
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
 			return err
 		}
@@ -194,14 +194,14 @@ func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	//--------------------------------------------------------------------------------
 	buildDomain := builddomain.New(r.BuildMediator, r.BuildService, cache, events, r.Log.WithName("domain.build"))
-	registry.RegisterDomain(buildv1alpha1.GroupVersion.WithKind("Build"), buildDomain)
+	registry.RegisterDomain(environmentsv1alpha1.GroupVersion.WithKind("Build"), buildDomain)
 
 	// ---------------------------------------------------------------------
 	// Controller registration
 	// ---------------------------------------------------------------------
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&buildv1alpha1.Build{}).
+		For(&environmentsv1alpha1.Build{}).
 		// Watches(
 		// 	&shipwrightv1alpha1.BuildRun{},
 		// 	handler.EnqueueRequestForOwner(

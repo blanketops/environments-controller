@@ -46,10 +46,12 @@ func (m *Mediator) EnsurePrerequisites(
 	resolved *serviceunitResolution.ResolvedServiceUnit,
 ) error {
 
-	log := m.Log.WithValues(
-		"serviceunit", resolved.ServiceUnit.Name,
+	s := resolved.ServiceUnit
+	l := m.Log.WithValues(
+		"serviceunit", s.Name,
 		"namespace", resolved.ServiceUnit.Namespace,
 	)
+	log := l
 
 	log.Info("mediator start")
 

@@ -17,7 +17,6 @@ package deployment
 
 import (
 	libdeployment "github.com/ntlaletsi70/blanketops-environments/cache/deployment"
-	//libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 )
 

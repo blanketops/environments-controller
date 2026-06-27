@@ -17,7 +17,6 @@ package serviceunit
 
 import (
 	libserviceunit "github.com/ntlaletsi70/blanketops-environments/cache/serviceunit"
-	//libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 )
 

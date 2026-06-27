@@ -184,10 +184,10 @@ func (m *Mediator) ensureManifestsRepo(
 		}
 		envFile := filepath.Join(overlayPath, "environment.yaml")
 		if _, err := os.Stat(envFile); os.IsNotExist(err) {
-			if err := os.WriteFile(envFile, []byte(fmt.Sprintf(
+			if err := os.WriteFile(envFile, fmt.Appendf(nil,
 				"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: %s\ndata:\n  ENV: %s\n",
 				deploy.Name, env,
-			)), 0644); err != nil {
+			), 0644); err != nil {
 				return fmt.Errorf("write environment.yaml: %w", err)
 			}
 		}
@@ -374,8 +374,6 @@ func ensureDeployKey(owner, repo, publicKey, token string) error {
 	addResp, err := http.DefaultClient.Do(addReq)
 	if err != nil {
 		return err
-	} else {
-
 	}
 	defer func() { _ = addResp.Body.Close() }()
 
