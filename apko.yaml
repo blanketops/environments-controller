@@ -1,54 +1,48 @@
-package:
-  name: blanketops-environments-controller
-  version: 0.0.0   # patched at build time by apko.yml
-  epoch: 0
-  description: "BlanketOps Environments Kubernetes Controller"
-  target-architecture:
-  - x86_64
-  copyright:
-  - license: Apache-2.0
-  dependencies:
-    runtime: []
-  checks:
-    disabled:
-    - usrlocal
-    - setuidgid
-update:
-  enabled: false
+# =============================================================================
+# apko.yaml — Wolfi Image Assembly Spec
+#
+# Assembles the BlanketOps Environments Controller OCI image from:
+#   - Wolfi base packages (ca-certificates, wolfi-baselayout)
+#   - The controller APK built by melange (blanketops-environments-controller)
+#
+# Local packages:
+#   The melange build outputs APKs to ./packages/. The @local repository
+#   reference picks them up. The melange.rsa.pub key (generated at build time
+#   with sign-with-temporary-key: true) is referenced in the keyring so apko
+#   can verify the locally built APK.
+#
+# Runtime:
+#   Runs as nonroot (uid 65532) — matches distroless/static:nonroot convention.
+#   No shell. Minimal attack surface.
+#
+# Binary path:
+#   melange go/build with output: manager installs to /usr/bin/manager
+# =============================================================================
 
-environment:
-  contents:
-    repositories:
+contents:
+  repositories:
     - https://packages.wolfi.dev/os
-    keyring:
+    - "@local ./packages"
+  keyring:
     - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
-    packages:
-    - busybox
+    - ./melange.rsa.pub
+  packages:
+    - wolfi-baselayout
     - ca-certificates-bundle
-    - go
-    - git
-    - openssh-client
-  environment:
-    GOPRIVATE: github.com/ntlaletsi70/*
-    GONOSUMDB: github.com/ntlaletsi70/*
-    GOPROXY: direct
-    CGO_ENABLED: "0"
+    - blanketops-environments-controller
 
-pipeline:
-- uses: git-checkout
-  with:
-    repository: https://github.com/ntlaletsi70/blanketops-environments-controller
-    tag: v${{package.version}}   # v prefix matches actual git tags
-    expected-commit: ""
+entrypoint:
+  command: /usr/bin/manager
 
-- name: Configure git for private modules
-  runs: |
-    git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
+accounts:
+  groups:
+    - groupname: nonroot
+      gid: 65532
+  users:
+    - username: nonroot
+      uid: 65532
+      gid: 65532
+  run-as: 65532
 
-- uses: go/build
-  with:
-    packages: ./cmd
-    output: manager
-    ldflags: -s -w
-
-- uses: strip
+archs:
+  - x86_64
