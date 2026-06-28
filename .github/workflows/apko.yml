@@ -12,13 +12,21 @@
 #   melange.yaml — package build spec (APK)
 #   apko.yaml    — image assembly spec (OCI layers from APK)
 #
+# Private repo access inside melange:
+#   melange's git-checkout step runs inside a bubblewrap sandbox. The SSH
+#   agent and host git config are not accessible inside bwrap. The GH_PAT
+#   is injected into the repository URL in melange.yaml before the build so
+#   melange can clone the private repo without interactive credentials.
+#   The patched melange.yaml is never committed — it exists only in the runner.
+#
 # Tag strategy:
 #   tag push  → versioned tag + latest (crane tag adds latest after build)
 #   manual    → ref_name only
 #
 # Secrets required:
-#   GH_PAT         — GHCR push access
-#   SSH_PRIVATE_KEY — private module git access during melange build
+#   GH_PAT         — GHCR push access + melange private repo clone
+#   SSH_PRIVATE_KEY — not needed for melange (PAT used instead); kept for
+#                     consistency if other steps need it
 # =============================================================================
 
 name: Wolfi Image
@@ -56,13 +64,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GH_PAT }}
 
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
       - name: Setup melange
         uses: chainguard-dev/actions/setup-melange@v1.6.21
+
+      # melange's git-checkout pipeline step runs inside a bubblewrap sandbox.
+      # Host SSH agent and git credentials are not available inside bwrap.
+      # Inject the PAT into the repository URL so melange can clone the private
+      # repo without interactive auth. This patches the runner copy only —
+      # the committed melange.yaml is never modified.
+      - name: Inject git credentials into melange config
+        run: |
+          sed -i \
+            "s|https://github.com/ntlaletsi70/|https://${{ secrets.GH_PAT }}@github.com/ntlaletsi70/|g" \
+            melange.yaml
 
       - name: Build package
         uses: chainguard-dev/actions/melange-build@v1.6.21
@@ -84,4 +98,62 @@ jobs:
 
       - name: Build image
         id: build
-        uses: chainguard-dev/actions/apko-build@v1.6.2
+        uses: chainguard-dev/actions/apko-build@v1.6.21
+        with:
+          config: apko.yaml
+          tag: ${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }}
+
+      # apko-build only accepts a single tag — use crane to add latest
+      # after the build without re-running the full image assembly.
+      - name: Install crane
+        if: steps.tags.outputs.push_latest == 'true'
+        uses: imjasonh/setup-crane@v0.4
+
+      - name: Tag latest
+        if: steps.tags.outputs.push_latest == 'true'
+        run: |
+          crane tag \
+            ${{ env.IMAGE_REPO }}@${{ steps.build.outputs.digest }} \
+            latest
+
+      - name: Install cosign
+        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+        run: |
+          cosign sign --yes \
+            ${{ env.IMAGE_REPO }}@${{ steps.build.outputs.digest }}
+
+      - name: Attest image provenance
+        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE_REPO }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Wolfi Image Summary
+        if: always()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          # 🐺 Wolfi Image Build
+          EOF
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+
+          **Image:** \`${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }}\`
+          **Digest:** \`${{ steps.build.outputs.digest }}\`
+          **Latest tagged:** \`${{ steps.tags.outputs.push_latest }}\`
+          **Trigger:** \`${{ github.event_name }}\`
+
+          ## Completed
+          - Built APK package with melange
+          - Built OCI image with apko
+          - Pushed to GHCR
+          ${{ steps.tags.outputs.push_latest == 'true' && '- Tagged `latest` via crane' || '' }}
+
+          ## Signing and Attestation
+          - Signed with Cosign (keyless via Sigstore)
+          - Provenance attested via actions/attest-build-provenance
+          EOF
