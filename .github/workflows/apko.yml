@@ -15,8 +15,16 @@
 # melange.yaml patching (three sed passes, runner copy only):
 #   1. version:     0.0.0 → release version (v stripped, e.g. 0.6.0)
 #   2. checkout URL: HTTPS → HTTPS+PAT (controller repo clone inside bwrap)
-#   3. MELANGE_PAT: placeholder → actual PAT (go mod download of private deps
-#      inside bwrap — SSH is not available in the bubblewrap sandbox)
+#   3. MELANGE_PAT: placeholder → actual PAT — covers both:
+#        a) .netrc entry (go mod download credential resolution)
+#        b) git insteadOf rewrite (fallback git credential)
+#
+# Private module auth strategy:
+#   melange builds run inside a bubblewrap sandbox as uid=1000 (build user).
+#   git config --global is unreliable (home dir ambiguity). Instead:
+#     - .netrc at /root/.netrc with HOME=/root set in melange environment
+#     - git config written to explicit path via GIT_CONFIG_GLOBAL
+#   Both are populated by the MELANGE_PAT sed replacement.
 #
 # Version sources:
 #   tag push         → stripped from git tag (v0.6.0 → 0.6.0)
@@ -74,12 +82,10 @@ jobs:
       # Three sed passes on the runner copy of melange.yaml.
       # The committed file is never modified.
       #
-      # Pass 1 — version: strip v prefix (v0.6.0 → 0.6.0), always applied
-      #           regardless of event source so user input of v0.6.0 is safe.
-      # Pass 2 — checkout URL: inject PAT for controller repo clone in bwrap.
-      # Pass 3 — MELANGE_PAT: inject PAT for go mod download of private deps
-      #           in bwrap (blanketops-environments-api etc). SSH is unavailable
-      #           inside the bubblewrap sandbox — HTTPS+PAT is the only option.
+      # Pass 1 — version: strip v prefix always (safe for both v0.6.0 and 0.6.0)
+      # Pass 2 — checkout URL: inject PAT for controller repo clone in bwrap
+      # Pass 3 — MELANGE_PAT: inject PAT into .netrc entry + git insteadOf rule
+      #           inside bwrap (covers go mod download of all private deps)
       - name: Patch melange config
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -98,7 +104,8 @@ jobs:
             "s|https://github.com/ntlaletsi70/|https://${{ secrets.GH_PAT }}@github.com/ntlaletsi70/|g" \
             melange.yaml
 
-          # Pass 3: MELANGE_PAT placeholder → actual PAT (go mod download)
+          # Pass 3: MELANGE_PAT placeholder → actual PAT
+          # Covers both .netrc and git insteadOf entries in the pipeline step
           sed -i "s|MELANGE_PAT|${{ secrets.GH_PAT }}|g" melange.yaml
 
           echo "Patched version: ${VERSION}"
@@ -178,7 +185,7 @@ jobs:
           **Trigger:** \`${{ github.event_name }}\`
 
           ## Completed
-          - Patched melange.yaml (version + PAT injection x2)
+          - Patched melange.yaml (version + PAT injection x3)
           - Built APK package with melange
           - Built OCI image with apko
           - Pushed to GHCR
