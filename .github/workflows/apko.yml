@@ -5,19 +5,16 @@
 # it via Cosign + Sigstore.
 #
 # When to use vs ko.yml:
-#   ko.yml  — standard controller builds; fast, Go-native, no Containerfile
+#   ko.yml   — standard controller builds; fast, Go-native, no Containerfile
 #   apko.yml — when a hardened Wolfi base is required (compliance, CVE posture)
 #
 # Prerequisites:
 #   melange.yaml — package build spec (APK)
 #   apko.yaml    — image assembly spec (OCI layers from APK)
 #
-# Changes from previous:
-#   - Pinned chainguard-dev/actions@v1.6.21 (already done)
-#   - GHCR login uses GH_PAT for consistency with other workflows
-#   - go-version-file guard removed — apko does not use Go directly
-#   - Heredoc quoted (<<'EOF') for static content blocks
-#   - Tag strategy: version + latest on tag push, branch name only otherwise
+# Tag strategy:
+#   tag push  → versioned tag + latest (crane tag adds latest after build)
+#   manual    → ref_name only
 #
 # Secrets required:
 #   GH_PAT         — GHCR push access
@@ -48,7 +45,6 @@ env:
 
 jobs:
   wolfi:
-    if: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,63 +72,16 @@ jobs:
           sign-with-temporary-key: true
           workdir: .
 
-      # Tag strategy: version + latest on tag push; branch name only otherwise.
-      - name: Compute image tags
+      - name: Compute image tag
         id: tags
         run: |
-          TAG="${{ github.ref_name }}"
+          echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-            echo "extra=latest" >> "$GITHUB_OUTPUT"
+            echo "push_latest=true" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-            echo "extra=" >> "$GITHUB_OUTPUT"
+            echo "push_latest=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build image
         id: build
-        uses: chainguard-dev/actions/apko-build@v1.6.21
-        with:
-          config: apko.yaml
-          tag: ${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }}
-
-      - name: Install cosign
-        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
-        uses: sigstore/cosign-installer@v3
-
-      - name: Sign image
-        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
-        run: |
-          cosign sign --yes \
-            ${{ env.IMAGE_REPO }}@${{ steps.build.outputs.digest }}
-
-      - name: Attest image provenance
-        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-name: ${{ env.IMAGE_REPO }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
-
-      - name: Wolfi Image Summary
-        if: always()
-        run: |
-          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
-          # 🐺 Wolfi Image Build
-          EOF
-          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
-
-          **Image:** \`${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }}\`
-          **Digest:** \`${{ steps.build.outputs.digest }}\`
-          **Trigger:** \`${{ github.event_name }}\`
-
-          ## Completed
-          - Built APK package with melange
-          - Built OCI image with apko
-          - Pushed to GHCR
-
-          ## Signing and Attestation
-          - Sign and attest: \`${{ github.event_name != 'workflow_dispatch' || inputs.sign_and_attest }}\`
-          - Signed with Cosign (keyless via Sigstore)
-          - Provenance attested via actions/attest-build-provenance
-          EOF
+        uses: chainguard-dev/actions/apko-build@v1.6.2
