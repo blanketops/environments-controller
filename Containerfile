@@ -2,8 +2,10 @@
 
 # -------- Build Stage --------
 # Use the host platform for the builder so Go cross-compiles natively
-# instead of running the compiler under QEMU emulation
-FROM --platform=$BUILDPLATFORM golang:1.26.3 AS builder
+# instead of running the compiler under QEMU emulation.
+# GO_VERSION is injected from go.mod via the image.yml build-arg.
+ARG GO_VERSION=1.26.3
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS builder
 
 ARG TARGETOS
 ARG TARGETARCH

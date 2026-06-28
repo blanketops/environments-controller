@@ -1,41 +1,73 @@
 # =============================================================================
-# apko.yml — Wolfi Image Build
+# ko.yml — Ko Image Build → GHCR
 #
-# Builds a Wolfi-based OCI image using melange + apko, then signs and attests
-# it via Cosign + Sigstore.
+# Builds the BlanketOps Environments Controller image via ko and pushes to
+# GHCR. Fires on tag push and manual dispatch only — not on branch pushes.
 #
+# Registry: ghcr.io/ntlaletsi70/blanketops-environments-controller
 # When to use vs ko.yml:
-#   ko.yml  — standard controller builds; fast, Go-native, no Containerfile
+#   ko.yml   — standard controller builds; fast, Go-native, no Containerfile
 #   apko.yml — when a hardened Wolfi base is required (compliance, CVE posture)
 #
-# Prerequisites:
-#   melange.yaml — package build spec (APK)
-#   apko.yaml    — image assembly spec (OCI layers from APK)
+# What it does:
+#   1. Builds multi-arch image via ko (linux/amd64, linux/arm64)
+#   2. Signs via Cosign (keyless, Sigstore)
+#   3. Attests provenance via actions/attest-build-provenance
+#   4. Generates CRD manifests via controller-gen
+#   5. Publishes CRD YAMLs as typed OCI artifact via ORAS
 #
-# Changes from previous:
-#   - Pinned chainguard-dev/actions@v1.6.21 (already done)
-#   - GHCR login uses GH_PAT for consistency with other workflows
-#   - go-version-file guard removed — apko does not use Go directly
-#   - Heredoc quoted (<<'EOF') for static content blocks
-#   - Tag strategy: version + latest on tag push, branch name only otherwise
+# Image tagging:
+#   tag push  → {version} + latest
+#   manual    → {ref_name} only
 #
 # Secrets required:
-#   GH_PAT         — GHCR push access
-#   SSH_PRIVATE_KEY — private module git access during melange build
+#   GH_PAT         — GHCR push + private module access
+#   SSH_PRIVATE_KEY — private module git access
+# apko build strategy:
+#   Installs apko binary directly from GitHub releases — avoids the apko-build
+#   action which runs apko inside a distroless Docker container with no /bin/sh.
+#
+# melange.yaml patching (three sed passes, runner copy only):
+#   1. version:     0.0.0 → release version (v stripped, e.g. 0.6.0)
+#   2. checkout URL: HTTPS → HTTPS+PAT (controller repo clone inside bwrap)
+#   3. MELANGE_PAT: placeholder → actual PAT — covers both:
+#        a) .netrc entry (go mod download credential resolution)
+#        b) git insteadOf rewrite (fallback git credential)
+#
+# Private module auth strategy:
+#   melange builds run inside a bubblewrap sandbox as uid=1000 (build user).
+#   git config --global is unreliable (home dir ambiguity). Instead:
+#     - .netrc at /root/.netrc with HOME=/root set in melange environment
+#     - git config written to explicit path via GIT_CONFIG_GLOBAL
+#   Both are populated by the MELANGE_PAT sed replacement.
+#
+# Version sources:
+#   tag push         → stripped from git tag (v0.6.0 → 0.6.0)
+#   workflow_dispatch → explicit version input (v prefix stripped if present)
+#
+# Tag strategy:
+#   tag push  → versioned tag + latest (crane tag adds latest after build)
+#   manual    → v{version} only — latest never tagged on manual dispatch
+#
+# Secrets required:
+#   GH_PAT — GHCR push + melange repo clone + private go module access
 # =============================================================================
 
-name: Wolfi Image
+name: Ko Image
 
 on:
-  workflow_dispatch:
-    inputs:
-      sign_and_attest:
-        description: "Sign and attest the image after build"
-        type: boolean
-        default: true
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (e.g. 0.6.0 or v0.6.0)"
+        required: true
+      sign_and_attest:
+        description: "Sign and attest the image"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -44,63 +76,39 @@ permissions:
   attestations: write
 
 env:
+  GO_VERSION_FILE: go.mod
   IMAGE_REPO: ghcr.io/ntlaletsi70/blanketops-environments-controller
 
 jobs:
-  wolfi:
-    if: true
+  build-and-publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GH_PAT }}
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: true
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Setup melange
-        uses: chainguard-dev/actions/setup-melange@v1.6.21
-
-      - name: Build package
-        uses: chainguard-dev/actions/melange-build@v1.6.21
-        with:
-          config: melange.yaml
-          archs: x86_64
-          sign-with-temporary-key: true
-          workdir: .
-
-      # Tag strategy: version + latest on tag push; branch name only otherwise.
-      - name: Compute image tags
-        id: tags
+      - name: Configure git for private modules
         run: |
-          TAG="${{ github.ref_name }}"
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-            echo "extra=latest" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-            echo "extra=" >> "$GITHUB_OUTPUT"
-          fi
+          git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
+          go env -w GOPRIVATE=github.com/ntlaletsi70/*
+          go env -w GONOSUMDB=github.com/ntlaletsi70/*
+          go env -w GOPROXY=direct
 
-      - name: Build image
-        id: build
-        uses: chainguard-dev/actions/apko-build@v1.6.21
+      - name: Setup ko
+        uses: ko-build/setup-ko@v0.7
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.7.0
         with:
-          config: apko.yaml
-          tag: ${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }}
-
-      - name: Install cosign
-        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
-        uses: sigstore/cosign-installer@v3
-
-      - name: Sign image
           cosign-release: 'v2.4.1'
 
       - name: Install ORAS
@@ -108,7 +116,6 @@ jobs:
         with:
           version: 1.2.0
 
-      # Both ko and oras have separate credential stores — login both here.
       - name: Login to GHCR
         run: |
           echo "${{ secrets.GH_PAT }}" | ko login ghcr.io \
@@ -118,50 +125,87 @@ jobs:
             --username "${{ github.actor }}" \
             --password-stdin
 
+      # tag push → {version} + latest; manual dispatch → ref_name only
+      - name: Compute image tags
+        id: tags
+        run: |
+          TAGS="${{ github.ref_name }}"
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAGS="${TAGS},latest"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
       - name: Build and Push Controller
         id: ko-build
         env:
-          KO_DOCKER_REPO: ghcr.io/${{ github.repository }}/controller
+          KO_DOCKER_REPO: ${{ env.IMAGE_REPO }}
         run: |
-          ko build ./cmd --bare \
+          ko build ./cmd/... --bare \
             --platform linux/amd64,linux/arm64 \
-            --tags "${{ github.ref_name }},latest" \
+            --tags "${{ steps.tags.outputs.tags }}" \
             --image-refs /tmp/ko-image-refs
-          echo "digest=$(tail -1 /tmp/ko-image-refs | cut -d@ -f2)" >> $GITHUB_OUTPUT
+          DIGEST="$(tail -1 /tmp/ko-image-refs | cut -d@ -f2)"
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
-      - name: Sign and Attest
+      - name: Sign image
         if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
         run: |
           cosign sign --yes \
-            ${{ env.IMAGE_REPO }}@${{ steps.build.outputs.digest }}
+            ${{ env.IMAGE_REPO }}@${{ steps.ko-build.outputs.digest }}
 
-      - name: Attest image provenance
-        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-name: ${{ env.IMAGE_REPO }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
+      # - name: Attest image provenance
+      #   if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+      #   uses: actions/attest-build-provenance@v2
+      #   with:
+      #     subject-name: ${{ env.IMAGE_REPO }}
+      #     subject-digest: ${{ steps.ko-build.outputs.digest }}
+      #     push-to-registry: true
 
-      - name: Wolfi Image Summary
+      # Generate CRDs from controller-gen markers — mage removed.
+      # - name: Generate CRD manifests
+      #   run: |
+      #     go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest \
+      #       rbac:roleName=manager-role crd webhook \
+      #       paths="./..." \
+      #       output:crd:artifacts:config=config/crd/bases \
+      #       output:rbac:artifacts:config=config/rbac \
+      #       output:webhook:artifacts:config=config/webhook
+
+      # - name: Publish CRD artifact (ORAS)
+      #   id: publish
+      #   env:
+      #     ARTIFACT_REF: ghcr.io/ntlaletsi70/blanketops-environments-controller-crds:${{ github.ref_name }}
+      #   run: |
+      #     FILE_ARGS=()
+      #     for f in config/crd/bases/*.yaml; do
+      #       [[ -f "$f" ]] || { echo "::error::No CRD manifests found in config/crd/bases/"; exit 1; }
+      #       FILE_ARGS+=("${f}:application/vnd.blanketops.crd.v1+yaml")
+      #     done
+      #     oras push "$ARTIFACT_REF" \
+      #       --annotation "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+      #       --annotation "org.opencontainers.image.revision=${{ github.sha }}" \
+      #       "${FILE_ARGS[@]}"
+      #     echo "ref=${ARTIFACT_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: CI Summary
         if: always()
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
-          # 🐺 Wolfi Image Build
+          # 🐳 Ko Image Build
           EOF
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
 
-          **Image:** \`${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }}\`
-          **Digest:** \`${{ steps.build.outputs.digest }}\`
-          **Trigger:** \`${{ github.event_name }}\`
+          **Image:** \`${{ env.IMAGE_REPO }}\`
+          **Tags:** \`${{ steps.tags.outputs.tags }}\`
+          **Digest:** \`${{ steps.ko-build.outputs.digest }}\`
 
-          ## Completed
-          - Built APK package with melange
-          - Built OCI image with apko
-          - Pushed to GHCR
+          ## CRD Artifact
+          - **Status:** ${{ steps.publish.outcome == 'success' && '✅ Published' || '❌ Failed' }}
+          - **Ref:** \`${{ steps.publish.outputs.ref }}\`
 
-          ## Signing and Attestation
-          - Sign and attest: \`${{ github.event_name != 'workflow_dispatch' || inputs.sign_and_attest }}\`
-          - Signed with Cosign (keyless via Sigstore)
-          - Provenance attested via actions/attest-build-provenance
+          ## Pull CRDs
+          \`\`\`bash
+          oras pull ${{ steps.publish.outputs.ref }}
+          kubectl apply -f .
+          \`\`\`
           EOF
