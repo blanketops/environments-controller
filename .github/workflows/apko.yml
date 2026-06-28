@@ -13,10 +13,9 @@
 #   apko.yaml    — image assembly spec (OCI layers from APK)
 #
 # apko build strategy:
-#   Uses setup-apko + apko publish directly as a binary instead of the
-#   apko-build action. The apko-build action runs apko inside a distroless
-#   Docker container which has no /bin/sh — exec fails. The binary approach
-#   runs natively on the runner with no Docker-in-Docker dependency.
+#   Installs apko binary directly from GitHub releases — avoids the apko-build
+#   action which runs apko inside a distroless Docker container with no /bin/sh.
+#   Version tag (v0.x.y) and tarball filename (0.x.y) differ — both handled.
 #
 # melange.yaml patching (three sed passes, runner copy only):
 #   1. version:     0.0.0 → release version (v stripped, e.g. 0.6.0)
@@ -124,6 +123,18 @@ jobs:
           sign-with-temporary-key: true
           workdir: .
 
+      # Verify melange output before apko — surfaces missing APK or APKINDEX
+      # early so failures are obvious rather than buried in apko error messages.
+      - name: Verify melange output
+        run: |
+          echo "=== APK files ==="
+          find . -name "*.apk" 2>/dev/null || echo "No .apk files found"
+          echo "=== APKINDEX files ==="
+          find . -name "APKINDEX*" 2>/dev/null || echo "No APKINDEX files found"
+          echo "=== packages dir ==="
+          ls -la packages/ 2>/dev/null || echo "packages/ not found"
+          ls -la packages/x86_64/ 2>/dev/null || echo "packages/x86_64/ not found"
+
       # tag push  → versioned tag + latest
       # manual    → v{version} only; latest never tagged on manual dispatch
       - name: Compute image tag
@@ -139,14 +150,13 @@ jobs:
             echo "push_latest=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # setup-apko installs the apko binary directly on the runner.
-      # avoids the apko-build action which runs apko inside a distroless
-      # Docker container — that container has no /bin/sh so exec fails.
+      # Install apko binary directly from GitHub releases.
+      # The version tag uses v prefix (v0.x.y) but the tarball filename
+      # uses the bare version (0.x.y) — both are handled below.
       - name: Install apko
         run: |
           APKO_VERSION=$(curl -sf https://api.github.com/repos/chainguard-dev/apko/releases/latest \
             | grep '"tag_name"' | cut -d'"' -f4)
-          # tag is v0.x.y — tarball uses 0.x.y without the v prefix
           APKO_VERSION_CLEAN="${APKO_VERSION#v}"
           curl -sL "https://github.com/chainguard-dev/apko/releases/download/${APKO_VERSION}/apko_${APKO_VERSION_CLEAN}_linux_amd64.tar.gz" \
             | tar xz
