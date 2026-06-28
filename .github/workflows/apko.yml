@@ -196,13 +196,13 @@ jobs:
           cosign sign --yes \
             ${{ env.IMAGE_REPO }}@${{ steps.build.outputs.digest }}
 
-      - name: Attest image provenance
-        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-name: ${{ env.IMAGE_REPO }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
+      # - name: Attest image provenance
+      #   if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+      #   uses: actions/attest-build-provenance@v2
+      #   with:
+      #     subject-name: ${{ env.IMAGE_REPO }}
+      #     subject-digest: ${{ steps.build.outputs.digest }}
+      #     push-to-registry: true
 
       - name: Wolfi Image Summary
         if: always()
