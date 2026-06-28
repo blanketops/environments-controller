@@ -1,25 +1,54 @@
-contents:
-  repositories:
-  - https://packages.wolfi.dev/os
-  - "@local /github/workspace/packages"
-  keyring:
-  - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
-  - "@local /github/workspace/melange-keyring/melange.rsa.pub"
-  packages:
-  - wolfi-baselayout
-  - ca-certificates-bundle
-  - blanketops-environments-controller@local
+package:
+  name: blanketops-environments-controller
+  version: 0.0.0   # patched at build time by apko.yml
+  epoch: 0
+  description: "BlanketOps Environments Kubernetes Controller"
+  target-architecture:
+  - x86_64
+  copyright:
+  - license: Apache-2.0
+  dependencies:
+    runtime: []
+  checks:
+    disabled:
+    - usrlocal
+    - setuidgid
+update:
+  enabled: false
 
-entrypoint:
-  command: /usr/bin/manager
+environment:
+  contents:
+    repositories:
+    - https://packages.wolfi.dev/os
+    keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    packages:
+    - busybox
+    - ca-certificates-bundle
+    - go
+    - git
+    - openssh-client
+  environment:
+    GOPRIVATE: github.com/ntlaletsi70/*
+    GONOSUMDB: github.com/ntlaletsi70/*
+    GOPROXY: direct
+    CGO_ENABLED: "0"
 
-accounts:
-  users:
-  - username: nonroot
-    uid: 65532
-  groups:
-  - groupname: nonroot
-    gid: 65532
+pipeline:
+- uses: git-checkout
+  with:
+    repository: https://github.com/ntlaletsi70/blanketops-environments-controller
+    tag: v${{package.version}}   # v prefix matches actual git tags
+    expected-commit: ""
 
-archs:
-- x86_64
+- name: Configure git for private modules
+  runs: |
+    git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
+
+- uses: go/build
+  with:
+    packages: ./cmd
+    output: manager
+    ldflags: -s -w
+
+- uses: strip
