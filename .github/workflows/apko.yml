@@ -12,6 +12,12 @@
 #   melange.yaml — package build spec (APK)
 #   apko.yaml    — image assembly spec (OCI layers from APK)
 #
+# apko build strategy:
+#   Uses setup-apko + apko publish directly as a binary instead of the
+#   apko-build action. The apko-build action runs apko inside a distroless
+#   Docker container which has no /bin/sh — exec fails. The binary approach
+#   runs natively on the runner with no Docker-in-Docker dependency.
+#
 # melange.yaml patching (three sed passes, runner copy only):
 #   1. version:     0.0.0 → release version (v stripped, e.g. 0.6.0)
 #   2. checkout URL: HTTPS → HTTPS+PAT (controller repo clone inside bwrap)
@@ -82,7 +88,7 @@ jobs:
       # Three sed passes on the runner copy of melange.yaml.
       # The committed file is never modified.
       #
-      # Pass 1 — version: strip v prefix always (safe for both v0.6.0 and 0.6.0)
+      # Pass 1 — version: strip v prefix always (safe for v0.6.0 and 0.6.0)
       # Pass 2 — checkout URL: inject PAT for controller repo clone in bwrap
       # Pass 3 — MELANGE_PAT: inject PAT into .netrc entry + git insteadOf rule
       #           inside bwrap (covers go mod download of all private deps)
@@ -133,14 +139,23 @@ jobs:
             echo "push_latest=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build image
-        id: build
-        uses: chainguard-dev/actions/apko-build@v1.6.21
-        with:
-          config: apko.yaml
-          tag: ${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }}
+      # setup-apko installs the apko binary directly on the runner.
+      # avoids the apko-build action which runs apko inside a distroless
+      # Docker container — that container has no /bin/sh so exec fails.
+      - name: Setup apko
+        uses: chainguard-dev/actions/setup-apko@v1.6.21
 
-      # apko-build only accepts a single tag — use crane to add latest
+      - name: Build and push image
+        id: build
+        run: |
+          apko publish apko.yaml \
+            ${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }} \
+            --keyring-append melange.rsa.pub \
+            --image-refs /tmp/apko-image-refs
+          DIGEST=$(head -1 /tmp/apko-image-refs | cut -d@ -f2)
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      # apko publish only accepts a single tag — use crane to add latest
       # after the build without re-running the full image assembly.
       - name: Install crane
         if: steps.tags.outputs.push_latest == 'true'
@@ -187,7 +202,7 @@ jobs:
           ## Completed
           - Patched melange.yaml (version + PAT injection x3)
           - Built APK package with melange
-          - Built OCI image with apko
+          - Built and pushed OCI image with apko publish
           - Pushed to GHCR
           ${{ steps.tags.outputs.push_latest == 'true' && '- Tagged latest via crane' || '' }}
 
