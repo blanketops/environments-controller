@@ -8,6 +8,12 @@
 #   ko.yml    → ghcr.io/ntlaletsi70/blanketops-environments-controller (GHCR)
 #   image.yml → docker.io/nkanyezisolutions/blanketops-environments-controller (Docker Hub)
 #
+# Go version:
+#   Extracted from go.mod at build time and passed as GO_VERSION build arg.
+#   Containerfile must use: ARG GO_VERSION / FROM golang:${GO_VERSION}-alpine
+#   Never hardcode the Go version in the Containerfile — go.mod is the source
+#   of truth.
+#
 # Tag strategy:
 #   tag push  → {version} + latest
 #   branch    → branch name only
@@ -63,6 +69,17 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Extract Go version from go.mod — single source of truth.
+      # Passes the minor version (e.g. 1.26) as the alpine image tag.
+      - name: Extract Go version from go.mod
+        id: goversion
+        run: |
+          FULL=$(grep '^go ' go.mod | awk '{print $2}')
+          MINOR=$(echo "${FULL}" | cut -d. -f1,2)
+          echo "full=${FULL}" >> "$GITHUB_OUTPUT"
+          echo "minor=${MINOR}" >> "$GITHUB_OUTPUT"
+          echo "Go version: ${FULL} → image tag: ${MINOR}"
+
       # Tag strategy: version + latest on tag push; branch name only otherwise.
       - name: Compute image tags
         id: tags
@@ -83,6 +100,8 @@ jobs:
           ssh: default=${{ env.SSH_AUTH_SOCK }}
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            GO_VERSION=${{ steps.goversion.outputs.minor }}
 
       - name: Install cosign
         if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
@@ -111,6 +130,7 @@ jobs:
           **Image:** \`${{ env.IMAGE_REPO }}:${{ github.ref_name }}\`
           **Digest:** \`${{ steps.build.outputs.digest }}\`
           **Tags:** \`${{ steps.tags.outputs.tags }}\`
+          **Go version:** \`${{ steps.goversion.outputs.full }}\` (alpine tag: \`${{ steps.goversion.outputs.minor }}\`)
           **Trigger:** \`${{ github.event_name }}\`
 
           ## Registry split
@@ -118,9 +138,4 @@ jobs:
           |----------|----------|-------|
           | Docker Hub | \`image.yml\` | \`${{ env.IMAGE_REPO }}\` |
           | GHCR | \`ko.yml\` | \`ghcr.io/ntlaletsi70/blanketops-environments-controller\` |
-
-          ## Signing and Attestation
-          - Sign and attest: \`${{ github.event_name != 'workflow_dispatch' || inputs.sign_and_attest }}\`
-          - Signed with Cosign (keyless via Sigstore)
-          - Provenance attested via actions/attest-build-provenance
           EOF
