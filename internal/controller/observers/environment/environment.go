@@ -61,6 +61,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+const (
+	// contractKeyName is the map key used when constructing the environment
+	// contract payload. Extracted as a constant — 6 occurrences in this file.
+	contractKeyName = "name"
+)
+
 type Reconciler struct {
 	client.Client
 	Recorder *core.EventRecorder
@@ -104,7 +110,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		for _, build := range builds.Items {
 			// Patch ref into spec.contract if not already there.
 			if _, ok := contractRaw["build"]; !ok {
-				contractRaw["build"] = map[string]any{"name": build.Name}
+				contractRaw["build"] = map[string]any{contractKeyName: build.Name}
 				contractChanged = true
 				log.Info("patching build ref into spec.contract", "build", build.Name)
 			}
@@ -120,7 +126,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.List(ctx, &repos, client.InNamespace(ns), labelSelector); err == nil {
 		for _, repo := range repos.Items {
 			if _, ok := contractRaw["gitRepository"]; !ok {
-				contractRaw["gitRepository"] = map[string]any{"name": repo.Name}
+				contractRaw["gitRepository"] = map[string]any{contractKeyName: repo.Name}
 				contractChanged = true
 				log.Info("patching gitRepository ref into spec.contract", "gitRepository", repo.Name)
 			}
@@ -136,7 +142,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.List(ctx, &deployments, client.InNamespace(ns), labelSelector); err == nil {
 		for _, deployment := range deployments.Items {
 			if _, ok := contractRaw["deployment"]; !ok {
-				contractRaw["deployment"] = map[string]any{"name": deployment.Name}
+				contractRaw["deployment"] = map[string]any{contractKeyName: deployment.Name}
 				contractChanged = true
 				log.Info("patching deployment ref into spec.contract", "deployment", deployment.Name)
 			}
@@ -152,7 +158,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.List(ctx, &routes, client.InNamespace(ns), labelSelector); err == nil {
 		for _, route := range routes.Items {
 			if _, ok := contractRaw["route"]; !ok {
-				contractRaw["route"] = map[string]any{"name": route.Name}
+				contractRaw["route"] = map[string]any{contractKeyName: route.Name}
 				contractChanged = true
 				log.Info("patching route ref into spec.contract", "route", route.Name)
 			}
@@ -168,7 +174,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.List(ctx, &packages, client.InNamespace(ns), labelSelector); err == nil {
 		for _, pkg := range packages.Items {
 			if _, ok := contractRaw["package"]; !ok {
-				contractRaw["package"] = map[string]any{"name": pkg.Name}
+				contractRaw["package"] = map[string]any{contractKeyName: pkg.Name}
 				contractChanged = true
 				log.Info("patching package ref into spec.contract", "package", pkg.Name)
 			}
@@ -187,14 +193,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			found := false
 			for _, e := range existing {
 				if m, ok := e.(map[string]any); ok {
-					if m["name"] == su.Name {
+					if m[contractKeyName] == su.Name {
 						found = true
 						break
 					}
 				}
 			}
 			if !found {
-				existing = append(existing, map[string]any{"name": su.Name})
+				existing = append(existing, map[string]any{contractKeyName: su.Name})
 				contractRaw["serviceUnits"] = existing
 				contractChanged = true
 				log.Info("patching serviceUnit ref into spec.contract", "serviceUnit", su.Name)

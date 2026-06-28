@@ -35,6 +35,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	// conditionGitHubEventReady is the condition type used across this file.
+	// Extracted as a constant — 3 occurrences.
+	conditionGitHubEventReady = "GitHubEventReady"
+)
+
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
@@ -131,7 +137,7 @@ func (r *Reconciler) buildContractAndConditions(
 	switch {
 	case payloadReceived && success:
 		condition = metav1.Condition{
-			Type:               "GitHubEventReady",
+			Type:               conditionGitHubEventReady,
 			Status:             metav1.ConditionTrue,
 			Reason:             "GitHubEventPayloadReceived",
 			Message:            contractStatus.Message,
@@ -147,9 +153,9 @@ func (r *Reconciler) buildContractAndConditions(
 		}
 	case triggered:
 		condition = metav1.Condition{
-			Type:               "GitHubEventReady",
+			Type:               conditionGitHubEventReady,
 			Status:             metav1.ConditionTrue,
-			Reason:             "GitHubEventReady",
+			Reason:             conditionGitHubEventReady,
 			Message:            "GitHubEvent infrastructure provisioned",
 			LastTransitionTime: now,
 		}
