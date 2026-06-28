@@ -6,18 +6,23 @@
 #
 # Version:
 #   Set to 0.0.0 as a placeholder. The apko.yml workflow patches this to the
-#   actual release version before the build via sed. The committed file is
-#   never modified — only the runner copy is patched.
+#   actual release version before the build. Committed file is never modified.
 #
 # Private module access:
-#   All three sed patches are applied by apko.yml before the build:
-#     1. version:     0.0.0 → actual release version
-#     2. checkout URL: HTTPS → HTTPS+PAT (for controller repo clone in bwrap)
-#     3. MELANGE_PAT: placeholder → actual PAT (for go mod download of private
-#        deps inside bwrap — SSH is not available in the bubblewrap sandbox)
+#   melange's go/build step runs inside a bubblewrap sandbox as uid=1000
+#   (build user). git config --global writes to that user's home, which is
+#   not /root — so the rewrite rule never applies to go mod download.
+#
+#   Fix: use .netrc at /root/.netrc with HOME=/root so go and git both find
+#   the credentials regardless of which user runs the command. Also set
+#   GIT_CONFIG_GLOBAL to an explicit path to avoid home dir ambiguity.
+#
+#   MELANGE_PAT is replaced with the actual PAT by apko.yml before the build.
+#   All three occurrences (checkout URL, netrc, git config) are replaced by
+#   the same sed pass.
 #
 # Tag format:
-#   v${{package.version}} — the 'v' prefix matches actual git tags (v0.6.0).
+#   v${{package.version}} — matches actual git tags (v0.6.0).
 #   After version patching: package.version = 0.6.0 → tag = v0.6.0.
 # =============================================================================
 
@@ -56,6 +61,12 @@ environment:
     GONOSUMDB: github.com/ntlaletsi70/*
     GOPROXY: direct
     CGO_ENABLED: "0"
+    # Pin HOME so .netrc is always found at /root/.netrc regardless of
+    # which user melange's bwrap sandbox uses for the build steps.
+    HOME: /root
+    # Pin git config to an explicit path — avoids home dir ambiguity
+    # when git config --global is called inside bwrap.
+    GIT_CONFIG_GLOBAL: /etc/gitconfig-blanketops
 
 pipeline:
   - uses: git-checkout
@@ -64,13 +75,20 @@ pipeline:
       tag: v${{package.version}}
       expected-commit: ""
 
-  # Rewrite HTTPS to HTTPS+PAT for all private module fetches inside bwrap.
-  # SSH is not available in the bubblewrap sandbox — HTTPS+PAT is the only
-  # option for go mod download of private deps (blanketops-environments-api etc).
-  # MELANGE_PAT is replaced with the actual PAT by apko.yml before the build.
-  - name: Configure git for private modules
+  # Configure credentials for private module downloads inside bwrap.
+  # git config --global is unreliable in bwrap (user home ambiguity).
+  # .netrc is universally picked up by git and go regardless of user.
+  # MELANGE_PAT is replaced by apko.yml sed pass 3 before the build.
+  - name: Configure authentication for private modules
     runs: |
-      git config --global url."https://MELANGE_PAT@github.com/ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
+      # .netrc — go mod download uses this for HTTPS credential resolution
+      mkdir -p /root
+      printf 'machine github.com\nlogin git\npassword MELANGE_PAT\n' > /root/.netrc
+      chmod 600 /root/.netrc
+      # git insteadOf rewrite — written to explicit path via GIT_CONFIG_GLOBAL
+      git config --file /etc/gitconfig-blanketops \
+        url."https://MELANGE_PAT@github.com/ntlaletsi70/".insteadOf \
+        "https://github.com/ntlaletsi70/"
 
   - uses: go/build
     with:
