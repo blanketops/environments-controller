@@ -3,7 +3,7 @@
 # -------- Build Stage --------
 # Use the host platform for the builder so Go cross-compiles natively
 # instead of running the compiler under QEMU emulation
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.3 AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
