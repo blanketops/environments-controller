@@ -1,24 +1,36 @@
 # =============================================================================
-# CI (ci.yaml)
-# =============================================================================
-# Runs on every push to main and every pull request.
-# Builds the controller and runs staticcheck lint.
+# ci.yaml — CI Build and Lint
 #
-# Changes:
-#   - Added actions/setup-go@v5 with go-version-file and caching
-#   - Added CI Step Summary
+# Runs on every push to main and every pull request.
+# Builds the controller binary and runs golangci-lint.
+#
+# Changes from previous:
+#   - go-version-file: go.mod instead of hardcoded version
+#   - Removed Force Remote Dependency step — replace directives must not be
+#     committed to go.mod; local replace is development-only
+#   - go build -mod=vendor for reproducible builds
+#   - golangci-lint replaces staticcheck — consistent with library CI
+#   - go vet added before lint
+#   - GONOSUMDB + GOPRIVATE set consistently
 #
 # Secrets required:
-#   - GH_PAT (for private module access via git config rewrite)
+#   GH_PAT — private module access
 # =============================================================================
+
 name: CI
+
 on:
   pull_request:
   push:
     branches:
       - main
+
 permissions:
   contents: read
+
+env:
+  GO_VERSION_FILE: go.mod
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,50 +41,43 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: ${{ env.GO_VERSION_FILE }}
           cache: true
 
       - name: Configure Git for private modules
         run: |
-            git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
-            go env -w GOPRIVATE=github.com/ntlaletsi70/*
-            go env -w GONOSUMDB=github.com/ntlaletsi70/*
-            go env -w GOPROXY=direct
-            
-      - name: Force Remote Dependency
-        run: |
-          # This command modifies the go.mod in the runner environment
-          # to ignore the local path and force a network fetch.
-          go mod edit -dropreplace github.com/ntlaletsi70/blanketops-environments
-          go mod tidy      
-
-      # - name: Tidy
-      #   run: go mod tidy && git diff --exit-code
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+          go env -w GOPRIVATE=github.com/ntlaletsi70/*
+          go env -w GONOSUMDB=github.com/ntlaletsi70/*
+          go env -w GOPROXY=direct
 
       - name: Build
-        run: go build ./...
+        run: go build -mod=vendor ./...
+
+      - name: Vet
+        run: go vet ./...
 
       - name: Lint
-        run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
-          staticcheck ./...
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.7.2
+          args: --timeout=5m
 
       - name: CI Summary
         if: always()
         run: |
-          {
-            echo "# 🔧 CI Build"
-            echo ""
-            echo "**Branch:** \`${{ github.ref_name }}\`"
-            echo "**Trigger:** \`${{ github.event_name }}\`"
-            echo "**Commit:** \`${{ github.sha }}\`"
-            echo ""
-            echo "## Steps"
-            echo "- Checkout"
-            echo "- Setup Go (from go.mod)"
-            echo "- Configure private module access"
-            echo "- Drop local replace directive"
-            echo "- go mod tidy"
-            echo "- go build ./..."
-            echo "- staticcheck lint"
-          } >> $GITHUB_STEP_SUMMARY
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          # 🔧 CI Build
+
+          **Branch:** \`${{ github.ref_name }}\`
+          **Trigger:** \`${{ github.event_name }}\`
+          **Commit:** \`${{ github.sha }}\`
+
+          ## Steps
+          - Checkout
+          - Setup Go (from \`go.mod\`)
+          - Configure private module access
+          - \`go build -mod=vendor ./...\`
+          - \`go vet ./...\`
+          - \`golangci-lint run\`
+          EOF
