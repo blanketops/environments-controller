@@ -1,6 +1,6 @@
 package:
   name: blanketops-environments-controller
-  version: 0.0.9
+  version: 0.0.0   # patched at build time by apko.yml
   epoch: 0
   description: "BlanketOps Environments Kubernetes Controller"
   target-architecture:
@@ -38,14 +38,11 @@ pipeline:
 - uses: git-checkout
   with:
     repository: https://github.com/ntlaletsi70/blanketops-environments-controller
-    tag: ${{package.version}}
+    tag: v${{package.version}}   # v prefix matches actual git tags
     expected-commit: ""
 
-- name: Configure SSH for private modules
+- name: Configure git for private modules
   runs: |
-    mkdir -p /root/.ssh
-    chmod 700 /root/.ssh
-    ssh-keyscan github.com >> /root/.ssh/known_hosts
     git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
 
 - uses: go/build
