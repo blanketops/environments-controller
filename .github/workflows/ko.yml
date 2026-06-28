@@ -5,23 +5,41 @@
 # it via Cosign + Sigstore.
 #
 # When to use vs ko.yml:
-#   ko.yml  — standard controller builds; fast, Go-native, no Containerfile
+#   ko.yml   — standard controller builds; fast, Go-native, no Containerfile
 #   apko.yml — when a hardened Wolfi base is required (compliance, CVE posture)
 #
 # Prerequisites:
 #   melange.yaml — package build spec (APK)
 #   apko.yaml    — image assembly spec (OCI layers from APK)
 #
-# Changes from previous:
-#   - Pinned chainguard-dev/actions@v1.6.21 (already done)
-#   - GHCR login uses GH_PAT for consistency with other workflows
-#   - go-version-file guard removed — apko does not use Go directly
-#   - Heredoc quoted (<<'EOF') for static content blocks
-#   - Tag strategy: version + latest on tag push, branch name only otherwise
+# apko build strategy:
+#   Installs apko binary directly from GitHub releases — avoids the apko-build
+#   action which runs apko inside a distroless Docker container with no /bin/sh.
+#
+# melange.yaml patching (three sed passes, runner copy only):
+#   1. version:     0.0.0 → release version (v stripped, e.g. 0.6.0)
+#   2. checkout URL: HTTPS → HTTPS+PAT (controller repo clone inside bwrap)
+#   3. MELANGE_PAT: placeholder → actual PAT — covers both:
+#        a) .netrc entry (go mod download credential resolution)
+#        b) git insteadOf rewrite (fallback git credential)
+#
+# Private module auth strategy:
+#   melange builds run inside a bubblewrap sandbox as uid=1000 (build user).
+#   git config --global is unreliable (home dir ambiguity). Instead:
+#     - .netrc at /root/.netrc with HOME=/root set in melange environment
+#     - git config written to explicit path via GIT_CONFIG_GLOBAL
+#   Both are populated by the MELANGE_PAT sed replacement.
+#
+# Version sources:
+#   tag push         → stripped from git tag (v0.6.0 → 0.6.0)
+#   workflow_dispatch → explicit version input (v prefix stripped if present)
+#
+# Tag strategy:
+#   tag push  → versioned tag + latest (crane tag adds latest after build)
+#   manual    → v{version} only — latest never tagged on manual dispatch
 #
 # Secrets required:
-#   GH_PAT         — GHCR push access
-#   SSH_PRIVATE_KEY — private module git access during melange build
+#   GH_PAT — GHCR push + melange repo clone + private go module access
 # =============================================================================
 
 name: Wolfi Image
@@ -29,6 +47,9 @@ name: Wolfi Image
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: "Version to build (e.g. 0.6.0 or v0.6.0)"
+        required: true
       sign_and_attest:
         description: "Sign and attest the image after build"
         type: boolean
@@ -48,7 +69,6 @@ env:
 
 jobs:
   wolfi:
-    if: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,13 +80,39 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GH_PAT }}
 
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
       - name: Setup melange
         uses: chainguard-dev/actions/setup-melange@v1.6.21
+
+      # Three sed passes on the runner copy of melange.yaml.
+      # The committed file is never modified.
+      #
+      # Pass 1 — version: strip v prefix always (safe for v0.6.0 and 0.6.0)
+      # Pass 2 — checkout URL: inject PAT for controller repo clone in bwrap
+      # Pass 3 — MELANGE_PAT: inject PAT into .netrc entry + git insteadOf rule
+      #           inside bwrap (covers go mod download of all private deps)
+      - name: Patch melange config
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${{ github.ref_name }}"
+          fi
+          # Always strip v prefix — melange requires bare semver (0.6.0 not v0.6.0)
+          VERSION="${VERSION#v}"
+
+          # Pass 1: version
+          sed -i "s/^  version: .*/  version: ${VERSION}/" melange.yaml
+
+          # Pass 2: checkout URL → HTTPS+PAT
+          sed -i \
+            "s|https://github.com/ntlaletsi70/|https://${{ secrets.GH_PAT }}@github.com/ntlaletsi70/|g" \
+            melange.yaml
+
+          # Pass 3: MELANGE_PAT placeholder → actual PAT
+          # Covers both .netrc and git insteadOf entries in the pipeline step
+          sed -i "s|MELANGE_PAT|${{ secrets.GH_PAT }}|g" melange.yaml
+
+          echo "Patched version: ${VERSION}"
 
       - name: Build package
         uses: chainguard-dev/actions/melange-build@v1.6.21
@@ -76,60 +122,74 @@ jobs:
           sign-with-temporary-key: true
           workdir: .
 
-      # Tag strategy: version + latest on tag push; branch name only otherwise.
-      - name: Compute image tags
+      # Verify melange output before apko — surfaces missing APK or APKINDEX
+      # early so failures are obvious rather than buried in apko error messages.
+      - name: Verify melange output
+        run: |
+          echo "=== APK files ==="
+          find . -name "*.apk" 2>/dev/null || echo "No .apk files found"
+          echo "=== APKINDEX files ==="
+          find . -name "APKINDEX*" 2>/dev/null || echo "No APKINDEX files found"
+          echo "=== packages dir ==="
+          ls -la packages/ 2>/dev/null || echo "packages/ not found"
+          ls -la packages/x86_64/ 2>/dev/null || echo "packages/x86_64/ not found"
+
+      # tag push  → versioned tag + latest
+      # manual    → v{version} only; latest never tagged on manual dispatch
+      - name: Compute image tag
         id: tags
         run: |
-          TAG="${{ github.ref_name }}"
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-            echo "extra=latest" >> "$GITHUB_OUTPUT"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+            VERSION="${VERSION#v}"
+            echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "push_latest=false" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-            echo "extra=" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "push_latest=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build image
+      # Install apko binary directly from GitHub releases.
+      # The version tag uses v prefix (v0.x.y) but the tarball filename
+      # uses the bare version (0.x.y) — both are handled below.
+      - name: Install apko
+        run: |
+          APKO_VERSION=$(curl -sf https://api.github.com/repos/chainguard-dev/apko/releases/latest \
+            | grep '"tag_name"' | cut -d'"' -f4)
+          APKO_VERSION_CLEAN="${APKO_VERSION#v}"
+          curl -sL "https://github.com/chainguard-dev/apko/releases/download/${APKO_VERSION}/apko_${APKO_VERSION_CLEAN}_linux_amd64.tar.gz" \
+            | tar xz
+          sudo mv apko_${APKO_VERSION_CLEAN}_linux_amd64/apko /usr/local/bin/apko
+          apko version
+
+      - name: Build and push image
         id: build
-        uses: chainguard-dev/actions/apko-build@v1.6.21
-        with:
-          config: apko.yaml
-          tag: ${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }}
+        run: |
+          apko publish apko.yaml \
+            ${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }} \
+            --keyring-append melange.rsa.pub \
+            --image-refs /tmp/apko-image-refs
+          DIGEST=$(head -1 /tmp/apko-image-refs | cut -d@ -f2)
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      # apko publish only accepts a single tag — use crane to add latest
+      # after the build without re-running the full image assembly.
+      - name: Install crane
+        if: steps.tags.outputs.push_latest == 'true'
+        uses: imjasonh/setup-crane@v0.4
+
+      - name: Tag latest
+        if: steps.tags.outputs.push_latest == 'true'
+        run: |
+          crane tag \
+            ${{ env.IMAGE_REPO }}@${{ steps.build.outputs.digest }} \
+            latest
 
       - name: Install cosign
         if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
         uses: sigstore/cosign-installer@v3
 
       - name: Sign image
-          cosign-release: 'v2.4.1'
-
-      - name: Install ORAS
-        uses: oras-project/setup-oras@v1
-        with:
-          version: 1.2.0
-
-      # Both ko and oras have separate credential stores — login both here.
-      - name: Login to GHCR
-        run: |
-          echo "${{ secrets.GH_PAT }}" | ko login ghcr.io \
-            --username "${{ github.actor }}" \
-            --password-stdin
-          echo "${{ secrets.GH_PAT }}" | oras login ghcr.io \
-            --username "${{ github.actor }}" \
-            --password-stdin
-
-      - name: Build and Push Controller
-        id: ko-build
-        env:
-          KO_DOCKER_REPO: ghcr.io/${{ github.repository }}/controller
-        run: |
-          ko build ./cmd --bare \
-            --platform linux/amd64,linux/arm64 \
-            --tags "${{ github.ref_name }},latest" \
-            --image-refs /tmp/ko-image-refs
-          echo "digest=$(tail -1 /tmp/ko-image-refs | cut -d@ -f2)" >> $GITHUB_OUTPUT
-
-      - name: Sign and Attest
         if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
         run: |
           cosign sign --yes \
@@ -153,15 +213,17 @@ jobs:
 
           **Image:** \`${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }}\`
           **Digest:** \`${{ steps.build.outputs.digest }}\`
+          **Latest tagged:** \`${{ steps.tags.outputs.push_latest }}\`
           **Trigger:** \`${{ github.event_name }}\`
 
           ## Completed
+          - Patched melange.yaml (version + PAT injection x3)
           - Built APK package with melange
-          - Built OCI image with apko
+          - Built and pushed OCI image with apko publish
           - Pushed to GHCR
+          ${{ steps.tags.outputs.push_latest == 'true' && '- Tagged latest via crane' || '' }}
 
           ## Signing and Attestation
-          - Sign and attest: \`${{ github.event_name != 'workflow_dispatch' || inputs.sign_and_attest }}\`
           - Signed with Cosign (keyless via Sigstore)
           - Provenance attested via actions/attest-build-provenance
           EOF
