@@ -12,24 +12,22 @@
 #   melange.yaml — package build spec (APK)
 #   apko.yaml    — image assembly spec (OCI layers from APK)
 #
-# melange.yaml patching:
-#   Two patches are applied to the runner copy before the build — the
-#   committed melange.yaml is never modified:
-#     1. version: derived from tag (v0.6.0 → 0.6.0) or explicit input
-#     2. repository URL: PAT injected for private repo clone inside bwrap
-#        (melange's git-checkout runs in a bubblewrap sandbox where the host
-#        SSH agent and git credentials are not accessible)
+# melange.yaml patching (three sed passes, runner copy only):
+#   1. version:     0.0.0 → release version (v stripped, e.g. 0.6.0)
+#   2. checkout URL: HTTPS → HTTPS+PAT (controller repo clone inside bwrap)
+#   3. MELANGE_PAT: placeholder → actual PAT (go mod download of private deps
+#      inside bwrap — SSH is not available in the bubblewrap sandbox)
 #
 # Version sources:
 #   tag push         → stripped from git tag (v0.6.0 → 0.6.0)
-#   workflow_dispatch → explicit version input (no v prefix, e.g. 0.6.0)
+#   workflow_dispatch → explicit version input (v prefix stripped if present)
 #
 # Tag strategy:
 #   tag push  → versioned tag + latest (crane tag adds latest after build)
-#   manual    → v{version} only — latest is never tagged on manual dispatch
+#   manual    → v{version} only — latest never tagged on manual dispatch
 #
 # Secrets required:
-#   GH_PAT — GHCR push access + melange private repo clone
+#   GH_PAT — GHCR push + melange repo clone + private go module access
 # =============================================================================
 
 name: Wolfi Image
@@ -38,7 +36,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to build (e.g. 0.6.0 — no v prefix)"
+        description: "Version to build (e.g. 0.6.0 or v0.6.0)"
         required: true
       sign_and_attest:
         description: "Sign and attest the image after build"
@@ -73,9 +71,15 @@ jobs:
       - name: Setup melange
         uses: chainguard-dev/actions/setup-melange@v1.6.21
 
-      # Patch melange.yaml on the runner only — committed file is never modified.
-      #   1. Version: from git tag (v0.6.0 → 0.6.0) or explicit dispatch input
-      #   2. PAT: injected into repository URL for private repo clone inside bwrap
+      # Three sed passes on the runner copy of melange.yaml.
+      # The committed file is never modified.
+      #
+      # Pass 1 — version: strip v prefix (v0.6.0 → 0.6.0), always applied
+      #           regardless of event source so user input of v0.6.0 is safe.
+      # Pass 2 — checkout URL: inject PAT for controller repo clone in bwrap.
+      # Pass 3 — MELANGE_PAT: inject PAT for go mod download of private deps
+      #           in bwrap (blanketops-environments-api etc). SSH is unavailable
+      #           inside the bubblewrap sandbox — HTTPS+PAT is the only option.
       - name: Patch melange config
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -85,10 +89,18 @@ jobs:
           fi
           # Always strip v prefix — melange requires bare semver (0.6.0 not v0.6.0)
           VERSION="${VERSION#v}"
+
+          # Pass 1: version
           sed -i "s/^  version: .*/  version: ${VERSION}/" melange.yaml
+
+          # Pass 2: checkout URL → HTTPS+PAT
           sed -i \
             "s|https://github.com/ntlaletsi70/|https://${{ secrets.GH_PAT }}@github.com/ntlaletsi70/|g" \
             melange.yaml
+
+          # Pass 3: MELANGE_PAT placeholder → actual PAT (go mod download)
+          sed -i "s|MELANGE_PAT|${{ secrets.GH_PAT }}|g" melange.yaml
+
           echo "Patched version: ${VERSION}"
 
       - name: Build package
@@ -105,7 +117,9 @@ jobs:
         id: tags
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "tag=v${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            VERSION="${{ inputs.version }}"
+            VERSION="${VERSION#v}"
+            echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
             echo "push_latest=false" >> "$GITHUB_OUTPUT"
           else
             echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
@@ -164,7 +178,7 @@ jobs:
           **Trigger:** \`${{ github.event_name }}\`
 
           ## Completed
-          - Patched melange.yaml (version + PAT injection)
+          - Patched melange.yaml (version + PAT injection x2)
           - Built APK package with melange
           - Built OCI image with apko
           - Pushed to GHCR
