@@ -15,14 +15,18 @@
 # melange.yaml patching:
 #   Two patches are applied to the runner copy before the build — the
 #   committed melange.yaml is never modified:
-#     1. version: stripped of 'v' prefix (v0.6.0 → 0.6.0)
+#     1. version: derived from tag (v0.6.0 → 0.6.0) or explicit input
 #     2. repository URL: PAT injected for private repo clone inside bwrap
 #        (melange's git-checkout runs in a bubblewrap sandbox where the host
 #        SSH agent and git credentials are not accessible)
 #
+# Version sources:
+#   tag push         → stripped from git tag (v0.6.0 → 0.6.0)
+#   workflow_dispatch → explicit version input (no v prefix, e.g. 0.6.0)
+#
 # Tag strategy:
 #   tag push  → versioned tag + latest (crane tag adds latest after build)
-#   manual    → ref_name only
+#   manual    → v{version} only — latest is never tagged on manual dispatch
 #
 # Secrets required:
 #   GH_PAT — GHCR push access + melange private repo clone
@@ -33,6 +37,9 @@ name: Wolfi Image
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: "Version to build (e.g. 0.6.0 — no v prefix)"
+        required: true
       sign_and_attest:
         description: "Sign and attest the image after build"
         type: boolean
@@ -67,13 +74,16 @@ jobs:
         uses: chainguard-dev/actions/setup-melange@v1.6.21
 
       # Patch melange.yaml on the runner only — committed file is never modified.
-      #   1. Strip 'v' prefix from tag for semver version field (v0.6.0 → 0.6.0)
-      #   2. Inject PAT into repository URL so melange can clone the private repo
-      #      inside the bubblewrap sandbox (host SSH agent is not accessible in bwrap)
+      #   1. Version: from git tag (v0.6.0 → 0.6.0) or explicit dispatch input
+      #   2. PAT: injected into repository URL for private repo clone inside bwrap
       - name: Patch melange config
         run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+          fi
           sed -i "s/^  version: .*/  version: ${VERSION}/" melange.yaml
           sed -i \
             "s|https://github.com/ntlaletsi70/|https://${{ secrets.GH_PAT }}@github.com/ntlaletsi70/|g" \
@@ -88,14 +98,17 @@ jobs:
           sign-with-temporary-key: true
           workdir: .
 
+      # tag push  → versioned tag + latest
+      # manual    → v{version} only; latest never tagged on manual dispatch
       - name: Compute image tag
         id: tags
         run: |
-          echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "push_latest=true" >> "$GITHUB_OUTPUT"
-          else
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag=v${{ inputs.version }}" >> "$GITHUB_OUTPUT"
             echo "push_latest=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "push_latest=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build image
@@ -144,16 +157,17 @@ jobs:
           EOF
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
 
-          **Image:** `${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }}`
-          **Digest:** `${{ steps.build.outputs.digest }}`
-          **Latest tagged:** `${{ steps.tags.outputs.push_latest }}`
-          **Trigger:** `${{ github.event_name }}`
+          **Image:** \`${{ env.IMAGE_REPO }}:${{ steps.tags.outputs.tag }}\`
+          **Digest:** \`${{ steps.build.outputs.digest }}\`
+          **Latest tagged:** \`${{ steps.tags.outputs.push_latest }}\`
+          **Trigger:** \`${{ github.event_name }}\`
 
           ## Completed
           - Patched melange.yaml (version + PAT injection)
           - Built APK package with melange
           - Built OCI image with apko
           - Pushed to GHCR
+          ${{ steps.tags.outputs.push_latest == 'true' && '- Tagged latest via crane' || '' }}
 
           ## Signing and Attestation
           - Signed with Cosign (keyless via Sigstore)
