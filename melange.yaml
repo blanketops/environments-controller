@@ -6,14 +6,15 @@
 #
 # Version:
 #   Set to 0.0.0 as a placeholder. The apko.yml workflow patches this to the
-#   actual release version before the build via:
-#     sed -i "s/^  version: .*/  version: ${VERSION}/" melange.yaml
-#   The committed file is never modified — only the runner copy is patched.
+#   actual release version before the build via sed. The committed file is
+#   never modified — only the runner copy is patched.
 #
-# Repository URL:
-#   The apko.yml workflow also injects the GH_PAT into the repository URL
-#   before the build so melange can clone the private repo inside the
-#   bubblewrap sandbox (host SSH agent is not accessible in bwrap).
+# Private module access:
+#   All three sed patches are applied by apko.yml before the build:
+#     1. version:     0.0.0 → actual release version
+#     2. checkout URL: HTTPS → HTTPS+PAT (for controller repo clone in bwrap)
+#     3. MELANGE_PAT: placeholder → actual PAT (for go mod download of private
+#        deps inside bwrap — SSH is not available in the bubblewrap sandbox)
 #
 # Tag format:
 #   v${{package.version}} — the 'v' prefix matches actual git tags (v0.6.0).
@@ -63,9 +64,13 @@ pipeline:
       tag: v${{package.version}}
       expected-commit: ""
 
+  # Rewrite HTTPS to HTTPS+PAT for all private module fetches inside bwrap.
+  # SSH is not available in the bubblewrap sandbox — HTTPS+PAT is the only
+  # option for go mod download of private deps (blanketops-environments-api etc).
+  # MELANGE_PAT is replaced with the actual PAT by apko.yml before the build.
   - name: Configure git for private modules
     runs: |
-      git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
+      git config --global url."https://MELANGE_PAT@github.com/ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
 
   - uses: go/build
     with:
