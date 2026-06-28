@@ -146,9 +146,11 @@ jobs:
         run: |
           APKO_VERSION=$(curl -sf https://api.github.com/repos/chainguard-dev/apko/releases/latest \
             | grep '"tag_name"' | cut -d'"' -f4)
-          curl -sL "https://github.com/chainguard-dev/apko/releases/download/${APKO_VERSION}/apko_${APKO_VERSION}_linux_amd64.tar.gz" \
+          # tag is v0.x.y — tarball uses 0.x.y without the v prefix
+          APKO_VERSION_CLEAN="${APKO_VERSION#v}"
+          curl -sL "https://github.com/chainguard-dev/apko/releases/download/${APKO_VERSION}/apko_${APKO_VERSION_CLEAN}_linux_amd64.tar.gz" \
             | tar xz
-          sudo mv apko /usr/local/bin/apko
+          sudo mv apko_${APKO_VERSION_CLEAN}_linux_amd64/apko /usr/local/bin/apko
           apko version
 
       - name: Build and push image
