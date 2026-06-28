@@ -82,8 +82,9 @@ jobs:
             VERSION="${{ inputs.version }}"
           else
             VERSION="${{ github.ref_name }}"
-            VERSION="${VERSION#v}"
           fi
+          # Always strip v prefix — melange requires bare semver (0.6.0 not v0.6.0)
+          VERSION="${VERSION#v}"
           sed -i "s/^  version: .*/  version: ${VERSION}/" melange.yaml
           sed -i \
             "s|https://github.com/ntlaletsi70/|https://${{ secrets.GH_PAT }}@github.com/ntlaletsi70/|g" \
