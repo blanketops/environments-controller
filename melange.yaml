@@ -1,33 +1,55 @@
+# =============================================================================
+# melange.yaml — APK Package Build Spec
+#
+# Builds the BlanketOps Environments Controller binary as a Wolfi APK.
+# Consumed by apko.yaml to assemble the final OCI image.
+#
+# Version:
+#   Set to 0.0.0 as a placeholder. The apko.yml workflow patches this to the
+#   actual release version before the build via:
+#     sed -i "s/^  version: .*/  version: ${VERSION}/" melange.yaml
+#   The committed file is never modified — only the runner copy is patched.
+#
+# Repository URL:
+#   The apko.yml workflow also injects the GH_PAT into the repository URL
+#   before the build so melange can clone the private repo inside the
+#   bubblewrap sandbox (host SSH agent is not accessible in bwrap).
+#
+# Tag format:
+#   v${{package.version}} — the 'v' prefix matches actual git tags (v0.6.0).
+#   After version patching: package.version = 0.6.0 → tag = v0.6.0.
+# =============================================================================
+
 package:
   name: blanketops-environments-controller
-  version: 0.0.0   # patched at build time by apko.yml
+  version: 0.0.0
   epoch: 0
   description: "BlanketOps Environments Kubernetes Controller"
   target-architecture:
-  - x86_64
+    - x86_64
   copyright:
-  - license: Apache-2.0
+    - license: Apache-2.0
   dependencies:
     runtime: []
   checks:
     disabled:
-    - usrlocal
-    - setuidgid
+      - usrlocal
+      - setuidgid
 update:
   enabled: false
 
 environment:
   contents:
     repositories:
-    - https://packages.wolfi.dev/os
+      - https://packages.wolfi.dev/os
     keyring:
-    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
     packages:
-    - busybox
-    - ca-certificates-bundle
-    - go
-    - git
-    - openssh-client
+      - busybox
+      - ca-certificates-bundle
+      - go
+      - git
+      - openssh-client
   environment:
     GOPRIVATE: github.com/ntlaletsi70/*
     GONOSUMDB: github.com/ntlaletsi70/*
@@ -35,20 +57,20 @@ environment:
     CGO_ENABLED: "0"
 
 pipeline:
-- uses: git-checkout
-  with:
-    repository: https://github.com/ntlaletsi70/blanketops-environments-controller
-    tag: v${{package.version}}   # v prefix matches actual git tags
-    expected-commit: ""
+  - uses: git-checkout
+    with:
+      repository: https://github.com/ntlaletsi70/blanketops-environments-controller
+      tag: v${{package.version}}
+      expected-commit: ""
 
-- name: Configure git for private modules
-  runs: |
-    git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
+  - name: Configure git for private modules
+    runs: |
+      git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
 
-- uses: go/build
-  with:
-    packages: ./cmd
-    output: manager
-    ldflags: -s -w
+  - uses: go/build
+    with:
+      packages: ./cmd
+      output: manager
+      ldflags: -s -w
 
-- uses: strip
+  - uses: strip
