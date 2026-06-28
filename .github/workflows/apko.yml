@@ -142,8 +142,14 @@ jobs:
       # setup-apko installs the apko binary directly on the runner.
       # avoids the apko-build action which runs apko inside a distroless
       # Docker container — that container has no /bin/sh so exec fails.
-      - name: Setup apko
-        uses: chainguard-dev/actions/setup-apko@v1.6.21
+      - name: Install apko
+        run: |
+          APKO_VERSION=$(curl -sf https://api.github.com/repos/chainguard-dev/apko/releases/latest \
+            | grep '"tag_name"' | cut -d'"' -f4)
+          curl -sL "https://github.com/chainguard-dev/apko/releases/download/${APKO_VERSION}/apko_${APKO_VERSION}_linux_amd64.tar.gz" \
+            | tar xz
+          sudo mv apko /usr/local/bin/apko
+          apko version
 
       - name: Build and push image
         id: build
