@@ -5,6 +5,9 @@
 # GHCR. Fires on tag push and manual dispatch only — not on branch pushes.
 #
 # Registry: ghcr.io/ntlaletsi70/blanketops-environments-controller
+# When to use vs ko.yml:
+#   ko.yml   — standard controller builds; fast, Go-native, no Containerfile
+#   apko.yml — when a hardened Wolfi base is required (compliance, CVE posture)
 #
 # What it does:
 #   1. Builds multi-arch image via ko (linux/amd64, linux/arm64)
@@ -20,6 +23,34 @@
 # Secrets required:
 #   GH_PAT         — GHCR push + private module access
 #   SSH_PRIVATE_KEY — private module git access
+# apko build strategy:
+#   Installs apko binary directly from GitHub releases — avoids the apko-build
+#   action which runs apko inside a distroless Docker container with no /bin/sh.
+#
+# melange.yaml patching (three sed passes, runner copy only):
+#   1. version:     0.0.0 → release version (v stripped, e.g. 0.6.0)
+#   2. checkout URL: HTTPS → HTTPS+PAT (controller repo clone inside bwrap)
+#   3. MELANGE_PAT: placeholder → actual PAT — covers both:
+#        a) .netrc entry (go mod download credential resolution)
+#        b) git insteadOf rewrite (fallback git credential)
+#
+# Private module auth strategy:
+#   melange builds run inside a bubblewrap sandbox as uid=1000 (build user).
+#   git config --global is unreliable (home dir ambiguity). Instead:
+#     - .netrc at /root/.netrc with HOME=/root set in melange environment
+#     - git config written to explicit path via GIT_CONFIG_GLOBAL
+#   Both are populated by the MELANGE_PAT sed replacement.
+#
+# Version sources:
+#   tag push         → stripped from git tag (v0.6.0 → 0.6.0)
+#   workflow_dispatch → explicit version input (v prefix stripped if present)
+#
+# Tag strategy:
+#   tag push  → versioned tag + latest (crane tag adds latest after build)
+#   manual    → v{version} only — latest never tagged on manual dispatch
+#
+# Secrets required:
+#   GH_PAT — GHCR push + melange repo clone + private go module access
 # =============================================================================
 
 name: Ko Image
@@ -30,6 +61,9 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
+      version:
+        description: "Version to build (e.g. 0.6.0 or v0.6.0)"
+        required: true
       sign_and_attest:
         description: "Sign and attest the image"
         type: boolean
