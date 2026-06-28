@@ -1,3 +1,14 @@
+## [0.3.2] - 2026-06-28
+
+### 💼 Other
+
+- *(release)* Fix ci lint issues
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.3.1
+- Sync develop with main after release/v0.3.1
+- Sync develop with main after release/v0.3.1
 ## [0.3.1] - 2026-06-27
 
 ### ⚙️ Miscellaneous Tasks
