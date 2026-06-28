@@ -128,14 +128,14 @@ jobs:
       #     push-to-registry: true
 
       # Generate CRDs from controller-gen markers — mage removed.
-      - name: Generate CRD manifests
-        run: |
-          go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest \
-            rbac:roleName=manager-role crd webhook \
-            paths="./..." \
-            output:crd:artifacts:config=config/crd/bases \
-            output:rbac:artifacts:config=config/rbac \
-            output:webhook:artifacts:config=config/webhook
+      # - name: Generate CRD manifests
+      #   run: |
+      #     go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest \
+      #       rbac:roleName=manager-role crd webhook \
+      #       paths="./..." \
+      #       output:crd:artifacts:config=config/crd/bases \
+      #       output:rbac:artifacts:config=config/rbac \
+      #       output:webhook:artifacts:config=config/webhook
 
       - name: Publish CRD artifact (ORAS)
         id: publish
