@@ -35,11 +35,11 @@ package route
 //
 
 // 	"github.com/go-logr/logr"
-// 	networksv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/networks/v1alpha1"
+// 	networksv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/apis/api/networks/v1alpha1"
 // 	libroute "github.com/ntlaletsi70/blanketops-environments/cache/route"
 // 	"github.com/ntlaletsi70/blanketops-environments/core"
-// 	"github.com/ntlaletsi70/blanketops-environments/pkg/routes/application"
-// 	routedomain "github.com/ntlaletsi70/blanketops-environments/pkg/routes/domain"
+// 	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/routes/application"
+// 	routedomain "github.com/ntlaletsi70/blanketops-environments/pkg/apis/routes/domain"
 // 	routeResolution "github.com/ntlaletsi70/blanketops-environments/resolution/route"
 // 	"k8s.io/apimachinery/pkg/runtime/schema"
 // 	"sigs.k8s.io/controller-runtime/pkg/client"

@@ -1,6 +1,6 @@
 module github.com/ntlaletsi70/blanketops-environments-controller
 
-go 1.26.3
+go 1.26.4
 
 require (
 	carvel.dev/kapp-controller v0.60.3
@@ -10,7 +10,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
 	github.com/magefile/mage v1.17.2
-	github.com/ntlaletsi70/blanketops-environments v0.5.9
+	github.com/ntlaletsi70/blanketops-environments v0.6.2
 	github.com/ntlaletsi70/blanketops-environments-api v0.1.8
 	github.com/shipwright-io/build v0.20.2
 	github.com/tektoncd/pipeline v1.13.1
@@ -37,7 +37,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.10.0 // indirect
 	github.com/fluxcd/pkg/apis/kustomize v1.19.0 // indirect
-	github.com/fluxcd/pkg/apis/meta v1.30.0 // indirect
+	github.com/fluxcd/pkg/apis/meta v1.31.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -65,14 +65,14 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/ntlaletsi70/blanketops-environments-contract v0.4.5 // indirect
+	github.com/ntlaletsi70/blanketops-environments-contract v0.4.7 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
-	github.com/redis/go-redis/v9 v9.20.1 // indirect
+	github.com/redis/go-redis/v9 v9.21.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
@@ -111,7 +111,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.36.1 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260603220949-865597e52e25 // indirect
-	k8s.io/utils v0.0.0-20260507154919-ff6756f316d2 // indirect
+	k8s.io/utils v0.0.0-20260626114624-be93311217bd // indirect
 	knative.dev/pkg v0.0.0-20260622140654-39ebae2ee2dc // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect

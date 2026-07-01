@@ -33,7 +33,7 @@ import (
 	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
 	libgithubevent "github.com/ntlaletsi70/blanketops-environments/cache/githubevent"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/githubevent/application"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/githubevent/application"
 	githubeventResolution "github.com/ntlaletsi70/blanketops-environments/resolution/githubevent"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"

@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/environment/query"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/environment/query"
 	providerconfig "github.com/ntlaletsi70/blanketops-environments/pkg/providerconfig"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/github"
 	gitrepoResolution "github.com/ntlaletsi70/blanketops-environments/resolution/gitrepository"

@@ -4,7 +4,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+        http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,7 +34,7 @@ import (
 	environmentsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	libbuild "github.com/ntlaletsi70/blanketops-environments/cache/build"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/application"
 	buildResolution "github.com/ntlaletsi70/blanketops-environments/resolution/build"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -136,7 +136,7 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 		core.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreated", core.ConditionTrue, "BuildPrerequisitesReady", "All build prerequisites satisfied")
 
 		// ------------------------------------------------
-		// Stage 3: Start bukd (intent only)
+		// Stage 3: Start build (intent only)
 		// ------------------------------------------------
 		log.Info("starting build run")
 		if err := d.buildService.Reconcile(ctx, resolved); err != nil {
@@ -155,6 +155,39 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 		log.Info("build domain handling complete")
 
 	case core.CmdDelete:
+		// --------------------------------------------------------
+		// Real teardown, gated by finalizer at the controller level.
+		// Handle() must return nil ONLY if it is safe for the
+		// controller to remove the finalizer and let K8s finish
+		// deleting the object. Any error here keeps the finalizer
+		// in place and the controller will retry on next reconcile.
+		// --------------------------------------------------------
+		log.Info("build teardown requested")
+
+		resolved, err := buildResolution.ResolveBuild(buildCR)
+		if err != nil {
+			log.Error(err, "resolution failed during teardown")
+			d.events.FromError(buildCR, "BuildTeardownResolveFailed", err)
+			core.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", core.ConditionFalse, "BuildTeardownResolveFailed", err.Error())
+			return err
+		}
+
+		// Tear down owned external resources (BuildRun, etc).
+		if err := d.buildService.Teardown(ctx, resolved); err != nil {
+			log.Error(err, "build teardown failed")
+			d.events.FromError(buildCR, "BuildTeardownFailed", err)
+			core.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", core.ConditionFalse, "BuildTeardownFailed", err.Error())
+			return err
+		}
+
+		// Tear down prerequisites the mediator created (secrets, SAs, RBAC).
+		if err := d.buildMediator.CleanupPrerequisites(ctx, resolved); err != nil {
+			log.Error(err, "prerequisites cleanup failed")
+			d.events.FromError(buildCR, "BuildPrerequisitesCleanupFailed", err)
+			core.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", core.ConditionFalse, "BuildPrerequisitesCleanupFailed", err.Error())
+			return err
+		}
+
 		// Drop the projection for this object (all generations). No-op on
 		// backends without key enumeration; generation scoping + TTL
 		// covers correctness there.
@@ -162,10 +195,9 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
 		}
 
-		log.Info("build deletion marked")
-		d.events.Normal(buildCR, "BuildDeletion", "build deleted, build cleanup not implemented yet")
-		core.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", core.ConditionTrue, "BuildMarkedDelete", "build deleted, build cleanup not implemented yet")
-		log.Info("build domain handling complete")
+		log.Info("build teardown complete")
+		d.events.Normal(buildCR, "BuildDeleted", "build and owned resources cleaned up successfully")
+		core.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", core.ConditionTrue, "BuildCleanupComplete", "build and owned resources cleaned up successfully")
 	}
 	return nil
 }

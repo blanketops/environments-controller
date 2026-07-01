@@ -34,7 +34,7 @@ import (
 	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
 	libgitrepository "github.com/ntlaletsi70/blanketops-environments/cache/gitrepository"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/gitrepository/application"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/gitrepository/application"
 	gitrepoResolution "github.com/ntlaletsi70/blanketops-environments/resolution/gitrepository"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"

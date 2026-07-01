@@ -34,7 +34,7 @@ import (
 	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	libdeployment "github.com/ntlaletsi70/blanketops-environments/cache/deployment"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	deployapp "github.com/ntlaletsi70/blanketops-environments/pkg/deployment/application"
+	deployapp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/deployment/application"
 	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
 	"github.com/ntlaletsi70/blanketops-environments/resolution/serviceunit"
 	"k8s.io/apimachinery/pkg/runtime/schema"

@@ -16,20 +16,16 @@ package build
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/url"
-	"strings"
 
 	"github.com/go-logr/logr"
-	env1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/environment/query"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/environment/query"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/git"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/registry"
 	serviceaccounts "github.com/ntlaletsi70/blanketops-environments/pkg/serviceaccounts"
 	buildResolution "github.com/ntlaletsi70/blanketops-environments/resolution/build"
-	environmentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/environment"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -90,123 +86,51 @@ func (m *Mediator) EnsurePrerequisites(
 	return nil
 }
 
-func ToRawContract(spec *environmentResolution.ResolvedEnvironmentSpec) (runtime.RawExtension, error) {
-	contract := spec.ToEnvironmentContract()
-	raw, err := json.Marshal(contract)
+// CleanupPrerequisites reverses EnsurePrerequisites — deletes the git SSH
+// secret, registry secret, and service account this mediator provisioned.
+// Called from the domain's CmdDelete branch, gated by the finalizer at the
+// controller level. All three teardown steps are attempted regardless of
+// individual failures, and errors are aggregated — a stuck registry secret
+// shouldn't block cleanup of the SA or git secret. Any returned error keeps
+// the finalizer in place for retry on next reconcile.
+func (m *Mediator) CleanupPrerequisites(
+	ctx context.Context,
+	resolved *buildResolution.ResolvedBuild,
+) error {
+	// ── Step 0: Environment lookup ────────────────────────────────────────────
+	// Same store binding used at creation time — needed so the reconcilers
+	// target the correct ClusterSecretStore-scoped resources on teardown.
+	envCtx, err := query.Lookup(ctx, m.Client, resolved.Build.Namespace, resolved.Build.Labels)
 	if err != nil {
-		return runtime.RawExtension{}, err
+		return fmt.Errorf("environment lookup: %w", err)
 	}
-	return runtime.RawExtension{Raw: raw}, nil
+	m.Log.Info("environment context resolved for teardown",
+		"environment", envCtx.Name,
+		"type", envCtx.EnvironmentType,
+		"store", envCtx.StoreName,
+	)
+
+	var errs []error
+
+	// ── Step 1: Service account ───────────────────────────────────────────────
+	if err := m.ServiceAccountReconciler.Delete(ctx, resolved); err != nil {
+		errs = append(errs, fmt.Errorf("delete service account: %w", err))
+	}
+
+	// ── Step 2: Registry secret ───────────────────────────────────────────────
+	reg := registry.NewBuildRegistryExternalSecretReconciler(m.Client, m.Log, envCtx.StoreName)
+	if err := reg.Delete(ctx, resolved); err != nil {
+		errs = append(errs, fmt.Errorf("delete registry secret: %w", err))
+	}
+
+	// ── Step 3: Git SSH secret ────────────────────────────────────────────────
+	gitSSH := git.NewBuildGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName)
+	if err := gitSSH.Delete(ctx, resolved); err != nil {
+		errs = append(errs, fmt.Errorf("delete git ssh secret: %w", err))
+	}
+
+	if len(errs) > 0 {
+		return utilerrors.NewAggregate(errs)
+	}
+	return nil
 }
-
-func EnvironmentSpecFromBuild(
-	build *env1alpha1.Build,
-	rb *buildResolution.ResolvedBuildSpec,
-) *environmentResolution.ResolvedEnvironmentSpec {
-	labels := build.GetLabels()
-	return &environmentResolution.ResolvedEnvironmentSpec{
-		ApplicationName: labels["environments.blanketops.dev/name"],
-		EnvironmentType: labels["environments.blanketops.dev/type"],
-		GitOwner:        deriveGitOwner(rb.Source.URL),
-		Branch:          rb.Source.Revision,
-		Build:           build.Name,
-	}
-}
-
-func deriveGitOwner(repoURL string) string {
-	if repoURL == "" {
-		return ""
-	}
-	if strings.HasPrefix(repoURL, "git@") {
-		parts := strings.Split(repoURL, ":")
-		if len(parts) != 2 {
-			return ""
-		}
-		path := strings.TrimSuffix(parts[1], ".git")
-		segs := strings.Split(path, "/")
-		if len(segs) >= 1 {
-			return segs[0]
-		}
-	}
-	if strings.HasPrefix(repoURL, "http://") || strings.HasPrefix(repoURL, "https://") {
-		u, err := url.Parse(repoURL)
-		if err != nil {
-			return ""
-		}
-		path := strings.TrimSuffix(u.Path, ".git")
-		segs := strings.Split(strings.TrimPrefix(path, "/"), "/")
-		if len(segs) >= 1 {
-			return segs[0]
-		}
-	}
-	return ""
-}
-
-// func (m *Mediator) ensureAndPatchEnvironment(
-// 	ctx context.Context,
-// 	build *env1alpha1.Build,
-// 	rb *buildResolution.ResolvedBuildSpec,
-// ) error {
-// 	labels := build.GetLabels()
-// 	envName := labels["environments.blanketops.dev/name"]
-// 	envType := labels["environments.blanketops.dev/type"]
-// 	if envName == "" || envType == "" {
-// 		return nil
-// 	}
-
-// 	key := client.ObjectKey{
-// 		Name:      envName,
-// 		Namespace: build.Namespace,
-// 	}
-
-// 	var env env1alpha1.Environment
-// 	err := m.Client.Get(ctx, key, &env)
-
-// 	contribution := EnvironmentSpecFromBuild(build, rb)
-
-// 	if apierrors.IsNotFound(err) {
-// 		raw, err := ToRawContract(contribution)
-// 		if err != nil {
-// 			return err
-// 		}
-// 		env = env1alpha1.Environment{
-// 			ObjectMeta: metav1.ObjectMeta{
-// 				Name:      envName,
-// 				Namespace: build.Namespace,
-// 				Labels: map[string]string{
-// 					"environments.blanketops.dev/name": envName,
-// 					"environments.blanketops.dev/type": envType,
-// 				},
-// 			},
-// 			Spec: env1alpha1.EnvironmentSpec{
-// 				Contract: raw,
-// 			},
-// 		}
-// 		m.Log.Info("creating environment shell", "environment", envName)
-// 		return m.Client.Create(ctx, &env)
-// 	}
-
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	resolvedEnv, err := environmentResolution.ResolveEnvironment(&env)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	resolvedEnv.Spec.Build = build.Name
-// 	resolvedEnv.Spec.GitOwner = contribution.GitOwner
-// 	resolvedEnv.Spec.Branch = contribution.Branch
-// 	resolvedEnv.Spec.EnvironmentType = contribution.EnvironmentType
-// 	resolvedEnv.Spec.ApplicationName = contribution.ApplicationName
-
-// 	raw, err := ToRawContract(resolvedEnv.Spec)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	env.Spec.Contract = raw
-// 	m.Log.Info("patching environment aggregate", "environment", envName)
-// 	return m.Client.Update(ctx, &env)
-// }

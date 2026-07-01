@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/environment/query"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/environment/query"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/git"
 	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
 	"k8s.io/apimachinery/pkg/runtime"

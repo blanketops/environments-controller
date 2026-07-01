@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/environment/query"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/environment/query"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/git"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/registry"
 	serviceaccounts "github.com/ntlaletsi70/blanketops-environments/pkg/serviceaccounts"
