@@ -172,14 +172,6 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 			return err
 		}
 
-		// Tear down owned external resources (BuildRun, etc).
-		if err := d.buildService.Teardown(ctx, resolved); err != nil {
-			log.Error(err, "build teardown failed")
-			d.events.FromError(buildCR, "BuildTeardownFailed", err)
-			core.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", core.ConditionFalse, "BuildTeardownFailed", err.Error())
-			return err
-		}
-
 		// Tear down prerequisites the mediator created (secrets, SAs, RBAC).
 		if err := d.buildMediator.CleanupPrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "prerequisites cleanup failed")
