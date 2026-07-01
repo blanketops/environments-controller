@@ -29,8 +29,8 @@ import (
 	"fmt"
 	"reflect"
 
+	environmentv1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	"github.com/go-logr/logr"
-	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	pkgApplication "github.com/ntlaletsi70/blanketops-environments/pkg/apis/packages/application"

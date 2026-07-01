@@ -49,8 +49,8 @@ import (
 	"strconv"
 	"strings"
 
-	buildv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
-	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
+	buildv1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
+	eventsv1alpha1 "github.com/BlanketOps/environments-api/api/events/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/application"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/domain"

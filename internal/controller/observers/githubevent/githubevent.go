@@ -21,9 +21,9 @@ import (
 	"encoding/json"
 	"time"
 
+	eventsv1alpha1 "github.com/BlanketOps/environments-api/api/events/v1alpha1"
 	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	"github.com/go-logr/logr"
-	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/githubevent/application"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/githubevent/domain"

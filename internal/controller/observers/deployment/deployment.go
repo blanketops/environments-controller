@@ -43,8 +43,8 @@ import (
 	"context"
 	"time"
 
+	environmentv1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	fluxkustomize "github.com/fluxcd/kustomize-controller/api/v1"
-	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/deployment/application"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/deployment/domain"

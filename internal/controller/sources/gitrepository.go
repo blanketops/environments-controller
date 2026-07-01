@@ -19,8 +19,8 @@ package sources
 import (
 	"context"
 
+	sourcesv1alpha1 "github.com/BlanketOps/environments-api/api/sources/v1alpha1"
 	"github.com/go-logr/logr"
-	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	gitrepoapi "github.com/ntlaletsi70/blanketops-environments/pkg/apis/gitrepository/api"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/gitrepository/application"

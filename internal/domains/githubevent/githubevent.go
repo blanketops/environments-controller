@@ -29,8 +29,8 @@ import (
 	"fmt"
 	"reflect"
 
+	eventsv1alpha1 "github.com/BlanketOps/environments-api/api/events/v1alpha1"
 	"github.com/go-logr/logr"
-	eventsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/events/v1alpha1"
 	libgithubevent "github.com/ntlaletsi70/blanketops-environments/cache/githubevent"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/githubevent/application"

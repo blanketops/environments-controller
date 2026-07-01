@@ -19,8 +19,8 @@ package environments
 import (
 	"context"
 
+	environmentsv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	"github.com/go-logr/logr"
-	environmentsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/api"
 	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/application"

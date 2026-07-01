@@ -30,8 +30,8 @@ import (
 	"fmt"
 	"reflect"
 
+	sourcesv1alpha1 "github.com/BlanketOps/environments-api/api/sources/v1alpha1"
 	"github.com/go-logr/logr"
-	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
 	libgitrepository "github.com/ntlaletsi70/blanketops-environments/cache/gitrepository"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/gitrepository/application"
