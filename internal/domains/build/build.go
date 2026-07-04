@@ -123,7 +123,7 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// ------------------------------------------------
 		// Stage 2: Ensure prerequisites
 		// ------------------------------------------------
-		log.Info("create build prerequisites")
+		log.Info("creating build prerequisites")
 		if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "build prerequisites failed")
 			d.events.FromError(buildCR, "BuildPrerequisitesCreateFailed", err)
