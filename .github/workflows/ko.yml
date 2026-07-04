@@ -132,30 +132,30 @@ jobs:
       #     push-to-registry: true
 
       # Generate CRDs from controller-gen markers — mage removed.
-      - name: Generate CRD manifests
-        run: |
-          go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest \
-            rbac:roleName=manager-role crd webhook \
-            paths="./..." \
-            output:crd:artifacts:config=config/crd/bases \
-            output:rbac:artifacts:config=config/rbac \
-            output:webhook:artifacts:config=config/webhook
+      # - name: Generate CRD manifests
+      #   run: |
+      #     go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest \
+      #       rbac:roleName=manager-role crd webhook \
+      #       paths="./..." \
+      #       output:crd:artifacts:config=config/crd/bases \
+      #       output:rbac:artifacts:config=config/rbac \
+      #       output:webhook:artifacts:config=config/webhook
 
-      - name: Publish CRD artifact (ORAS)
-        id: publish
-        env:
-          ARTIFACT_REF: ghcr.io/ntlaletsi70/blanketops-environments-controller-crds:${{ github.ref_name }}
-        run: |
-          FILE_ARGS=()
-          for f in config/crd/bases/*.yaml; do
-            [[ -f "$f" ]] || { echo "::error::No CRD manifests found in config/crd/bases/"; exit 1; }
-            FILE_ARGS+=("${f}:application/vnd.blanketops.crd.v1+yaml")
-          done
-          oras push "$ARTIFACT_REF" \
-            --annotation "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
-            --annotation "org.opencontainers.image.revision=${{ github.sha }}" \
-            "${FILE_ARGS[@]}"
-          echo "ref=${ARTIFACT_REF}" >> "$GITHUB_OUTPUT"
+      # - name: Publish CRD artifact (ORAS)
+      #   id: publish
+      #   env:
+      #     ARTIFACT_REF: ghcr.io/ntlaletsi70/blanketops-environments-controller-crds:${{ github.ref_name }}
+      #   run: |
+      #     FILE_ARGS=()
+      #     for f in config/crd/bases/*.yaml; do
+      #       [[ -f "$f" ]] || { echo "::error::No CRD manifests found in config/crd/bases/"; exit 1; }
+      #       FILE_ARGS+=("${f}:application/vnd.blanketops.crd.v1+yaml")
+      #     done
+      #     oras push "$ARTIFACT_REF" \
+      #       --annotation "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+      #       --annotation "org.opencontainers.image.revision=${{ github.sha }}" \
+      #       "${FILE_ARGS[@]}"
+      #     echo "ref=${ARTIFACT_REF}" >> "$GITHUB_OUTPUT"
 
       - name: CI Summary
         if: always()
