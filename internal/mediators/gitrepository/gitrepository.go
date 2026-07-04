@@ -79,11 +79,11 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *gitrepoRes
 		return fmt.Errorf("github providerconfig: %w", err)
 	}
 
-	// ── Step 3: Webhook URL secret (store-dependent, per GitRepository) ───────
-	hookURL := github.NewHookURLExternalSecretReconciler(m.Client, m.Log, envCtx.StoreName)
-	if err := hookURL.Reconcile(ctx, repo); err != nil {
-		return fmt.Errorf("hookurl secret: %w", err)
-	}
+	// // ── Step 3: Webhook URL secret (store-dependent, per GitRepository) ───────
+	// hookURL := github.NewHookURLExternalSecretReconciler(m.Client, m.Log, envCtx.StoreName)
+	// if err := hookURL.Reconcile(ctx, repo); err != nil {
+	// 	return fmt.Errorf("hookurl secret: %w", err)
+	// }
 
 	return nil
 }

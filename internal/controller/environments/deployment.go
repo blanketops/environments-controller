@@ -18,9 +18,9 @@ package environments
 
 import (
 	"context"
-	"reflect"
 
 	deploymentv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
+	environmentsv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/deployment/api"
@@ -31,11 +31,17 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	deploydomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/deployment"
 	deployment "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/deployment"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
+
+// deploymentFinalizer gates deletion of a Deployment CR until CleanupPrerequisites and
+// Teardown have both run successfully. See Reconcile for the add/check/
+// remove lifecycle.
+const deploymentFinalizer = "environments.blanketops.dev/deployment-finalizer"
 
 // DeploymentReconciler reconciles a Deployment object
 type DeploymentReconciler struct {
@@ -91,6 +97,25 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	log.Info("deployment fetched", "generation", deploymentCR.Generation, "resourceVersion", deploymentCR.ResourceVersion)
+	// ------------------------------------------------
+	// Finalizer gate — determines cmd.Type
+	// ------------------------------------------------
+	cmdType := core.CmdUpdate
+	if !deploymentCR.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(&deploymentCR, deploymentFinalizer) {
+			log.Info("reconcile exit: deletion in progress, finalizer already removed")
+			return ctrl.Result{}, nil
+		}
+		cmdType = core.CmdDelete
+	} else if !controllerutil.ContainsFinalizer(&deploymentCR, deploymentFinalizer) {
+		controllerutil.AddFinalizer(&deploymentCR, deploymentFinalizer)
+		if err := r.Update(ctx, &deploymentCR); err != nil {
+			log.Error(err, "failed to add finalizer")
+			return ctrl.Result{}, err
+		}
+		log.Info("finalizer added")
+		return ctrl.Result{Requeue: true}, nil
+	}
 
 	// ------------------------------------------------
 	// Construct core command
@@ -108,38 +133,51 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// Execute domain logic via engine
 	// ------------------------------------------------
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
-
 		log.Error(err, "engine execution failed")
 		r.Recorder.Eventf(&deploymentCR, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
 		log.Info("reconcile exit: engine error")
-
 		return ctrl.Result{}, err
 	}
 
 	log.Info("engine execution completed")
 
 	// ------------------------------------------------
-	// Persist status (retry-on-conflict)
+	// Deletion path: remove finalizer now that the engine returned nil.
+	// Status is intentionally NOT written here — the object is about to be
+	// removed, and racing a status update against finalizer removal serves
+	// no purpose.
+	// ------------------------------------------------
+	if cmdType == core.CmdDelete {
+		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			var latest environmentsv1alpha1.Deployment
+			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+				return client.IgnoreNotFound(err)
+			}
+			controllerutil.RemoveFinalizer(&latest, deploymentFinalizer)
+			return r.Update(ctx, &latest)
+		}); err != nil {
+			log.Error(err, "failed to remove finalizer")
+			return ctrl.Result{}, err
+		}
+		log.Info("finalizer removed, deletion will proceed")
+		return ctrl.Result{}, nil
+	}
+	// ------------------------------------------------
+	// Persist status (retry-on-conflict) — create/update path only
 	// ------------------------------------------------
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var latest deploymentv1alpha1.Deployment
+		var latest environmentsv1alpha1.Deployment
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
 			return err
 		}
-
-		if reflect.DeepEqual(latest.Status, deploymentCR.Status) {
-			return nil
-		}
-
 		latest.Status = deploymentCR.Status
 		return r.Status().Update(ctx, &latest)
-
 	}); err != nil {
-		log.Error(err, "failed to update deployement status")
+		log.Error(err, "failed to update deployment status")
 		return ctrl.Result{}, err
 	}
 
-	log.Info("deployement status updated successfully")
+	log.Info("deployment status updated successfully")
 	log.Info("reconcile done")
 
 	return ctrl.Result{}, nil
