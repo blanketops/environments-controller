@@ -12,6 +12,35 @@ rules:
   - create
   - patch
 - apiGroups:
+  - argoproj.io
+  resources:
+  - eventsources
+  - sensors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - eventsources/finalizers
+  - sensors/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - argoproj.io
+  resources:
+  - eventsources/status
+  - sensors/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - data.packaging.carvel.dev
   resources:
   - packages
@@ -62,7 +91,7 @@ rules:
   - patch
   - update
 - apiGroups:
-  - events.k8s.io
+  - events.blanketops.dev
   resources:
   - githubevents
   verbs:
@@ -74,13 +103,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - events.k8s.io
+  - events.blanketops.dev
   resources:
   - githubevents/finalizers
   verbs:
   - update
 - apiGroups:
-  - events.k8s.io
+  - events.blanketops.dev
   resources:
   - githubevents/status
   verbs:
