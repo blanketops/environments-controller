@@ -19,7 +19,6 @@ package environments
 import (
 	"context"
 
-	deploymentv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	environmentsv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/ntlaletsi70/blanketops-environments/core"
@@ -85,7 +84,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// ------------------------------------------------
 	// Fetch Deployment
 	// ------------------------------------------------
-	var deploymentCR deploymentv1alpha1.Deployment
+	var deploymentCR environmentsv1alpha1.Deployment
 	if err := r.Get(ctx, req.NamespacedName, &deploymentCR); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			log.Info("reconcile exit: deployment not found (deleted)")
@@ -122,7 +121,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// ------------------------------------------------
 
 	cmd := core.Command{
-		GVK:  deploymentv1alpha1.GroupVersion.WithKind("Deployment"),
+		GVK:  environmentsv1alpha1.GroupVersion.WithKind("Deployment"),
 		Type: core.CmdUpdate,
 		Obj:  &deploymentCR,
 	}
@@ -246,13 +245,13 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	// ---------------------------------------------------------------------
 	deployDomain := deploydomain.New(r.DeploymentMediator, r.DeploymentService, cache, r.reader, eventsRecorder, r.Log.WithName("domain.deployment"))
-	registry.RegisterDomain(deploymentv1alpha1.GroupVersion.WithKind("Deployment"), deployDomain)
+	registry.RegisterDomain(environmentsv1alpha1.SchemeBuilder.GroupVersion.WithKind("Deployment"), deployDomain)
 
 	// ---------------------------------------------------------------------
 	// Controller registration
 	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&deploymentv1alpha1.Deployment{}).
+		For(&environmentsv1alpha1.Deployment{}).
 		Named("environments-deployment").
 		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
