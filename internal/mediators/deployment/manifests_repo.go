@@ -218,10 +218,7 @@ func (m *Mediator) ensureManifestsRepo(
 // itself. The manifests repository is declared into existence by the
 // Deployment CR, so its lifecycle is bound to the CR: teardown is total.
 // A repository that is already gone is not an error.
-func (m *Mediator) teardownManifestsRepo(
-	ctx context.Context,
-	resolved *deploymentResolution.ResolvedDeployment,
-) error {
+func (m *Mediator) teardownManifestsRepo(resolved *deploymentResolution.ResolvedDeployment) error {
 	if resolved == nil || resolved.Spec == nil {
 		return fmt.Errorf("nil ResolvedDeployment (resolver bug)")
 	}
