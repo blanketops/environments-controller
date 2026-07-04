@@ -19,11 +19,11 @@ package environments
 import (
 	"context"
 
+	packagev1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	"github.com/go-logr/logr"
-	packagev1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	pkgProvider "github.com/ntlaletsi70/blanketops-environments/pkg/packages/api"
-	pkgApp "github.com/ntlaletsi70/blanketops-environments/pkg/packages/application"
+	pkgProvider "github.com/ntlaletsi70/blanketops-environments/pkg/apis/packages/api"
+	pkgApp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/packages/application"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"

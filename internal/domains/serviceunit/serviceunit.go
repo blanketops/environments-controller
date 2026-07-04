@@ -29,8 +29,8 @@ import (
 	"fmt"
 	"reflect"
 
+	serviceunitv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	"github.com/go-logr/logr"
-	serviceunitv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	libserviceunit "github.com/ntlaletsi70/blanketops-environments/cache/serviceunit"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	serviceunitResolution "github.com/ntlaletsi70/blanketops-environments/resolution/serviceunit"

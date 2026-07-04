@@ -29,13 +29,13 @@ request is dropped (no requeue) because re-running the same bad contract will
 fail identically. Service errors are returned for controller-runtime to requeue
 with backoff.
 */
-package controller
+package networks
 
 import (
 	"context"
 
+	networksv1alpha1 "github.com/BlanketOps/environments-api/api/networks/v1alpha1"
 	"github.com/go-logr/logr"
-	networksv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/networks/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

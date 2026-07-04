@@ -19,11 +19,11 @@ package environments
 import (
 	"context"
 
+	environmentsv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	"github.com/go-logr/logr"
-	environmentsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/build/api"
-	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/build/application"
+	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/api"
+	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/application"
 	buildclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,11 +32,17 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	builddomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/build"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/build"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
+
+// buildFinalizer gates deletion of a Build CR until CleanupPrerequisites and
+// Teardown have both run successfully. See Reconcile for the add/check/
+// remove lifecycle.
+const buildFinalizer = "environments.blanketops.dev/build-finalizer"
 
 // BuildReconciler reconciles a Build object
 type BuildReconciler struct {
@@ -90,12 +96,32 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	log.Info("build fetched", "generation", buildCR.Generation, "resourceVersion", buildCR.ResourceVersion)
 
+	// ------------------------------------------------
+	// Finalizer gate — determines cmd.Type
+	// ------------------------------------------------
+	cmdType := core.CmdUpdate
+	if !buildCR.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(&buildCR, buildFinalizer) {
+			log.Info("reconcile exit: deletion in progress, finalizer already removed")
+			return ctrl.Result{}, nil
+		}
+		cmdType = core.CmdDelete
+	} else if !controllerutil.ContainsFinalizer(&buildCR, buildFinalizer) {
+		controllerutil.AddFinalizer(&buildCR, buildFinalizer)
+		if err := r.Update(ctx, &buildCR); err != nil {
+			log.Error(err, "failed to add finalizer")
+			return ctrl.Result{}, err
+		}
+		log.Info("finalizer added")
+		return ctrl.Result{Requeue: true}, nil
+	}
+
 	// -------------------------------------------------
 	// Construct core command
 	// -------------------------------------------------
 	cmd := core.Command{
 		GVK:  environmentsv1alpha1.GroupVersion.WithKind("Build"),
-		Type: core.CmdUpdate,
+		Type: cmdType,
 		Obj:  &buildCR,
 	}
 
@@ -114,17 +140,37 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	log.Info("engine execution completed")
 
 	// ------------------------------------------------
-	// Persist status (retry-on-conflict)
+	// Deletion path: remove finalizer now that the engine returned nil.
+	// Status is intentionally NOT written here — the object is about to be
+	// removed, and racing a status update against finalizer removal serves
+	// no purpose.
+	// ------------------------------------------------
+	if cmdType == core.CmdDelete {
+		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			var latest environmentsv1alpha1.Build
+			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+				return client.IgnoreNotFound(err)
+			}
+			controllerutil.RemoveFinalizer(&latest, buildFinalizer)
+			return r.Update(ctx, &latest)
+		}); err != nil {
+			log.Error(err, "failed to remove finalizer")
+			return ctrl.Result{}, err
+		}
+		log.Info("finalizer removed, deletion will proceed")
+		return ctrl.Result{}, nil
+	}
+
+	// ------------------------------------------------
+	// Persist status (retry-on-conflict) — create/update path only
 	// ------------------------------------------------
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest environmentsv1alpha1.Build
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
 			return err
 		}
-
 		latest.Status = buildCR.Status
 		return r.Status().Update(ctx, &latest)
-
 	}); err != nil {
 		log.Error(err, "failed to update build status")
 		return ctrl.Result{}, err

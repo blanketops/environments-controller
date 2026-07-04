@@ -38,8 +38,8 @@ import (
 	"fmt"
 	"reflect"
 
+	environmentsv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	"github.com/go-logr/logr"
-	environmentsv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	libenvironment "github.com/ntlaletsi70/blanketops-environments/cache/environment"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	environmentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/environment"

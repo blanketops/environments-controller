@@ -19,11 +19,11 @@ package sources
 import (
 	"context"
 
+	sourcesv1alpha1 "github.com/BlanketOps/environments-api/api/sources/v1alpha1"
 	"github.com/go-logr/logr"
-	sourcesv1alpha1 "github.com/ntlaletsi70/blanketops-environments-api/api/sources/v1alpha1"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	gitrepoapi "github.com/ntlaletsi70/blanketops-environments/pkg/gitrepository/api"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/gitrepository/application"
+	gitrepoapi "github.com/ntlaletsi70/blanketops-environments/pkg/apis/gitrepository/api"
+	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/gitrepository/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"

@@ -12,7 +12,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 package deployment
 
 import (
@@ -46,27 +45,22 @@ func (m *Mediator) ensureManifestsRepo(
 	if spec.ManifestsRepo == nil {
 		return nil
 	}
-
 	token := os.Getenv("GITHUB_TOKEN")
 	if token == "" {
 		return fmt.Errorf("GITHUB_TOKEN must be set for private repo creation")
 	}
-
 	owner := resolved.Spec.GitOwner
 	repo := fmt.Sprintf("%s-manifests", deploy.Name)
 	sshURL := fmt.Sprintf("ssh://git@github.com/%s/%s.git", owner, repo)
 	localPath := filepath.Join(os.TempDir(), repo)
 	branch := "main"
-
 	fmt.Printf("[bootstrap] starting manifests bootstrap for %s/%s\n", owner, repo)
-
 	// ------------------------------------------------
 	// 1. Ensure remote private repo exists
 	// ------------------------------------------------
 	if err := ensureGitHubRepoPrivate(owner, repo, token); err != nil {
 		return fmt.Errorf("ensure remote repo: %w", err)
 	}
-
 	// ------------------------------------------------
 	// 2. Ensure deploy key is registered on GitHub
 	//    MUST happen before any git operation
@@ -78,7 +72,6 @@ func (m *Mediator) ensureManifestsRepo(
 	if err := ensureDeployKey(owner, repo, publicKey, token); err != nil {
 		return fmt.Errorf("ensure deploy key: %w", err)
 	}
-
 	// ------------------------------------------------
 	// 3. Write ephemeral SSH key to disk for git ops
 	// ------------------------------------------------
@@ -87,12 +80,10 @@ func (m *Mediator) ensureManifestsRepo(
 		return fmt.Errorf("write ssh key: %w", err)
 	}
 	defer cleanup()
-
 	gitSSHCmd := fmt.Sprintf(
 		`ssh -i %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null`,
 		sshKeyPath,
 	)
-
 	// ------------------------------------------------
 	// 4. Clone or initialize local repo
 	// ------------------------------------------------
@@ -141,7 +132,6 @@ func (m *Mediator) ensureManifestsRepo(
 			return err
 		}
 	}
-
 	// ------------------------------------------------
 	// 5. README
 	// ------------------------------------------------
@@ -152,7 +142,6 @@ func (m *Mediator) ensureManifestsRepo(
 			return fmt.Errorf("write README.md: %w", err)
 		}
 	}
-
 	// ------------------------------------------------
 	// 6. Ensure base + overlays
 	// ------------------------------------------------
@@ -168,7 +157,6 @@ func (m *Mediator) ensureManifestsRepo(
 			return fmt.Errorf("write base kustomization.yaml: %w", err)
 		}
 	}
-
 	for _, env := range overlayEnvs {
 		overlayPath := filepath.Join(localPath, "overlays", env)
 		if err := os.MkdirAll(overlayPath, 0755); err != nil {
@@ -192,7 +180,6 @@ func (m *Mediator) ensureManifestsRepo(
 			}
 		}
 	}
-
 	// ------------------------------------------------
 	// 7. Commit & push
 	// ------------------------------------------------
@@ -214,7 +201,6 @@ func (m *Mediator) ensureManifestsRepo(
 			return err
 		}
 	}
-
 	if out, err := utils.RunGitWithEnv(
 		localPath,
 		[]string{"GIT_SSH_COMMAND=" + gitSSHCmd},
@@ -222,8 +208,48 @@ func (m *Mediator) ensureManifestsRepo(
 	); err != nil {
 		return fmt.Errorf("git push failed: %s", out)
 	}
-
 	fmt.Printf("[bootstrap] repository bootstrap complete: %s\n", sshURL)
+	return nil
+}
+
+// teardownManifestsRepo reverses ensureManifestsRepo — deletes the remote
+// GitOps manifests repository and the local working clone. The deploy key
+// registered on the repository is removed implicitly with the repository
+// itself. The manifests repository is declared into existence by the
+// Deployment CR, so its lifecycle is bound to the CR: teardown is total.
+// A repository that is already gone is not an error.
+func (m *Mediator) teardownManifestsRepo(
+	ctx context.Context,
+	resolved *deploymentResolution.ResolvedDeployment,
+) error {
+	if resolved == nil || resolved.Spec == nil {
+		return fmt.Errorf("nil ResolvedDeployment (resolver bug)")
+	}
+	deploy := resolved.Deployment
+	if resolved.Spec.ManifestsRepo == nil {
+		return nil
+	}
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		return fmt.Errorf("GITHUB_TOKEN must be set for repo deletion")
+	}
+	owner := resolved.Spec.GitOwner
+	repo := fmt.Sprintf("%s-manifests", deploy.Name)
+	localPath := filepath.Join(os.TempDir(), repo)
+	fmt.Printf("[teardown] removing manifests repo %s/%s\n", owner, repo)
+	// ------------------------------------------------
+	// 1. Delete remote repository
+	// ------------------------------------------------
+	if err := deleteGitHubRepo(owner, repo, token); err != nil {
+		return fmt.Errorf("delete remote repo: %w", err)
+	}
+	// ------------------------------------------------
+	// 2. Remove local working clone
+	// ------------------------------------------------
+	if err := os.RemoveAll(localPath); err != nil {
+		return fmt.Errorf("remove local clone: %w", err)
+	}
+	fmt.Printf("[teardown] manifests repo removed: %s/%s\n", owner, repo)
 	return nil
 }
 
@@ -240,12 +266,10 @@ func (m *Mediator) extractPublicKey(
 	}, &secret); err != nil {
 		return "", fmt.Errorf("get flux ssh secret: %w", err)
 	}
-
 	// Prefer pre-stored identity.pub
 	if pub, ok := secret.Data["identity.pub"]; ok {
 		return string(pub), nil
 	}
-
 	// Fall back: derive from private key
 	signer, err := ssh.ParsePrivateKey(secret.Data["identity"])
 	if err != nil {
@@ -268,7 +292,6 @@ func (m *Mediator) writeSSHKeyToDisk(
 	}, &secret); err != nil {
 		return "", nil, fmt.Errorf("get flux ssh secret: %w", err)
 	}
-
 	f, err := os.CreateTemp("", "blanketops-ssh-*")
 	if nil != err {
 		return "", nil, err
@@ -296,7 +319,6 @@ func (m *Mediator) writeSSHKeyToDisk(
 		}
 		return "", nil, err
 	}
-
 	cleanup := func() {
 		err = os.Remove(f.Name())
 		if err != nil {
@@ -310,14 +332,12 @@ func (m *Mediator) writeSSHKeyToDisk(
 // Uses wire-format comparison so encoding differences don't cause false mismatches.
 func ensureDeployKey(owner, repo, publicKey, token string) error {
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/keys", owner, repo)
-
 	// Parse our key to wire bytes for reliable comparison
 	wantPub, _, _, _, err := ssh.ParseAuthorizedKey([]byte(publicKey))
 	if err != nil {
 		return fmt.Errorf("parse our public key: %w", err)
 	}
 	wantBytes := wantPub.Marshal()
-
 	// List existing keys
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -325,17 +345,14 @@ func ensureDeployKey(owner, repo, publicKey, token string) error {
 	}
 	req.Header.Set("Authorization", "token "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
-
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("list deploy keys: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("list deploy keys: status %d", resp.StatusCode)
 	}
-
 	var existing []struct {
 		ID  int64  `json:"id"`
 		Key string `json:"key"`
@@ -343,7 +360,6 @@ func ensureDeployKey(owner, repo, publicKey, token string) error {
 	if err := json.NewDecoder(resp.Body).Decode(&existing); err != nil {
 		return fmt.Errorf("decode deploy keys: %w", err)
 	}
-
 	for _, k := range existing {
 		gotPub, _, _, _, err := ssh.ParseAuthorizedKey([]byte(k.Key))
 		if err != nil {
@@ -354,7 +370,6 @@ func ensureDeployKey(owner, repo, publicKey, token string) error {
 			return nil
 		}
 	}
-
 	// Register the key
 	payload := map[string]any{
 		"title":     "flux-" + repo,
@@ -362,7 +377,6 @@ func ensureDeployKey(owner, repo, publicKey, token string) error {
 		"read_only": false,
 	}
 	body, _ := json.Marshal(payload)
-
 	addReq, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(body))
 	if err != nil {
 		return err
@@ -370,13 +384,11 @@ func ensureDeployKey(owner, repo, publicKey, token string) error {
 	addReq.Header.Set("Authorization", "token "+token)
 	addReq.Header.Set("Accept", "application/vnd.github+json")
 	addReq.Header.Set("Content-Type", "application/json")
-
 	addResp, err := http.DefaultClient.Do(addReq)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = addResp.Body.Close() }()
-
 	if addResp.StatusCode != http.StatusCreated {
 		var buf bytes.Buffer
 		_, err = buf.ReadFrom(addResp.Body)
@@ -385,7 +397,6 @@ func ensureDeployKey(owner, repo, publicKey, token string) error {
 		}
 		return fmt.Errorf("failed to add deploy key: %d - %s", addResp.StatusCode, buf.String())
 	}
-
 	fmt.Printf("[bootstrap] deploy key added for %s/%s\n", owner, repo)
 	return nil
 }
@@ -395,7 +406,6 @@ func ensureGitHubRepoPrivate(owner, repo, token string) error {
 		"name":    repo,
 		"private": true,
 	})
-
 	req, _ := http.NewRequest("POST",
 		"https://api.github.com/user/repos",
 		bytes.NewBuffer(payload),
@@ -403,13 +413,11 @@ func ensureGitHubRepoPrivate(owner, repo, token string) error {
 	req.Header.Set("Authorization", "token "+token)
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("Content-Type", "application/json")
-
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("create repo request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-
 	switch resp.StatusCode {
 	case 201:
 		fmt.Printf("[bootstrap] remote private repo created: %s/%s\n", owner, repo)
@@ -421,4 +429,37 @@ func ensureGitHubRepoPrivate(owner, repo, token string) error {
 		return fmt.Errorf("failed to create repo, status: %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// deleteGitHubRepo deletes the repository on GitHub. Idempotent — a 404
+// means the repository is already gone and is treated as success.
+// Requires the delete_repo scope on GITHUB_TOKEN — repo alone does not
+// grant deletion.
+func deleteGitHubRepo(owner, repo, token string) error {
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repo)
+	req, err := http.NewRequest("DELETE", apiURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "token "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("delete repo request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	switch resp.StatusCode {
+	case http.StatusNoContent:
+		fmt.Printf("[teardown] remote repo deleted: %s/%s\n", owner, repo)
+		return nil
+	case http.StatusNotFound:
+		fmt.Printf("[teardown] remote repo already gone: %s/%s\n", owner, repo)
+		return nil
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return fmt.Errorf("unauthorized: GITHUB_TOKEN requires the delete_repo scope")
+	default:
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(resp.Body)
+		return fmt.Errorf("failed to delete repo: %d - %s", resp.StatusCode, buf.String())
+	}
 }

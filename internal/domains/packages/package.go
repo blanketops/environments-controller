@@ -29,12 +29,12 @@ import (
 	"fmt"
 	"reflect"
 
+	environmentv1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	"github.com/go-logr/logr"
-	environmentv1 "github.com/ntlaletsi70/blanketops-environments-api/api/environments/v1alpha1"
 	libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-	pkgApplication "github.com/ntlaletsi70/blanketops-environments/pkg/packages/application"
-	pkgIntent "github.com/ntlaletsi70/blanketops-environments/pkg/packages/intent"
+	pkgApplication "github.com/ntlaletsi70/blanketops-environments/pkg/apis/packages/application"
+	pkgIntent "github.com/ntlaletsi70/blanketops-environments/pkg/apis/packages/intent"
 	pkgResolution "github.com/ntlaletsi70/blanketops-environments/resolution/packages"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -42,19 +42,27 @@ import (
 	pkgMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/packages"
 )
 
-// BuildDomain implements the Build resource domain logic.
+// PackageDomain implements the Package resource domain logic.
 type PackageDomain struct {
+	// packageMediator manages prerequisite interactions.
 	packageMediator *pkgMediator.Mediator
-	packageService  *pkgApplication.PackageService
+
+	// packageService handles business logic for package operations.
+	packageService *pkgApplication.PackageService
+
 	// packageCache provides generation-scoped, field-level caching for
 	// Package resources. Advisory only: misses and errors fall through
 	// to full computation; correctness never depends on a hit.
 	packageCache *libpackages.PackageCache
-	events       *core.EventRecorder
-	log          logr.Logger
+
+	// events handles logging of Kubernetes events.
+	events *core.EventRecorder
+
+	// log is the logger instance for this domain.
+	log logr.Logger
 }
 
-// New returns a new BuildDomain instance configured with the necessary dependencies.
+// New returns a new PackageDomain instance configured with the necessary dependencies.
 func New(packageMediator *pkgMediator.Mediator, packageService *pkgApplication.PackageService, cache *core.Cache, events *core.EventRecorder, log logr.Logger,
 ) *PackageDomain {
 	return &PackageDomain{
@@ -105,26 +113,32 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// ------------------------------------------------
 		if cerr := d.packageCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
+			d.events.FromError(packageCR, "PackageCacheFailed", cerr)
+			core.SetCondition(&packageCR.Status.Conditions, "PackageCacheFailed", core.ConditionFalse, "resolved projection publish incomplete", cerr.Error())
 		}
 
 		log.Info("package resolved successfully")
 		d.events.Normal(packageCR, "PackageResolved", "Package specification resolved successfully")
 		core.SetCondition(&packageCR.Status.Conditions, "PackageResolved", core.ConditionTrue, "Resolved", "Package specification resolved successfully")
 
+		log.Info("package cached successfully")
+		d.events.Normal(packageCR, "PackageCached", "Package specification cached successfully")
+		core.SetCondition(&packageCR.Status.Conditions, "PackageCached", core.ConditionTrue, "PackageSpecCached", "Package specification cached successfully")
+
 		// ------------------------------------------------
 		// 2. Ensure prerequisites (secrets, repos, identity)
 		// ------------------------------------------------
-		log.Info("ensuring package prerequisites")
+		log.Info("creating package prerequisites")
 		if err := d.packageMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "package prerequisites failed")
-			d.events.FromError(packageCR, "PackagePrerequisitesFailed", err)
-			core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionFalse, "PackagePrerequisitesFailed", err.Error())
+			d.events.FromError(packageCR, "PackagePrerequisitesCreateFailed", err)
+			core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesCreateFailed", core.ConditionFalse, "package prerequisites failed, internal error", err.Error())
 			return err
 		}
 
-		log.Info("package prerequisites ensured")
-		d.events.Normal(packageCR, "PackagePrerequisitesReady", "All package prerequisites created successfully")
-		core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesReady", core.ConditionTrue, "PackagePrerequisitesReady", "All package prerequisites created successfully")
+		log.Info("package prerequisites created")
+		d.events.Normal(packageCR, "PackagePrerequisitesCreated", "All package prerequisites created successfully")
+		core.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesCreated", core.ConditionTrue, "PackagePrerequisitesReady", "All package prerequisites satisfied")
 
 		// ------------------------------------------------------------------
 		// 3. Build execution intent (INTENT ONLY)
@@ -146,7 +160,6 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// 4. Trigger execution (authoritative service)
 		// ----------------------------------------------------------------
 		log.Info("triggering package execution")
-
 		if err := d.packageService.Reconcile(ctx, resolved, intent); err != nil {
 			log.Error(err, "package triggering failed")
 			d.events.FromError(packageCR, "PackageTriggerFailed", err)
@@ -161,13 +174,41 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd core.Command) error {
 		d.events.Normal(packageCR, "PackageTriggered", "Package execution has been requested")
 
 	case core.CmdDelete:
+		// --------------------------------------------------------
+		// Real teardown, gated by finalizer at the controller level.
+		// Handle() must return nil ONLY if it is safe for the
+		// controller to remove the finalizer and let K8s finish
+		// deleting the object. Any error here keeps the finalizer
+		// in place and the controller will retry on next reconcile.
+		// --------------------------------------------------------
+		log.Info("package teardown requested")
+
+		resolved, err := pkgResolution.ResolvePackage(packageCR)
+		if err != nil {
+			log.Error(err, "resolution failed during teardown")
+			d.events.FromError(packageCR, "PackageTeardownResolveFailed", err)
+			core.SetCondition(&packageCR.Status.Conditions, "PackageDeleted", core.ConditionFalse, "PackageTeardownResolveFailed", err.Error())
+			return err
+		}
+
+		// Tear down prerequisites the mediator created (secrets, SAs, RBAC).
+		if err := d.packageMediator.CleanupPrerequisites(ctx, resolved); err != nil {
+			log.Error(err, "prerequisites cleanup failed")
+			d.events.FromError(packageCR, "PackagePrerequisitesCleanupFailed", err)
+			core.SetCondition(&packageCR.Status.Conditions, "PackageDeleted", core.ConditionFalse, "PackagePrerequisitesCleanupFailed", err.Error())
+			return err
+		}
+
 		// Drop the projection for this object (all generations). No-op on
 		// backends without key enumeration; generation scoping + TTL
 		// covers correctness there.
 		if cerr := d.packageCache.Invalidate(ctx, nn); cerr != nil {
 			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
 		}
-		d.events.Info(packageCR, "PackageDeleted", "package cleanup not implemented yet")
+
+		log.Info("package teardown complete")
+		d.events.Normal(packageCR, "PackageDeleted", "package and owned resources cleaned up successfully")
+		core.SetCondition(&packageCR.Status.Conditions, "PackageDeleted", core.ConditionTrue, "PackageCleanupComplete", "package and owned resources cleaned up successfully")
 	}
 	return nil
 }
