@@ -34,23 +34,23 @@ import (
 	libgithubevent "github.com/ntlaletsi70/blanketops-environments/cache/githubevent"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/githubevent/application"
-	githubeventResolution "github.com/ntlaletsi70/blanketops-environments/resolution/githubevent"
+	githubEventResolution "github.com/ntlaletsi70/blanketops-environments/resolution/githubevent"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	githubeventMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/githubevent"
+	githubEventMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/githubevent"
 )
 
 // GitHubEventDomain implements the GitHubEvent resource domain.
 type GitHubEventDomain struct {
 	// githubEventMediator manages prerequisite interactions.
-	githubEventMediator *githubeventMediator.Mediator
+	githubEventMediator *githubEventMediator.Mediator
 	// githubEventService handles business logic for githubevent operations.
 	githubEventService *application.GitHubEventService
 	// githubeventCache provides generation-scoped, field-level caching for
 	// GitHubEvent resources. Advisory only: misses and errors fall through
 	// to full computation; correctness never depends on a hit.
-	githubeventCache *libgithubevent.GitHubEventCache
+	githubEventCache *libgithubevent.GitHubEventCache
 	// events handles logging of Kubernetes events.
 	events *core.EventRecorder
 	// log is the logger instance for this domain.
@@ -58,11 +58,11 @@ type GitHubEventDomain struct {
 }
 
 // New constructs a new GitHubEventDomain instance.
-func New(buildService *application.GitHubEventService, githubEventMediator *githubeventMediator.Mediator, events *core.EventRecorder, cache *core.Cache, log logr.Logger) *GitHubEventDomain {
+func New(buildService *application.GitHubEventService, githubEventMediator *githubEventMediator.Mediator, events *core.EventRecorder, cache *core.Cache, log logr.Logger) *GitHubEventDomain {
 	return &GitHubEventDomain{
 		githubEventMediator: githubEventMediator,
 		githubEventService:  buildService,
-		githubeventCache:    libgithubevent.NewGitHubEventCache(cache),
+		githubEventCache:    libgithubevent.NewGitHubEventCache(cache),
 		events:              events,
 		log:                 log,
 	}
@@ -94,7 +94,7 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error 
 		// 0. Resolve GitHubEvent contract ONCE
 		// ---------------------------------------------------------
 		log.Info("resolving githubevent contract")
-		resolved, err := githubeventResolution.ResolveGitHubEvent(githubeventCR)
+		resolved, err := githubEventResolution.ResolveGitHubEvent(githubeventCR)
 		if err != nil {
 			log.Error(err, "githubevent resolution failed")
 			d.events.FromError(githubeventCR, "GitHubEventResolveFailed", err)
@@ -105,7 +105,7 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error 
 		// ------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
 		// ------------------------------------------------
-		if cerr := d.githubeventCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
+		if cerr := d.githubEventCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(githubeventCR, "GitHubEventCacheFailed", cerr)
 			core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventCacheFailed", core.ConditionFalse, "resolved projection publish incomplete", cerr.Error())
@@ -154,15 +154,41 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd core.Command) error 
 		log.Info("githubevent domain handling complete")
 
 	case core.CmdDelete:
+		// --------------------------------------------------------
+		// Real teardown, gated by finalizer at the controller level.
+		// Handle() must return nil ONLY if it is safe for the
+		// controller to remove the finalizer and let K8s finish
+		// deleting the object. Any error here keeps the finalizer
+		// in place and the controller will retry on next reconcile.
+		// --------------------------------------------------------
+		log.Info("githubevent teardown requested")
+		resolved, err := githubEventResolution.ResolveGitHubEvent(githubeventCR)
+		if err != nil {
+			log.Error(err, "resolution failed during teardown")
+			d.events.FromError(githubeventCR, "GitHubEventTeardownResolveFailed", err)
+			core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventDeleted", core.ConditionFalse, "GitHubEventTeardownResolveFailed", err.Error())
+			return err
+		}
+
+		// Tear down prerequisites the mediator created (secrets, SAs, RBAC).
+		if err := d.githubEventMediator.CleanupPrerequisites(ctx, resolved); err != nil {
+			log.Error(err, "prerequisites cleanup failed")
+			d.events.FromError(githubeventCR, "GitHubEventPrerequisitesCleanupFailed", err)
+			core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventDeleted", core.ConditionFalse, "GitHubEventPrerequisitesCleanupFailed", err.Error())
+			return err
+		}
+
 		// Drop the projection for this object (all generations). No-op on
 		// backends without key enumeration; generation scoping + TTL
 		// covers correctness there.
-		if cerr := d.githubeventCache.Invalidate(ctx, nn); cerr != nil {
+		if cerr := d.githubEventCache.Invalidate(ctx, nn); cerr != nil {
 			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
 		}
-		d.events.Info(githubeventCR, "GitHubEventDeleted", "githubevent cleanup not implemented yet")
-	}
 
+		log.Info("githubevent teardown complete")
+		d.events.Normal(githubeventCR, "GitHubEventDeleted", "githubevent and owned resources cleaned up successfully")
+		core.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventDeleted", core.ConditionTrue, "GitHubEventCleanupComplete", "githubevent and owned resources cleaned up successfully")
+	}
 	return nil
 }
 

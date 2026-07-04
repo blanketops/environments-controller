@@ -46,14 +46,18 @@ import (
 type BuildDomain struct {
 	// buildMediator manages prerequisite interactions.
 	buildMediator *build.Mediator
+
 	// buildService handles business logic for build operations.
 	buildService *application.BuildService
+
 	// buildCache provides generation-scoped, field-level caching for
 	// Build resources. Advisory only: misses and errors fall through
 	// to full computation; correctness never depends on a hit.
 	buildCache *libbuild.BuildCache
+
 	// events handles logging of Kubernetes events.
 	events *core.EventRecorder
+
 	// log is the logger instance for this domain.
 	log logr.Logger
 }
@@ -92,7 +96,7 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 	case core.CmdCreate, core.CmdUpdate:
 
 		// ------------------------------------------------
-		// Stage 0: Resolve build contract
+		// Stage 0: Resolve Build contract
 		// ------------------------------------------------
 		log.Info("resolving build contract")
 		resolved, err := buildResolution.ResolveBuild(buildCR)
@@ -103,9 +107,9 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 			return err
 		}
 
-		// ------------------------------------------------
+		// ------------------------------------------------------------------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		// ------------------------------------------------
+		// ------------------------------------------------------------------------------------------------------------
 		if cerr := d.buildCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(buildCR, "BuildCacheFailed", cerr)
@@ -123,7 +127,7 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 		// ------------------------------------------------
 		// Stage 2: Ensure prerequisites
 		// ------------------------------------------------
-		log.Info("create build prerequisites")
+		log.Info("creating build prerequisites")
 		if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "build prerequisites failed")
 			d.events.FromError(buildCR, "BuildPrerequisitesCreateFailed", err)

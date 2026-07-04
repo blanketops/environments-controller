@@ -29,7 +29,7 @@ request is dropped (no requeue) because re-running the same bad contract will
 fail identically. Service errors are returned for controller-runtime to requeue
 with backoff.
 */
-package controller
+package networks
 
 import (
 	"context"

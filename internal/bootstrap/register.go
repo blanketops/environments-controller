@@ -31,6 +31,7 @@ import (
 	"github.com/go-logr/logr"
 	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/api"
 	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/application"
+	gitrepoapi "github.com/ntlaletsi70/blanketops-environments/pkg/apis/gitrepository/api"
 	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	shipwrightclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
@@ -78,6 +79,7 @@ func RegisterSchemes(scheme *runtime.Scheme) {
 	utilruntime.Must(shipwrightv1alpha1.AddToScheme(scheme))
 	// /utilruntime.Must(shipwrightv1beta1.AddToScheme(scheme))
 	utilruntime.Must(pipelinev1beta1.AddToScheme(scheme))
+	utilruntime.Must(gitrepoapi.AddToScheme(scheme))
 
 	utilruntime.Must(fluxcdsourcev1.AddToScheme(scheme))
 	utilruntime.Must(kustomizev1.AddToScheme(scheme))
