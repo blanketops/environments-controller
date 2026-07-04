@@ -47,6 +47,8 @@ type DomainReconciler struct {
 	Log    logr.Logger
 }
 
+// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
+
 // Reconcile fetches the Domain, resolves its contract, and delegates to the
 // application service. See file header for the responsibility split.
 func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

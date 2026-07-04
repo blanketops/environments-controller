@@ -58,6 +58,7 @@ type DeploymentReconciler struct {
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=deployments/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=deployments/finalizers,verbs=update
+// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
 
 // +kubebuilder:rbac:groups=source.toolkit.fluxcd.io,resources=gitrepositories;helmrepositories;ocirepositories,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=kustomize.toolkit.fluxcd.io,resources=kustomizations,verbs=get;list;watch;create;update;patch;delete

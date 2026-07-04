@@ -120,6 +120,7 @@ rules:
   - external-secrets.io
   resources:
   - clustersecretstores
+  - externalsecrets
   verbs:
   - get
   - list
