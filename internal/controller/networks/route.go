@@ -38,7 +38,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/ntlaletsi70/blanketops-environments/core"
 
-	//routeapp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/route/application"
+	// routeapp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/route/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -47,7 +47,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	//routedomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/route"
+	// routedomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/route"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
@@ -202,15 +202,15 @@ func (r *RouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// -----------------------------------------------------------------------------------------
 	// Build Service (Mapper and StatiusWriter, domain service for orchestration))
 	// ------------------------------------------------------------------------------------------
-	//mapper := routeapp.NewMapper()
-	//statusWriter := routeapp.NewStatusWriter(r.Client, r.Log.WithName("route-status-writer"))
-	//r.RouteService = routeapp.NewRouteService(mapper, statusWriter, backendSelector)
+	// mapper := routeapp.NewMapper()
+	// statusWriter := routeapp.NewStatusWriter(r.Client, r.Log.WithName("route-status-writer"))
+	// r.RouteService = routeapp.NewRouteService(mapper, statusWriter, backendSelector)
 
 	// --------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	// --------------------------------------------------------------------------------
-	//	routeDomain := routedomain.New(r.BuildMediator, r.BuildService, cache, eventsRecorder, r.Log.WithName("domain.route"))
-	//registry.RegisterDomain(networksv1alpha1.GroupVersion.WithKind("Route"), routeDomain)
+	// routeDomain := routedomain.New(r.BuildMediator, r.BuildService, cache, eventsRecorder, r.Log.WithName("domain.route"))
+	// registry.RegisterDomain(networksv1alpha1.GroupVersion.WithKind("Route"), routeDomain)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&networksv1alpha1.Route{}).

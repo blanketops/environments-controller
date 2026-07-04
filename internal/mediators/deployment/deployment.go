@@ -152,7 +152,7 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *deploymen
 	// Stage 3: GitOps manifests repo
 	// ------------------------------------------------------------------------------------------------------------
 	if resolved.Spec.ManifestsRepo != nil {
-		if err := m.teardownManifestsRepo(ctx, resolved); err != nil {
+		if err := m.teardownManifestsRepo(resolved); err != nil {
 			errs = append(errs, fmt.Errorf("teardown manifests repo: %w", err))
 		}
 	}

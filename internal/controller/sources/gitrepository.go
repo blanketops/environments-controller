@@ -1,11 +1,10 @@
 /*
 Copyright 2026.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +12,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 package sources
 
 import (
@@ -30,11 +28,20 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	gitrepositorydomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/gitrepository"
 	"github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/gitrepository"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
+
+// GitRepositoryFinalizer gates GitRepository deletion on teardown of the
+// resources the domain provisioned: the Crossplane Repository and
+// RepositoryWebhook (cluster-scoped, label-linked only — Kubernetes GC
+// cannot reclaim them) and the per-CR prerequisites. The finalizer is
+// removed only after CmdDelete completes successfully; any teardown error
+// keeps it in place for retry on the next reconcile.
+const GitRepositoryFinalizer = "sources.blanketops.dev/gitrepository-finalizer"
 
 // GitRepositoryReconciler reconciles a GitRepository object
 type GitRepositoryReconciler struct {
@@ -53,20 +60,17 @@ type GitRepositoryReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the GitRepository object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
+//
+// The lifecycle is finalizer-gated: live objects get the finalizer added
+// before any domain work runs, and deletion routes CmdDelete through the
+// engine — the finalizer is removed only after teardown succeeds.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "gitrepository", "namespace", req.Namespace, "name", req.Name)
 	ctx = logr.NewContext(ctx, log)
-
 	log.Info("reconcile start")
-
 	// ------------------------------------------------
 	// Fetch GitRepository
 	// ------------------------------------------------
@@ -76,13 +80,74 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Info("reconcile exit: gitrepository not found (deleted)")
 			return ctrl.Result{}, nil
 		}
-
 		log.Error(err, "failed to fetch gitrepository")
 		return ctrl.Result{}, err
 	}
-
 	log.Info("gitrepository fetched", "generation", gitRepositoryCR.Generation, "resourceVersion", gitRepositoryCR.ResourceVersion)
-
+	// ------------------------------------------------
+	// Deletion: route CmdDelete, then release finalizer
+	// ------------------------------------------------
+	if !gitRepositoryCR.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(&gitRepositoryCR, GitRepositoryFinalizer) {
+			// Nothing gating deletion — let Kubernetes finish.
+			log.Info("reconcile exit: deleting without finalizer")
+			return ctrl.Result{}, nil
+		}
+		log.Info("gitrepository deletion requested; routing teardown")
+		cmd := core.Command{
+			GVK:  sourcesv1alpha1.GroupVersion.WithKind("GitRepository"),
+			Type: core.CmdDelete,
+			Obj:  &gitRepositoryCR,
+		}
+		if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
+			// Teardown incomplete — keep the finalizer, retry next reconcile.
+			log.Error(err, "teardown failed; finalizer retained")
+			r.Recorder.Eventf(&gitRepositoryCR, nil, corev1.EventTypeWarning, "TeardownFailure", "Execute", "%v", err)
+			return ctrl.Result{}, err
+		}
+		log.Info("teardown complete; removing finalizer")
+		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			var latest sourcesv1alpha1.GitRepository
+			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+				return client.IgnoreNotFound(err)
+			}
+			if !controllerutil.ContainsFinalizer(&latest, GitRepositoryFinalizer) {
+				return nil
+			}
+			controllerutil.RemoveFinalizer(&latest, GitRepositoryFinalizer)
+			return r.Update(ctx, &latest)
+		}); err != nil {
+			log.Error(err, "failed to remove finalizer")
+			return ctrl.Result{}, err
+		}
+		log.Info("reconcile done: gitrepository released for deletion")
+		return ctrl.Result{}, nil
+	}
+	// ------------------------------------------------
+	// Live object: ensure finalizer before any domain work
+	// ------------------------------------------------
+	if !controllerutil.ContainsFinalizer(&gitRepositoryCR, GitRepositoryFinalizer) {
+		log.Info("adding finalizer")
+		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			var latest sourcesv1alpha1.GitRepository
+			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+				return err
+			}
+			if controllerutil.ContainsFinalizer(&latest, GitRepositoryFinalizer) {
+				return nil
+			}
+			controllerutil.AddFinalizer(&latest, GitRepositoryFinalizer)
+			return r.Update(ctx, &latest)
+		}); err != nil {
+			log.Error(err, "failed to add finalizer")
+			return ctrl.Result{}, err
+		}
+		// The Update bumps resourceVersion and triggers a fresh reconcile;
+		// exit here and let that reconcile run the domain against the
+		// finalized object.
+		log.Info("reconcile done: finalizer added, requeue via watch")
+		return ctrl.Result{}, nil
+	}
 	// ------------------------------------------------
 	// Construct core command
 	// ------------------------------------------------
@@ -91,9 +156,7 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		Type: core.CmdUpdate,
 		Obj:  &gitRepositoryCR,
 	}
-
 	log.Info("routing gitrepository to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
-
 	// ------------------------------------------------
 	// Execute domain logic via engine
 	// ------------------------------------------------
@@ -103,9 +166,7 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.Info("reconcile exit: engine error")
 		return ctrl.Result{}, err
 	}
-
 	log.Info("engine execution completed")
-
 	// ------------------------------------------------
 	// Persist status (retry-on-conflict)
 	// ------------------------------------------------
@@ -114,18 +175,14 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
 			return err
 		}
-
 		latest.Status = gitRepositoryCR.Status
 		return r.Status().Update(ctx, &latest)
-
 	}); err != nil {
 		log.Error(err, "failed to update gitrepository status")
 		return ctrl.Result{}, err
 	}
-
 	log.Info("gitrepository status updated successfully")
 	log.Info("reconcile done")
-
 	return ctrl.Result{}, nil
 }
 
@@ -138,46 +195,35 @@ func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("GitRepository")
 	r.Recorder = mgr.GetEventRecorder("gitrepository-controller")
-
 	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
 	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
 	eventsRecorder := r.Runtime.Events
 	registry := r.Runtime.Registry
-
 	// ---------------------------------------------------------------------
 	// Mediator (prerequisites only)
 	// ---------------------------------------------------------------------
 	r.GitRepositoryMediator = gitrepository.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.gitrepository"), r.Recorder)
-
-	// ---------------------------------------------------------------------
-	// Providers (strategy handlers)
-	// ---------------------------------------------------------------------
-
 	// ---------------------------------------------------------------------
 	// Providers (github)
 	// ---------------------------------------------------------------------
 	githubProvider := gitrepoapi.NewGitHubProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.github"), r.Recorder)
-
 	// ---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
 	// ---------------------------------------------------------------------
 	backendSelector := application.NewBackendSelector(githubProvider)
-
 	// -----------------------------------------------------------------------------------------
-	// GitRepository Service (Mapper and StatiusWriter, domain service for orchestration))
+	// GitRepository Service (Mapper and StatusWriter, domain service for orchestration)
 	// ------------------------------------------------------------------------------------------
 	mapper := application.NewMapper()
-	statusWriter := application.NewStatusWriter() // check args for a fix here please, extra argument required
+	statusWriter := application.NewStatusWriter()
 	r.GitRepositoryService = application.NewGitRepositoryService(mapper, statusWriter, backendSelector)
-
 	// --------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
 	// --------------------------------------------------------------------------------
 	gitRepoDomainInst := gitrepositorydomain.New(r.GitRepositoryMediator, r.GitRepositoryService, cache, eventsRecorder, r.Log.WithName("domain.gitrepository"))
 	registry.RegisterDomain(sourcesv1alpha1.GroupVersion.WithKind("GitRepository"), gitRepoDomainInst)
-
 	// ---------------------------------------------------------------------
 	// Controller registration
 	// ---------------------------------------------------------------------

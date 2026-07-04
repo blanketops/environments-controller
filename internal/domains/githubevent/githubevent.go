@@ -58,10 +58,10 @@ type GitHubEventDomain struct {
 }
 
 // New constructs a new GitHubEventDomain instance.
-func New(buildService *application.GitHubEventService, githubEventMediator *githubEventMediator.Mediator, events *core.EventRecorder, cache *core.Cache, log logr.Logger) *GitHubEventDomain {
+func New(githubEventServiceIn *application.GitHubEventService, githubEventMediatorIn *githubEventMediator.Mediator, events *core.EventRecorder, cache *core.Cache, log logr.Logger) *GitHubEventDomain {
 	return &GitHubEventDomain{
-		githubEventMediator: githubEventMediator,
-		githubEventService:  buildService,
+		githubEventMediator: githubEventMediatorIn,
+		githubEventService:  githubEventServiceIn,
 		githubEventCache:    libgithubevent.NewGitHubEventCache(cache),
 		events:              events,
 		log:                 log,
