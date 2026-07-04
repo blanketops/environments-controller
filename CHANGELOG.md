@@ -1,3 +1,13 @@
+## [0.3.4] - 2026-07-04
+
+### 💼 Other
+
+- Merge release/v0.3.4 into main
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.3.3
+- *(release)* Update changelog for v0.3.3
 ## [0.3.3] - 2026-07-04
 
 ### 💼 Other
