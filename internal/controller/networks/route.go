@@ -37,7 +37,6 @@ import (
 	networksv1alpha1 "github.com/BlanketOps/environments-api/api/networks/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/ntlaletsi70/blanketops-environments/core"
-
 	// routeapp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/route/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -67,7 +66,11 @@ type RouteReconciler struct {
 	Recorder events.EventRecorder
 }
 
-// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networks.blanketops.dev,resources=routes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networks.blanketops.dev,resources=routes/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=networks.blanketops.dev,resources=routes/finalizers,verbs=update
+// +kubebuilder:rbac:groups=serving.knative.dev,resources=domainmappings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

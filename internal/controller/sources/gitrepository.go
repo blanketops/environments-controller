@@ -58,6 +58,11 @@ type GitRepositoryReconciler struct {
 // +kubebuilder:rbac:groups=sources.blanketops.dev,resources=gitrepositories/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=sources.blanketops.dev,resources=gitrepositories/finalizers,verbs=update
 
+// +kubebuilder:rbac:groups=repo.github.upbound.io,resources=repositories;repositorywebhooks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=github.upbound.io,resources=providerconfigs,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 //
