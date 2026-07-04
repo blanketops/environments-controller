@@ -107,9 +107,9 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 			return err
 		}
 
-		// ------------------------------------------------
+		// ------------------------------------------------------------------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		// ------------------------------------------------
+		// ------------------------------------------------------------------------------------------------------------
 		if cerr := d.buildCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(buildCR, "BuildCacheFailed", cerr)

@@ -3,16 +3,26 @@ Copyright 2026 The BlanketOps Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
 	http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
+/*
+Package deployment implements the Deployment prerequisite mediator.
+The mediator owns the cross-cutting prerequisites a Deployment requires
+before the application layer may act: the git SSH secret, the Flux git SSH
+keypair, the GitOps manifests repository, and the runtime infrastructure.
+It is invoked by the Deployment domain during command handling — after
+resolution, before execution — and again during teardown.
+Prerequisite provisioning is gated on the Environment: the Environment CR
+must pre-exist as the root of the delivery chain, and it is the sole
+authority for the ClusterSecretStore binding used by every store-dependent
+secret this mediator reconciles. The Flux keypair is the exception — it is
+generated locally and has no store dependency.
+*/
 package deployment
 
 import (
@@ -24,19 +34,30 @@ import (
 	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/git"
 	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Mediator manages the prerequisite resources a Deployment depends on.
 type Mediator struct {
-	Client   client.Client
-	Scheme   *runtime.Scheme
-	Log      logr.Logger
+	// Client is the Kubernetes client used for all prerequisite operations.
+	Client client.Client
+
+	// Scheme is the runtime scheme used for owner reference wiring.
+	Scheme *runtime.Scheme
+
+	// Log is the logger instance for this mediator.
+	Log logr.Logger
+
+	// Recorder handles logging of Kubernetes events.
 	Recorder events.EventRecorder
+
 	// DeploymentFluxGitSSHSecretReconciler has no store dependency — generates keypair locally.
 	DeploymentFluxGitSSHSecretReconciler *git.DeploymentFluxGitSSHSecretReconciler
 }
 
+// New returns a new Mediator instance configured with the necessary dependencies.
 func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder events.EventRecorder) *Mediator {
 	return &Mediator{
 		Client:                               c,
@@ -47,58 +68,117 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder even
 	}
 }
 
-func (m *Mediator) EnsurePrerequisites(
-	ctx context.Context,
-	resolved *deploymentResolution.ResolvedDeployment,
-) error {
+// EnsurePrerequisites provisions the prerequisites a Deployment requires
+// before execution: the git SSH secret, the Flux git SSH keypair, the GitOps
+// manifests repository, and the runtime infrastructure. Called from the
+// domain's CmdCreate/CmdUpdate branch after resolution succeeds. Provisioning
+// is fail-fast — the first failing step returns its error and the domain
+// records DeploymentPrerequisitesCreateFailed.
+func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *deploymentResolution.ResolvedDeployment) error {
 	if resolved == nil || resolved.Spec == nil {
 		return fmt.Errorf("nil ResolvedDeployment (resolver bug)")
 	}
-
 	deploy := resolved.Deployment
-
 	log := m.Log.WithValues("deployment", deploy.Name, "namespace", deploy.Namespace)
 	log.Info("ensuring deployment prerequisites")
-
-	// ── Step 0: Environment lookup ────────────────────────────────────────────
+	// ------------------------------------------------
+	// Step 0: Environment lookup
+	// Environment must pre-exist — it is the root of the delivery chain and
+	// the sole authority for the ClusterSecretStore binding.
+	// ------------------------------------------------
 	envCtx, err := query.Lookup(ctx, m.Client, deploy.Namespace, deploy.Labels)
 	if err != nil {
 		return fmt.Errorf("environment lookup: %w", err)
 	}
-
-	log.Info("environment context resolved",
-		"environment", envCtx.Name,
-		"type", envCtx.EnvironmentType,
-		"store", envCtx.StoreName,
-	)
-
-	// ── Step 1: Git SSH secret (store-dependent) ──────────────────────────────
-	gitSSH := git.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName)
+	log.Info("environment context resolved", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
+	// ------------------------------------------------------------------------------------------------------------
+	// Stage 1: Git SSH secret (store-dependent)
+	// ------------------------------------------------------------------------------------------------------------
+	gitSSH := git.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 	if err := gitSSH.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("reconcile git ssh secret: %w", err)
 	}
-
-	// ── Step 2: Flux SSH secret (no store — keypair generated locally) ────────
+	// ------------------------------------------------------------------------------------------------------------
+	// Stage 2: Flux SSH secret (no store — keypair generated locally)
+	// ------------------------------------------------------------------------------------------------------------
 	if err := m.DeploymentFluxGitSSHSecretReconciler.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("reconcile fluxcd git ssh secret: %w", err)
 	}
-
-	// ── Step 3: GitOps manifests repo ─────────────────────────────────────────
+	// ------------------------------------------------------------------------------------------------------------
+	// Stage 3: GitOps manifests repo
+	// ------------------------------------------------------------------------------------------------------------
 	if resolved.Spec.ManifestsRepo != nil {
 		if err := m.ensureManifestsRepo(ctx, resolved); err != nil {
 			return err
 		}
 	}
-
-	// ── Step 4: Runtime infra ─────────────────────────────────────────────────
+	// ------------------------------------------------------------------------------------------------------------
+	// Stage 4: Runtime infra
+	// ------------------------------------------------------------------------------------------------------------
 	if err := m.ensureRuntime(ctx, resolved); err != nil {
 		return err
 	}
-
 	log.Info("all deployment prerequisites satisfied")
 	return nil
 }
 
+// CleanupPrerequisites reverses EnsurePrerequisites — tears down the GitOps
+// manifests repository (remote and local clone), the Flux git SSH keypair,
+// and the git SSH secret this mediator provisioned. Called from the domain's
+// CmdDelete branch, gated by the finalizer at the controller level. Teardown
+// runs in reverse provisioning order. All teardown steps are attempted
+// regardless of individual failures, and errors are aggregated — a stuck
+// repository deletion shouldn't block cleanup of the secrets. Any returned
+// error keeps the finalizer in place for retry on next reconcile.
+func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *deploymentResolution.ResolvedDeployment) error {
+	if resolved == nil || resolved.Spec == nil {
+		return fmt.Errorf("nil ResolvedDeployment (resolver bug)")
+	}
+	deploy := resolved.Deployment
+	log := m.Log.WithValues("deployment", deploy.Name, "namespace", deploy.Namespace)
+	log.Info("cleaning up deployment prerequisites")
+	// ------------------------------------------------
+	// Step 0: Environment lookup
+	// Same store binding used at creation time — needed so the reconcilers
+	// target the correct ClusterSecretStore-scoped resources on teardown.
+	// ------------------------------------------------
+	envCtx, err := query.Lookup(ctx, m.Client, deploy.Namespace, deploy.Labels)
+	if err != nil {
+		return fmt.Errorf("environment lookup: %w", err)
+	}
+	log.Info("environment context resolved for teardown", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
+	var errs []error
+	// ------------------------------------------------------------------------------------------------------------
+	// Stage 3: GitOps manifests repo
+	// ------------------------------------------------------------------------------------------------------------
+	if resolved.Spec.ManifestsRepo != nil {
+		if err := m.teardownManifestsRepo(ctx, resolved); err != nil {
+			errs = append(errs, fmt.Errorf("teardown manifests repo: %w", err))
+		}
+	}
+	// ------------------------------------------------------------------------------------------------------------
+	// Stage 2: Flux SSH secret
+	// ------------------------------------------------------------------------------------------------------------
+	if err := m.DeploymentFluxGitSSHSecretReconciler.Delete(ctx, resolved); err != nil {
+		errs = append(errs, fmt.Errorf("delete fluxcd git ssh secret: %w", err))
+	}
+	// ------------------------------------------------------------------------------------------------------------
+	// Stage 1: Git SSH secret
+	// ------------------------------------------------------------------------------------------------------------
+	gitSSH := git.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+	if err := gitSSH.Delete(ctx, resolved); err != nil {
+		errs = append(errs, fmt.Errorf("delete git ssh secret: %w", err))
+	}
+	if len(errs) > 0 {
+		return utilerrors.NewAggregate(errs)
+	}
+	log.Info("deployment prerequisites cleanup complete")
+	return nil
+}
+
+// ensureRuntime verifies the runtime infrastructure a Deployment targets.
+// Currently a no-op placeholder — runtime verification lands with the
+// Kubernetes runtime check below.
 func (m *Mediator) ensureRuntime(
 	ctx context.Context,
 	resolved *deploymentResolution.ResolvedDeployment,
@@ -117,7 +197,6 @@ func (m *Mediator) ensureRuntime(
 // 	}
 // 	return nil
 // }
-
 // func toRawContract(spec *environmentResolution.ResolvedEnvironmentSpec) (runtime.RawExtension, error) {
 // 	contract := spec.ToEnvironmentContract()
 // 	raw, err := json.Marshal(contract)
@@ -126,24 +205,20 @@ func (m *Mediator) ensureRuntime(
 // 	}
 // 	return runtime.RawExtension{Raw: raw}, nil
 // }
-
 // func (m *Mediator) ensureAndPatchEnvironment(
 // 	ctx context.Context,
 // 	resolved *deploymentResolution.ResolvedDeployment,
 // ) error {
 // 	deploy := resolved.Deployment
 // 	labels := deploy.GetLabels()
-
 // 	envName := labels["environments.blanketops.dev/name"]
 // 	envType := labels["environments.blanketops.dev/type"]
 // 	if envName == "" || envType == "" {
 // 		return nil
 // 	}
-
 // 	key := client.ObjectKey{Name: envName, Namespace: deploy.Namespace}
 // 	var env env1alpha1.Environment
 // 	err := m.Client.Get(ctx, key, &env)
-
 // 	if apierrors.IsNotFound(err) {
 // 		spec := &environmentResolution.ResolvedEnvironmentSpec{
 // 			ApplicationName: envName,
@@ -170,7 +245,6 @@ func (m *Mediator) ensureRuntime(
 // 	if err != nil {
 // 		return err
 // 	}
-
 // 	resolvedEnv, err := environmentResolution.ResolveEnvironment(&env)
 // 	if err != nil {
 // 		return err
