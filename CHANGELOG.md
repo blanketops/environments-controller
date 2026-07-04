@@ -1,3 +1,14 @@
+## [0.3.3] - 2026-07-04
+
+### 💼 Other
+
+- *(release)* Imports mainly
+- *(release)* Imports mainly
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.3.2
+- Sync develop with main after release/v0.3.2
 ## [0.3.2] - 2026-06-28
 
 ### 💼 Other
