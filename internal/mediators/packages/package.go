@@ -97,7 +97,7 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageRes
 	// Stage 1: Git credentials (state repo, store-dependent)
 	// ------------------------------------------------------------------------------------------------------------
 	if resolved.Spec.StateRepository.CloneSecret != "" {
-		stateRepo := git.NewPackageStateRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName)
+		stateRepo := git.NewPackageStateRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 		if err := stateRepo.Reconcile(ctx, resolved); err != nil {
 			return fmt.Errorf("reconcile state repository credentials: %w", err)
 		}
@@ -106,7 +106,7 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageRes
 	// Stage 2: Registry credentials (store-dependent)
 	// ------------------------------------------------------------------------------------------------------------
 	if resolved.Spec.PackageRepository.CredentialsSecret != "" {
-		reg := registry.NewPackageRegistrySecretReconciler(m.Client, m.Log, envCtx.StoreName)
+		reg := registry.NewPackageRegistrySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 		if err := reg.Reconcile(ctx, resolved); err != nil {
 			return fmt.Errorf("reconcile registry credentials: %w", err)
 		}
@@ -143,7 +143,7 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageRe
 	// Stage 2: Registry credentials
 	// ------------------------------------------------------------------------------------------------------------
 	if resolved.Spec.PackageRepository.CredentialsSecret != "" {
-		reg := registry.NewPackageRegistrySecretReconciler(m.Client, m.Log, envCtx.StoreName)
+		reg := registry.NewPackageRegistrySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 		if err := reg.Delete(ctx, resolved); err != nil {
 			errs = append(errs, fmt.Errorf("delete registry credentials: %w", err))
 		}
@@ -152,7 +152,7 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageRe
 	// Stage 1: Git credentials (state repo)
 	// ------------------------------------------------------------------------------------------------------------
 	if resolved.Spec.StateRepository.CloneSecret != "" {
-		stateRepo := git.NewPackageStateRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName)
+		stateRepo := git.NewPackageStateRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 		if err := stateRepo.Delete(ctx, resolved); err != nil {
 			errs = append(errs, fmt.Errorf("delete state repository credentials: %w", err))
 		}

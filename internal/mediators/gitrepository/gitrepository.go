@@ -110,7 +110,7 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *gitrepoRes
 	// ------------------------------------------------------------------------------------------------------------
 	// Stage 3: Webhook URL secret (CR-sourced, per GitRepository)
 	// ------------------------------------------------------------------------------------------------------------
-	hookURL := github.NewHookURLSecretReconciler(m.Client, m.Scheme, m.Log, envCtx.StoreName, envCtx.StoreKind)
+	hookURL := github.NewHookURLSecretReconciler(m.Client, m.Scheme, m.Log)
 	if err := hookURL.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("hookurl secret: %w", err)
 	}
@@ -149,8 +149,8 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *gitrepoRe
 	// ------------------------------------------------------------------------------------------------------------
 	// Stage 3: Webhook URL secret
 	// ------------------------------------------------------------------------------------------------------------
-	hookURL := github.NewHookURLExternalSecretReconciler(m.Client, m.Scheme, m.Log, envCtx.StoreName)
-	if err := hookURL.Delete(ctx, repo); err != nil {
+	hookURL := github.NewHookURLSecretReconciler(m.Client, m.Scheme, m.Log)
+	if err := hookURL.Delete(ctx, resolved); err != nil {
 		errs = append(errs, fmt.Errorf("delete hookurl secret: %w", err))
 	}
 	if len(errs) > 0 {
