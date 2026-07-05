@@ -20,7 +20,7 @@ REF_NAME="${REF_NAME:-$(git describe --tags --exact-match 2>/dev/null || git rev
 GIT_SHA="$(git rev-parse HEAD)"
 MODE="${1:-push}"
 
-echo "▶  BlanketOps local ko build"
+echo "▶  BlanketOps Environments Controller local ko build"
 echo "   mode : ${MODE}"
 echo "   ref  : ${REF_NAME}"
 echo "   sha  : ${GIT_SHA:0:12}"
