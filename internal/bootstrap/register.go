@@ -16,11 +16,6 @@ limitations under the License.
 package bootstrap
 
 import (
-	"bytes"
-	"context"
-	"fmt"
-	"strings"
-
 	kappctrlv1alpha1 "carvel.dev/kapp-controller/pkg/apis/kappctrl/v1alpha1"
 	environmentsv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	eventsv1alpha1 "github.com/BlanketOps/environments-api/api/events/v1alpha1"
@@ -35,18 +30,9 @@ import (
 	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	shipwrightclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -85,94 +71,94 @@ func RegisterSchemes(scheme *runtime.Scheme) {
 	utilruntime.Must(kustomizev1.AddToScheme(scheme))
 }
 
-func EnsureServiceAccount(ctx context.Context, cfg *rest.Config) error {
-	client, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		return err
-	}
+// func EnsureServiceAccount(ctx context.Context, cfg *rest.Config) error {
+// 	client, err := kubernetes.NewForConfig(cfg)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	const (
-		namespace = "default"              // adjust later
-		name      = "environments-manager" // must match deployment
-	)
-	_, err = client.CoreV1().
-		ServiceAccounts(namespace).
-		Get(ctx, name, metav1.GetOptions{})
+// 	const (
+// 		namespace = "default"              // adjust later
+// 		name      = "environments-manager" // must match deployment
+// 	)
+// 	_, err = client.CoreV1().
+// 		ServiceAccounts(namespace).
+// 		Get(ctx, name, metav1.GetOptions{})
 
-	if apierrors.IsNotFound(err) {
-		_, err = client.CoreV1().
-			ServiceAccounts(namespace).
-			Create(ctx, &corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      name,
-					Namespace: namespace,
-				},
-			}, metav1.CreateOptions{})
-	}
+// 	if apierrors.IsNotFound(err) {
+// 		_, err = client.CoreV1().
+// 			ServiceAccounts(namespace).
+// 			Create(ctx, &corev1.ServiceAccount{
+// 				ObjectMeta: metav1.ObjectMeta{
+// 					Name:      name,
+// 					Namespace: namespace,
+// 				},
+// 			}, metav1.CreateOptions{})
+// 	}
 
-	return err
-}
+// 	return err
+// }
 
-func Apply(ctx context.Context, cfg *rest.Config, manifest []byte) error {
-	dyn, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return err
-	}
+// func Apply(ctx context.Context, cfg *rest.Config, manifest []byte) error {
+// 	dyn, err := dynamic.NewForConfig(cfg)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(manifest), 4096)
+// 	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(manifest), 4096)
 
-	for {
-		obj := &unstructured.Unstructured{}
-		if err := decoder.Decode(obj); err != nil {
-			// EOF is expected when stream ends
-			if err.Error() == "EOF" {
-				return nil
-			}
-			return err
-		}
+// 	for {
+// 		obj := &unstructured.Unstructured{}
+// 		if err := decoder.Decode(obj); err != nil {
+// 			// EOF is expected when stream ends
+// 			if err.Error() == "EOF" {
+// 				return nil
+// 			}
+// 			return err
+// 		}
 
-		// Skip empty documents (very important)
-		if obj.Object == nil || obj.GetKind() == "" {
-			continue
-		}
+// 		// Skip empty documents (very important)
+// 		if obj.Object == nil || obj.GetKind() == "" {
+// 			continue
+// 		}
 
-		gvk := obj.GroupVersionKind()
-		mapping := schema.GroupVersionResource{
-			Group:    gvk.Group,
-			Version:  gvk.Version,
-			Resource: resourceName(gvk.Kind),
-		}
+// 		gvk := obj.GroupVersionKind()
+// 		mapping := schema.GroupVersionResource{
+// 			Group:    gvk.Group,
+// 			Version:  gvk.Version,
+// 			Resource: resourceName(gvk.Kind),
+// 		}
 
-		var ri dynamic.ResourceInterface
-		if obj.GetNamespace() == "" {
-			ri = dyn.Resource(mapping)
-		} else {
-			ri = dyn.Resource(mapping).Namespace(obj.GetNamespace())
-		}
+// 		var ri dynamic.ResourceInterface
+// 		if obj.GetNamespace() == "" {
+// 			ri = dyn.Resource(mapping)
+// 		} else {
+// 			ri = dyn.Resource(mapping).Namespace(obj.GetNamespace())
+// 		}
 
-		_, err = ri.Apply(
-			ctx,
-			obj.GetName(),
-			obj,
-			metav1.ApplyOptions{
-				FieldManager: "blanketops-bootstrap",
-				Force:        true,
-			},
-		)
+// 		_, err = ri.Apply(
+// 			ctx,
+// 			obj.GetName(),
+// 			obj,
+// 			metav1.ApplyOptions{
+// 				FieldManager: "blanketops-bootstrap",
+// 				Force:        true,
+// 			},
+// 		)
 
-		if err != nil && !apierrors.IsAlreadyExists(err) {
-			return fmt.Errorf("apply %s/%s failed: %w",
-				obj.GetKind(), obj.GetName(), err)
-		}
-	}
-}
+// 		if err != nil && !apierrors.IsAlreadyExists(err) {
+// 			return fmt.Errorf("apply %s/%s failed: %w",
+// 				obj.GetKind(), obj.GetName(), err)
+// 		}
+// 	}
+// }
 
 // resourceName converts Kind -> resource name for dynamic client.
 // This is intentionally naive and sufficient for bootstrap manifests
 // (CRDs, RBAC, core resources).
-func resourceName(kind string) string {
-	return strings.ToLower(kind) + "s"
-}
+// func resourceName(kind string) string {
+// 	return strings.ToLower(kind) + "s"
+// }
 
 func RegisterObservers(mgr ctrl.Manager) error {
 	statusWriter := buildapp.NewStatusWriter(mgr.GetClient(), mgr.GetLogger().WithName("buildrun-status-writer"))
@@ -288,38 +274,13 @@ func RegisterBuild(
 	buildMapper := &buildapp.Mapper{}
 	buildStatusWriter := &buildapp.StatusWriter{Client: mgr.GetClient()}
 
-	buildah := buildapi.NewBuildahProvider(
-		mgr.GetClient(),
-		mgr.GetScheme(),
-		logger,
-		recorder,
-	)
+	buildah := buildapi.NewBuildahProvider(mgr.GetClient(), mgr.GetScheme(), logger, recorder)
+	kaniko := buildapi.NewKanikoProvider(mgr.GetClient(), mgr.GetScheme(), logger, recorder)
+	buildpacks := buildapi.NewBuildpacksProvider(mgr.GetClient(), mgr.GetScheme(), logger, recorder)
 
-	kaniko := buildapi.NewKanikoProvider(
-		mgr.GetClient(),
-		mgr.GetScheme(),
-		logger,
-		recorder,
-	)
+	selector := buildapp.NewBackendSelector(buildah, kaniko, buildpacks)
 
-	buildpacks := buildapi.NewBuildpacksProvider(
-		mgr.GetClient(),
-		mgr.GetScheme(),
-		logger,
-		recorder,
-	)
-
-	selector := buildapp.NewBackendSelector(
-		buildah,
-		kaniko,
-		buildpacks,
-	)
-
-	buildService := buildapp.NewBuildService(
-		buildMapper,
-		buildStatusWriter,
-		selector,
-	)
+	buildService := buildapp.NewBuildService(buildMapper, buildStatusWriter, selector)
 
 	return (&environments.BuildReconciler{
 		Client:       mgr.GetClient(),
