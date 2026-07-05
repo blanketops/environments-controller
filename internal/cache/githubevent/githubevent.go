@@ -13,6 +13,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// githubevent.go constructs this controller's GitHubEvent domain cache: a thin
+// wrapper around blanketops-environments-core's cache/githubevent package.
+//
+// The cache itself, and the write path that populates it, live in the
+// external core library; this file owns only the constructor.
 package githubevent
 
 import (

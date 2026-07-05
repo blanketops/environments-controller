@@ -13,17 +13,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// main.go is the controller's process entry point.
+//
+// It builds the runtime scheme (bootstrap.RegisterSchemes, run from
+// init), constructs the controller-runtime manager, builds this
+// controller's Runtime (internal/runtime), and registers the CQRS
+// controllers, observers, and build subsystem through internal/bootstrap
+// before starting the manager.
 package main
 
 import (
 	"flag"
 	"os"
 
-	"github.com/ntlaletsi70/blanketops-environments/core"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"github.com/ntlaletsi70/blanketops-environments/core"
 
 	bootstrap "github.com/ntlaletsi70/blanketops-environments-controller/internal/bootstrap"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
@@ -34,11 +41,14 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
+// init registers every API type with the package-level scheme before
+// main constructs the manager.
 func init() {
-
 	bootstrap.RegisterSchemes(scheme)
 }
 
+// Runtime describes read access to the core engine's Engine, Cache,
+// Events, and Registry subsystems.
 type Runtime interface {
 	Engine() *core.Engine
 	Cache() *core.Cache
