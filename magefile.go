@@ -18,7 +18,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -28,10 +27,13 @@ import (
 
 // Tool versions — bump here to roll the fleet.
 const (
-	kustomizeVersion     = "v5.7.1"
 	controllerGenVersion = "v0.20.0"
 	golangciVersion      = "v2.7.2"
 )
+
+// -----------------------------------------------------------------------------
+// Tool management
+// -----------------------------------------------------------------------------
 
 // localBin returns the absolute path to the local bin directory.
 func localBin() string {
@@ -77,13 +79,6 @@ func controllerGenBin() (string, error) {
 	return filepath.Join(localBin(), "controller-gen"), nil
 }
 
-func kustomizeBin() (string, error) {
-	if err := goInstallTool("kustomize", "sigs.k8s.io/kustomize/kustomize/v5", kustomizeVersion); err != nil {
-		return "", err
-	}
-	return filepath.Join(localBin(), "kustomize"), nil
-}
-
 func golangciLintBin() (string, error) {
 	if err := goInstallTool("golangci-lint", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint", golangciVersion); err != nil {
 		return "", err
@@ -91,20 +86,69 @@ func golangciLintBin() (string, error) {
 	return filepath.Join(localBin(), "golangci-lint"), nil
 }
 
+// setupEnvtestBin installs setup-envtest pinned to the controller-runtime
+// release branch derived from go.mod.
+func setupEnvtestBin() (string, error) {
+	if err := goInstallTool("setup-envtest", "sigs.k8s.io/controller-runtime/tools/setup-envtest", envtestVersion()); err != nil {
+		return "", err
+	}
+	return filepath.Join(localBin(), "setup-envtest"), nil
+}
+
+// envtestVersion reads sigs.k8s.io/controller-runtime from go.mod
+// and returns "release-X.Y".
+func envtestVersion() string {
+	out, err := sh.Output("go", "list", "-m", "-f",
+		`{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}`,
+		"sigs.k8s.io/controller-runtime",
+	)
+	if err != nil || out == "" {
+		return "latest"
+	}
+	var major, minor int
+	fmt.Sscanf(strings.TrimSpace(out), "v%d.%d", &major, &minor)
+	return fmt.Sprintf("release-%d.%d", major, minor)
+}
+
+// k8sEnvtestVersion reads k8s.io/api from go.mod and returns "1.NN".
+func k8sEnvtestVersion() string {
+	out, err := sh.Output("go", "list", "-m", "-f",
+		`{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}`,
+		"k8s.io/api",
+	)
+	if err != nil || out == "" {
+		return "1.31"
+	}
+	var major, minor int
+	fmt.Sscanf(strings.TrimSpace(out), "v%d.%d", &major, &minor)
+	return fmt.Sprintf("1.%d", minor)
+}
+
+// -----------------------------------------------------------------------------
+// General
+// -----------------------------------------------------------------------------
+
+// Help lists all available targets.
+func Help() error {
+	return sh.RunV("mage", "-l")
+}
+
 // -----------------------------------------------------------------------------
 // Code generation
 // -----------------------------------------------------------------------------
 
-// Manifests generates WebhookConfiguration, ClusterRole, and CRD objects.
+// Manifests generates the ClusterRole from kubebuilder RBAC markers
+// into config/rbac. The install repo syncs role.yaml from here —
+// this path is a cross-repo contract; do not move it.
 func Manifests() error {
 	cgen, err := controllerGenBin()
 	if err != nil {
 		return err
 	}
 	return sh.Run(cgen,
-		"rbac:roleName=manager-role", "crd", "webhook",
+		"rbac:roleName=manager-role",
 		"paths=./...",
-		"output:crd:artifacts:config=config/crd/bases",
+		"output:rbac:artifacts:config=config/rbac",
 	)
 }
 
@@ -143,6 +187,24 @@ func Lint() error {
 	return sh.Run(lint, "run")
 }
 
+// LintFix runs golangci-lint and applies fixes.
+func LintFix() error {
+	lint, err := golangciLintBin()
+	if err != nil {
+		return err
+	}
+	return sh.Run(lint, "run", "--fix")
+}
+
+// LintConfig verifies the golangci-lint configuration.
+func LintConfig() error {
+	lint, err := golangciLintBin()
+	if err != nil {
+		return err
+	}
+	return sh.Run(lint, "config", "verify")
+}
+
 // -----------------------------------------------------------------------------
 // Build
 // -----------------------------------------------------------------------------
@@ -163,12 +225,16 @@ func Run() error {
 // Test
 // -----------------------------------------------------------------------------
 
-// Test runs the unit test suite (excludes e2e).
+// Test runs the unit test suite.
 func Test() error {
 	mg.Deps(Manifests, Generate, Fmt, Vet)
 
+	envtestBin, err := setupEnvtestBin()
+	if err != nil {
+		return err
+	}
+
 	k8sVer := k8sEnvtestVersion()
-	envtestBin := filepath.Join(localBin(), "setup-envtest")
 	assetsPath, err := sh.Output(envtestBin, "use", k8sVer, "--bin-dir", localBin(), "-p", "path")
 	if err != nil {
 		return fmt.Errorf("setup-envtest: %w", err)
@@ -180,22 +246,8 @@ func Test() error {
 	)
 }
 
-// k8sEnvtestVersion reads k8s.io/api from go.mod and returns "1.NN".
-func k8sEnvtestVersion() string {
-	out, err := sh.Output("go", "list", "-m", "-f",
-		`{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}`,
-		"k8s.io/api",
-	)
-	if err != nil || out == "" {
-		return "1.31"
-	}
-	var major, minor int
-	fmt.Sscanf(strings.TrimSpace(out), "v%d.%d", &major, &minor)
-	return fmt.Sprintf("1.%d", minor)
-}
-
 // -----------------------------------------------------------------------------
-// Docker
+// Image
 // -----------------------------------------------------------------------------
 
 func img() string {
@@ -220,78 +272,6 @@ func DockerBuild() error {
 // DockerPush pushes the manager image.
 func DockerPush() error {
 	return sh.Run(containerTool(), "push", img())
-}
-
-// -----------------------------------------------------------------------------
-// Cluster
-// -----------------------------------------------------------------------------
-
-// Install installs CRDs into the cluster.
-func Install() error {
-	mg.Deps(Manifests)
-	kust, err := kustomizeBin()
-	if err != nil {
-		return err
-	}
-	out, err := sh.Output(kust, "build", "config/crd")
-	if err != nil || strings.TrimSpace(out) == "" {
-		fmt.Println("No CRDs to install; skipping.")
-		return nil
-	}
-	return pipeToKubectl(out, "apply", "-f", "-")
-}
-
-// Uninstall removes CRDs from the cluster.
-func Uninstall() error {
-	mg.Deps(Manifests)
-	kust, err := kustomizeBin()
-	if err != nil {
-		return err
-	}
-	out, err := sh.Output(kust, "build", "config/crd")
-	if err != nil || strings.TrimSpace(out) == "" {
-		fmt.Println("No CRDs to delete; skipping.")
-		return nil
-	}
-	return pipeToKubectl(out, "delete", "--ignore-not-found=true", "-f", "-")
-}
-
-// Deploy deploys the controller to the cluster.
-func Deploy() error {
-	mg.Deps(Manifests)
-	kust, err := kustomizeBin()
-	if err != nil {
-		return err
-	}
-	// patch image tag in config/manager
-	_ = sh.Run(kust, "-C", "config/manager", "edit", "set", "image", "controller="+img())
-	out, err := sh.Output(kust, "build", "config/default")
-	if err != nil {
-		return err
-	}
-	return pipeToKubectl(out, "apply", "-f", "-")
-}
-
-// Undeploy removes the controller from the cluster.
-func Undeploy() error {
-	kust, err := kustomizeBin()
-	if err != nil {
-		return err
-	}
-	out, err := sh.Output(kust, "build", "config/default")
-	if err != nil {
-		return err
-	}
-	return pipeToKubectl(out, "delete", "--ignore-not-found=true", "-f", "-")
-}
-
-// pipeToKubectl pipes a YAML string into kubectl via stdin.
-func pipeToKubectl(yaml string, args ...string) error {
-	cmd := exec.Command("kubectl", args...)
-	cmd.Stdin = strings.NewReader(yaml)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 // -----------------------------------------------------------------------------

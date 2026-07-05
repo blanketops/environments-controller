@@ -49,6 +49,7 @@ type PackageReconciler struct {
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=packages,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=packages/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=packages/finalizers,verbs=update
+// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
 
 // +kubebuilder:rbac:groups=packaging.carvel.dev,resources=packages;packageinstalls;packagerepositories,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=packaging.carvel.dev,resources=packageinstalls/status,verbs=get;update;patch

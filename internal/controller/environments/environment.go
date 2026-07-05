@@ -44,6 +44,7 @@ type EnvironmentReconciler struct {
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=environments/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=environments/finalizers,verbs=update
 // +kubebuilder:rbac:groups=external-secrets.io,resources=clustersecretstores,verbs=get;list;watch
+// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

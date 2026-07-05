@@ -47,6 +47,13 @@ type DomainReconciler struct {
 	Log    logr.Logger
 }
 
+// +kubebuilder:rbac:groups=networks.blanketops.dev,resources=domains,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networks.blanketops.dev,resources=domains/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=networks.blanketops.dev,resources=domains/finalizers,verbs=update
+// +kubebuilder:rbac:groups=cert-manager.io,resources=certificates;issuers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.internal.knative.dev,resources=clusterdomainclaims,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+
 // Reconcile fetches the Domain, resolves its contract, and delegates to the
 // application service. See file header for the responsibility split.
 func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

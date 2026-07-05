@@ -60,6 +60,7 @@ type BuildReconciler struct {
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=builds,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=builds/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=builds/finalizers,verbs=update
+// +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
 
 // +kubebuilder:rbac:groups=shipwright.io,resources=builds;buildruns,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=shipwright.io,resources=builds/status;buildruns/status,verbs=get;update;patch
