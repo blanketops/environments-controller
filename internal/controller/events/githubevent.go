@@ -1,12 +1,9 @@
 /*
-Copyright 2026.
-
+Copyright 2026 The BlanketOps Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
+	http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,6 +11,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// githubevent.go reconciles the GitHubEvent CR: routes create/update/
+// delete through the core CQRS engine and, on setup, wires the
+// GitHubEvent domain's mediator, GitHub provider, and service into the
+// domain registry. It also watches owned Argo Events Sensors so Sensor
+// status changes trigger a re-reconcile of the owning GitHubEvent.
+//
+// The finalizer (githuEventFinalizer) gates deletion until
+// CleanupPrerequisites and Teardown have both run successfully.
 package events
 
 import (
@@ -39,7 +44,7 @@ import (
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
-// githuEventFinalizer gates deletion of a Build CR until CleanupPrerequisites and
+// githuEventFinalizer gates deletion of a GitHubEvent CR until CleanupPrerequisites and
 // Teardown have both run successfully. See Reconcile for the add/check/
 // remove lifecycle.
 const githuEventFinalizer = "events.blanketops.dev/githubevent-finalizer"
