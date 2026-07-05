@@ -18,11 +18,6 @@ resources:
 - controller: true
   domain: blanketops.dev
   group: environments
-  kind: BuildTrigger
-  version: v1alpha1
-- controller: true
-  domain: blanketops.dev
-  group: environments
   kind: Deployment
   version: v1alpha1
 - controller: true
@@ -44,6 +39,16 @@ resources:
   domain: blanketops.dev
   group: sources
   kind: GitRepository
+  version: v1alpha1
+- controller: true
+  domain: blanketops.dev
+  group: networks
+  kind: Route
+  version: v1alpha1
+- controller: true
+  domain: blanketops.dev
+  group: networks
+  kind: Domain
   version: v1alpha1
 - controller: true
   core: true
