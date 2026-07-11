@@ -306,6 +306,7 @@ func RegisterBuild(
 	// CQRS build service: selector picks a backend, mapper translates the
 	// CR into a backend-specific spec, statusWriter reports progress back.
 	selector := buildapp.NewBackendSelector(buildah, kaniko, buildpacks)
+
 	buildService := buildapp.NewBuildService(buildMapper, buildStatusWriter, selector)
 
 	return (&environments.BuildReconciler{
