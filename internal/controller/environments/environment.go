@@ -12,6 +12,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// environment.go reconciles the Environment CR — the root of the
+// delivery chain — routing every change through the core CQRS engine
+// and, on setup, registering the Environment domain.
+//
+// The domain is intentionally minimal at this stage (see the comment in
+// SetupWithManager): no finalizer yet, since there's nothing external to
+// tear down until secret-store connection testing and the ref-patcher
+// observer land.
 package environments
 
 import (

@@ -37,6 +37,7 @@ import (
 	networksv1alpha1 "github.com/BlanketOps/environments-api/api/networks/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/ntlaletsi70/blanketops-environments/core"
+
 	// routeapp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/route/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -50,7 +51,7 @@ import (
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
 )
 
-// routeFinalizer gates deletion of a Build CR until CleanupPrerequisites and
+// routeFinalizer gates deletion of a Route CR until CleanupPrerequisites and
 // Teardown have both run successfully. See Reconcile for the add/check/
 // remove lifecycle.
 const routeFinalizer = "networks.blanketops.dev/route-finalizer"
