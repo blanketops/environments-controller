@@ -26,11 +26,11 @@ import (
 	"flag"
 	"os"
 
+	"github.com/ntlaletsi70/blanketops-environments/core"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"github.com/ntlaletsi70/blanketops-environments/core"
 
 	bootstrap "github.com/ntlaletsi70/blanketops-environments-controller/internal/bootstrap"
 	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
