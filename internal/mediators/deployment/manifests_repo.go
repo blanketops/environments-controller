@@ -45,9 +45,9 @@ func (m *Mediator) ensureManifestsRepo(
 	if spec.ManifestsRepo == nil {
 		return nil
 	}
-	token := os.Getenv("GITHUB_TOKEN")
+	token := os.Getenv("GH_PAT")
 	if token == "" {
-		return fmt.Errorf("GITHUB_TOKEN must be set for private repo creation")
+		return fmt.Errorf("GH_PAT must be set for private repo creation")
 	}
 	owner := resolved.Spec.GitOwner
 	repo := fmt.Sprintf("%s-manifests", deploy.Name)
@@ -226,9 +226,9 @@ func (m *Mediator) teardownManifestsRepo(resolved *deploymentResolution.Resolved
 	if resolved.Spec.ManifestsRepo == nil {
 		return nil
 	}
-	token := os.Getenv("GITHUB_TOKEN")
+	token := os.Getenv("GH_PAT")
 	if token == "" {
-		return fmt.Errorf("GITHUB_TOKEN must be set for repo deletion")
+		return fmt.Errorf("GH_PAT must be set for repo deletion")
 	}
 	owner := resolved.Spec.GitOwner
 	repo := fmt.Sprintf("%s-manifests", deploy.Name)
@@ -421,7 +421,7 @@ func ensureGitHubRepoPrivate(owner, repo, token string) error {
 	case 422:
 		fmt.Printf("[bootstrap] remote repo already exists: %s/%s\n", owner, repo)
 	case 401, 403:
-		return fmt.Errorf("unauthorized: check GITHUB_TOKEN permissions")
+		return fmt.Errorf("unauthorized: check GH_PAT permissions")
 	default:
 		return fmt.Errorf("failed to create repo, status: %d", resp.StatusCode)
 	}
@@ -430,7 +430,7 @@ func ensureGitHubRepoPrivate(owner, repo, token string) error {
 
 // deleteGitHubRepo deletes the repository on GitHub. Idempotent — a 404
 // means the repository is already gone and is treated as success.
-// Requires the delete_repo scope on GITHUB_TOKEN — repo alone does not
+// Requires the delete_repo scope on GH_PAT — repo alone does not
 // grant deletion.
 func deleteGitHubRepo(owner, repo, token string) error {
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repo)
@@ -453,7 +453,7 @@ func deleteGitHubRepo(owner, repo, token string) error {
 		fmt.Printf("[teardown] remote repo already gone: %s/%s\n", owner, repo)
 		return nil
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return fmt.Errorf("unauthorized: GITHUB_TOKEN requires the delete_repo scope")
+		return fmt.Errorf("unauthorized: GH_PAT requires the delete_repo scope")
 	default:
 		var buf bytes.Buffer
 		_, _ = buf.ReadFrom(resp.Body)
