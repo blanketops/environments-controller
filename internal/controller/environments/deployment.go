@@ -1,12 +1,9 @@
 /*
-Copyright 2026.
-
+Copyright 2026 The BlanketOps Authors.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
+	http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,6 +11,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// deployment.go reconciles the Deployment CR: routes create/update/delete
+// through the core CQRS engine and, on setup, wires the Deployment
+// domain's mediator, runtime provider, Kustomize reconciliation executor,
+// and service into the domain registry.
+//
+// The finalizer (deploymentFinalizer) gates deletion until the engine's
+// CmdDelete path completes, mirroring build.go.
 package environments
 
 import (
@@ -47,7 +51,9 @@ type DeploymentReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	Log    logr.Logger
-	// deploymentCache    *libdeployment.DeploymentCache
+	// reader serves cross-CR reads (e.g. fetching a ServiceUnit by name)
+	// that must bypass the projection cache, which is not used for
+	// correctness-bearing lookups.
 	reader             client.Reader
 	Recorder           events.EventRecorder
 	Runtime            *runtimeinfra.Runtime

@@ -1,0 +1,83 @@
+# =============================================================================
+# gosec.yml — Go Security Static Analysis
+#
+# Runs on every push to main and every pull request, alongside ci.yaml.
+# Reports findings (hardcoded creds, SQL injection, unsafe crypto, etc.) via
+# job logs and the step summary only.
+#
+# Report-only for now: this repo is private, so SARIF upload to the Security
+# tab would need GitHub Advanced Security. Once the repo goes public, add a
+# github/codeql-action/upload-sarif step to surface findings there for free.
+#
+# Secrets required:
+#   GH_PAT — private module access
+# =============================================================================
+
+name: Gosec
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION_FILE: go.mod
+
+jobs:
+  gosec:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: true
+
+      - name: Configure Git for private modules
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+          go env -w GOPRIVATE=github.com/ntlaletsi70/*
+          go env -w GONOSUMDB=github.com/ntlaletsi70/*
+          go env -w GOPROXY=direct
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+      - name: Run gosec
+        id: gosec
+        continue-on-error: true
+        run: gosec -fmt=json -out=gosec-report.json ./... || true
+
+      - name: Gosec Summary
+        if: always()
+        run: |
+          {
+            echo "# 🔒 Gosec Static Analysis"
+            echo
+            echo "**Branch:** \`${{ github.ref_name }}\`"
+            echo "**Trigger:** \`${{ github.event_name }}\`"
+            echo
+            echo "Report-only — this job does not fail the build."
+            echo
+            if jq -e '.Issues and (.Issues | length > 0)' gosec-report.json >/dev/null 2>&1; then
+              echo "| Severity | Confidence | Rule | Location | Details |"
+              echo "|---|---|---|---|---|"
+              jq -r '.Issues[] | "| \(.severity) | \(.confidence) | \(.rule_id) | \(.file):\(.line) | \(.details | gsub("\\|"; "\\\\|")) |"' gosec-report.json
+            else
+              echo "No findings."
+            fi
+            echo
+            echo "<details><summary>Raw report (JSON)</summary>"
+            echo
+            echo '```json'
+            head -c 60000 gosec-report.json 2>/dev/null
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"

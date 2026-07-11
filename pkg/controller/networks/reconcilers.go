@@ -13,18 +13,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// githubevent.go constructs this controller's GitHubEvent domain cache: a thin
-// wrapper around blanketops-environments-core's cache/githubevent package.
-//
-// The cache itself, and the write path that populates it, live in the
-// external core library; this file owns only the constructor.
-package githubevent
+// Package networks re-exports the networks-group reconciler types as public
+// aliases. The reconcilers themselves stay in internal/controller,
+// unchanged; this package exists only so that external test modules have a
+// valid, non-internal import path to construct them against.
+package networks
 
 import (
-	libgithubevent "github.com/ntlaletsi70/blanketops-environments/cache/githubevent"
-	"github.com/ntlaletsi70/blanketops-environments/core"
+	internalnetworks "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/networks"
 )
 
-func New(c *core.Cache) *libgithubevent.GitHubEventCache {
-	return libgithubevent.NewGitHubEventCache(c)
-}
+type (
+	DomainReconciler = internalnetworks.DomainReconciler
+	RouteReconciler  = internalnetworks.RouteReconciler
+)

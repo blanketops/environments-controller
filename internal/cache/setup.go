@@ -13,6 +13,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// setup.go aggregates every domain's cache behind a single Caches
+// struct, so callers construct and pass around one value instead of
+// six.
+//
+// Each field wraps the matching blanketops-environments-core
+// cache/<domain> package.
 package cache
 
 import (
@@ -36,6 +42,8 @@ type Caches struct {
 	Packages      *libpackages.PackageCache
 }
 
+// NewCaches constructs every domain cache and returns them aggregated
+// in a single Caches value.
 func NewCaches(c *core.Cache) *Caches {
 	return &Caches{
 		Build:         libbuild.NewBuildCache(c),
