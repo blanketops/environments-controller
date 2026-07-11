@@ -63,23 +63,43 @@ jobs:
         id: govulncheck
         continue-on-error: true
         run: |
-          go run golang.org/x/vuln/cmd/govulncheck@latest ./... 2>&1 | tee govulncheck-report.txt || true
+          go run golang.org/x/vuln/cmd/govulncheck@latest -json ./... > govulncheck-report.json 2>govulncheck-stderr.txt || true
 
       - name: Govulncheck Summary
         if: always()
         run: |
-          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
-          # 🛡️ govulncheck
-
-          **Branch:** \`${{ github.ref_name }}\`
-          **Trigger:** \`${{ github.event_name }}\`
-
-          Report-only — this job does not fail the build.
-
-          \`\`\`
-          $(cat govulncheck-report.txt 2>/dev/null | head -c 60000)
-          \`\`\`
-          EOF
+          {
+            echo "# 🛡️ govulncheck"
+            echo
+            echo "**Branch:** \`${{ github.ref_name }}\`"
+            echo "**Trigger:** \`${{ github.event_name }}\`"
+            echo
+            echo "Report-only — this job does not fail the build."
+            echo
+            COUNT=$(jq -s '[.[] | select(.finding != null)] | length' govulncheck-report.json 2>/dev/null || echo 0)
+            if [[ "$COUNT" -gt 0 ]]; then
+              echo "| OSV ID | Module | Version | Fixed | Function |"
+              echo "|---|---|---|---|---|"
+              jq -s -r '.[] | select(.finding != null) | .finding |
+                {
+                  osv: .osv,
+                  module: ([.trace[]? | select(.module) | .module] | first // "-"),
+                  version: ([.trace[]? | select(.version) | .version] | first // "-"),
+                  fixed: (.fixed_version // "-"),
+                  function: ([.trace[]? | select(.function) | .function] | first // "-")
+                } | "| \(.osv) | \(.module) | \(.version) | \(.fixed) | \(.function) |"' \
+                govulncheck-report.json | sort -u
+            else
+              echo "No known vulnerabilities found."
+            fi
+            echo
+            echo "<details><summary>Raw report (JSON)</summary>"
+            echo
+            echo '```json'
+            head -c 60000 govulncheck-report.json 2>/dev/null
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   trivy-image:
     if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')
@@ -110,23 +130,26 @@ jobs:
         continue-on-error: true
         with:
           image-ref: ${{ steps.image.outputs.ref }}
-          format: table
+          format: template
+          template: "@/contrib/markdown.tpl"
           severity: CRITICAL,HIGH,MEDIUM
           exit-code: "0"
-          output: trivy-report.txt
+          output: trivy-report.md
 
       - name: Trivy Summary
         if: always()
         run: |
-          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
-          # 🐳 Trivy Image Scan
-
-          **Image:** \`${{ steps.image.outputs.ref }}\`
-          **Trigger:** \`${{ github.event_name }}\`
-
-          Report-only — this job does not fail the build.
-
-          \`\`\`
-          $(cat trivy-report.txt 2>/dev/null | head -c 60000)
-          \`\`\`
-          EOF
+          {
+            echo "# 🐳 Trivy Image Scan"
+            echo
+            echo "**Image:** \`${{ steps.image.outputs.ref }}\`"
+            echo "**Trigger:** \`${{ github.event_name }}\`"
+            echo
+            echo "Report-only — this job does not fail the build."
+            echo
+            if [[ -s trivy-report.md ]]; then
+              head -c 100000 trivy-report.md
+            else
+              echo "No findings."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
