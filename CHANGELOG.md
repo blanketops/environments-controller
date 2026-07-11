@@ -1,7 +1,9 @@
-## [unreleased]
+## [0.3.6] - 2026-07-11
 
 ### ⚙️ Miscellaneous Tasks
 
+- Sync develop with main after release/v0.3.5
+- *(release)* Update changelog for v0.3.5
 - *(release)* Update changelog for v0.3.5
 ## [0.3.5] - 2026-07-11
 
