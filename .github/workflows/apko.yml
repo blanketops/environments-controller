@@ -179,12 +179,19 @@ jobs:
         if: steps.tags.outputs.push_latest == 'true'
         uses: imjasonh/setup-crane@v0.4
 
+      # ko.yml builds and pushes the same tag concurrently (both fire on the
+      # same tag push) — poll for the digest to resolve before tagging latest
+      # rather than assuming GHCR has it immediately.
       - name: Tag latest
         if: steps.tags.outputs.push_latest == 'true'
         run: |
-          crane tag \
-            ${{ env.IMAGE_REPO }}@${{ steps.build.outputs.digest }} \
-            latest
+          IMAGE_REF="${{ env.IMAGE_REPO }}@${{ steps.build.outputs.digest }}"
+          for i in $(seq 1 18); do
+            crane digest "$IMAGE_REF" >/dev/null 2>&1 && break
+            echo "Waiting for $IMAGE_REF to resolve ($i/18)..."
+            sleep 10
+          done
+          crane tag "$IMAGE_REF" latest
 
       - name: Install cosign
         if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest

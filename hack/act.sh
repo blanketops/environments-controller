@@ -13,7 +13,6 @@
 #
 # Secrets file (.secrets in repo root):
 #   GH_PAT=ghp_xxxx
-#   GITHUB_TOKEN=ghp_xxxx        ← same token as GH_PAT
 #
 # SSH key is read from SSH_KEY_PATH (default: ~/.ssh/id_ed25519)
 # and passed via --secret, not --secret-file, because it is multiline.
@@ -57,8 +56,7 @@ command -v docker >/dev/null 2>&1 || fail "docker not found"
 docker info       >/dev/null 2>&1 || fail "Docker daemon is not running"
 
 [[ -f "$SECRETS_FILE" ]] || fail ".secrets not found. Create it with:
-  GH_PAT=ghp_xxxx
-  GITHUB_TOKEN=ghp_xxxx"
+  GH_PAT=ghp_xxxx"
 
 [[ -f "$SSH_KEY_PATH" ]] || fail "SSH key not found at ${SSH_KEY_PATH}
   Override with: SSH_KEY_PATH=/path/to/key ./hack/act.sh"
