@@ -26,6 +26,7 @@ on:
   push:
     branches:
       - main
+      - develop # TEMP: testing trivy-action version bump, revert after
     tags:
       - "v*"
   schedule:
@@ -102,7 +103,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   trivy-image:
-    if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/develop' # TEMP: revert after test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -126,7 +127,7 @@ jobs:
 
       - name: Run Trivy image scan
         id: trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         continue-on-error: true
         with:
           image-ref: ${{ steps.image.outputs.ref }}
