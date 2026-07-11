@@ -31,19 +31,12 @@ type Runtime struct {
 
 func New(mgr ctrl.Manager) *Runtime {
 
-	log := ctrl.Log.WithName("runtime")
-
+	log := ctrl.Log.WithName("environments-runtime")
 	cache := core.NewCache(mgr, nil)
 	registry := core.NewRegistry()
 
-	engine := core.NewEngine(
-		registry,
-		ctrl.Log.WithName("engine"),
-	)
-
-	events := core.NewEventRecorder(
-		mgr.GetEventRecorder("blanketops-runtime"),
-	)
+	engine := core.NewEngine(registry, ctrl.Log.WithName("environments-engine"))
+	events := core.NewEventRecorder(mgr.GetEventRecorder("environments-runtime"))
 
 	return &Runtime{
 		Cache:    cache,
