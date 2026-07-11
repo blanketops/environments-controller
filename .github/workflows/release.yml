@@ -5,6 +5,9 @@ on:
             - "v*"
 permissions:
     contents: write
+    packages: read
+env:
+    IMAGE_REPO: ghcr.io/ntlaletsi70/blanketops-environments-controller
 jobs:
     release:
       runs-on: ubuntu-latest
@@ -42,6 +45,49 @@ jobs:
         - name: Generate release notes
           run: git-cliff --config .cliff.toml --latest --output RELEASE_NOTES.md
 
+        - name: Setup crane
+          uses: imjasonh/setup-crane@v0.4
+
+        - name: Login to GHCR
+          uses: docker/login-action@v3
+          with:
+            registry: ghcr.io
+            username: ${{ github.actor }}
+            password: ${{ secrets.GH_PAT }}
+
+        # ko.yml builds and pushes this same tag concurrently (both fire on
+        # the same tag push) — poll rather than assume it's already there.
+        - name: Resolve container image digest
+          id: image
+          run: |
+              IMAGE_TAG="${{ env.IMAGE_REPO }}:${{ github.ref_name }}"
+              DIGEST=""
+              for i in $(seq 1 30); do
+                DIGEST=$(crane digest "$IMAGE_TAG" 2>/dev/null) && break
+                echo "Waiting for $IMAGE_TAG to be published ($i/30)..."
+                sleep 10
+              done
+              if [[ -z "$DIGEST" ]]; then
+                echo "::warning::Could not resolve digest for $IMAGE_TAG within timeout — image link will be omitted from release notes"
+              fi
+              echo "tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+              echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+        - name: Append container image section to release notes
+          if: steps.image.outputs.digest != ''
+          run: |
+              cat >> RELEASE_NOTES.md <<EOF
+
+              ## Container Image
+
+              \`\`\`
+              docker pull ${{ steps.image.outputs.tag }}
+              \`\`\`
+
+              - Digest: \`${{ env.IMAGE_REPO }}@${{ steps.image.outputs.digest }}\`
+              - Package: https://github.com/ntlaletsi70/blanketops-environments-controller/pkgs/container/blanketops-environments-controller
+              EOF
+
         - name: Create GitHub Release
           uses: softprops/action-gh-release@v2
           with:
@@ -72,5 +118,10 @@ jobs:
                ## Source Tag
 
                \`${{ github.ref_name }}\`
+
+              ## Container Image
+
+              **Image:** \`${{ steps.image.outputs.tag }}\`
+              **Digest:** \`${{ steps.image.outputs.digest }}\`
 
               EOF
