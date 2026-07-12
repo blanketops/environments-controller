@@ -21,8 +21,8 @@ limitations under the License.
 package packages
 
 import (
-	libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
-	"github.com/ntlaletsi70/blanketops-environments/core"
+	libpackages "github.com/BlanketOps/environments/cache/packages"
+	"github.com/BlanketOps/environments/core"
 )
 
 func New(c *core.Cache) *libpackages.PackageCache {

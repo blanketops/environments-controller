@@ -21,8 +21,8 @@ limitations under the License.
 package serviceunit
 
 import (
-	libserviceunit "github.com/ntlaletsi70/blanketops-environments/cache/serviceunit"
-	"github.com/ntlaletsi70/blanketops-environments/core"
+	libserviceunit "github.com/BlanketOps/environments/cache/serviceunit"
+	"github.com/BlanketOps/environments/core"
 )
 
 func New(c *core.Cache) *libserviceunit.ServiceUnitCache {

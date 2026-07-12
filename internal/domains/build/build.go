@@ -31,15 +31,15 @@ import (
 	"reflect"
 
 	environmentsv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
+	libbuild "github.com/BlanketOps/environments/cache/build"
+	"github.com/BlanketOps/environments/core"
+	"github.com/BlanketOps/environments/pkg/apis/build/application"
+	buildResolution "github.com/BlanketOps/environments/resolution/build"
 	"github.com/go-logr/logr"
-	libbuild "github.com/ntlaletsi70/blanketops-environments/cache/build"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/application"
-	buildResolution "github.com/ntlaletsi70/blanketops-environments/resolution/build"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/build"
+	"github.com/blanketops/environments-controller/internal/mediators/build"
 )
 
 // BuildDomain implements the Build resource domain logic.

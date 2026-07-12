@@ -25,10 +25,10 @@ import (
 	"context"
 
 	environmentsv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
+	"github.com/BlanketOps/environments/core"
+	buildapi "github.com/BlanketOps/environments/pkg/apis/build/api"
+	buildapp "github.com/BlanketOps/environments/pkg/apis/build/application"
 	"github.com/go-logr/logr"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	buildapi "github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/api"
-	buildapp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/application"
 	buildclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,9 +39,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	builddomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/build"
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/build"
-	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
+	builddomain "github.com/blanketops/environments-controller/internal/domains/build"
+	"github.com/blanketops/environments-controller/internal/mediators/build"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 // buildFinalizer gates deletion of a Build CR until CleanupPrerequisites and

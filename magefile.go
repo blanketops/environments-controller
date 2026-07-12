@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -41,9 +42,19 @@ func localBin() string {
 	return filepath.Join(wd, "bin")
 }
 
+// installMu serializes goInstallTool calls. mg.Deps runs its target
+// functions concurrently, and Manifests/Generate/etc. each resolve the same
+// tool independently — without this lock, two goroutines installing the
+// same tool race on the rename-then-symlink dance below, which can leave
+// name-version symlinked to itself.
+var installMu sync.Mutex
+
 // goInstallTool installs pkg@version into localBin as name-version,
 // then symlinks name → name-version. No-ops if already installed.
 func goInstallTool(name, pkg, version string) error {
+	installMu.Lock()
+	defer installMu.Unlock()
+
 	bin := localBin()
 	versioned := filepath.Join(bin, name+"-"+version)
 	link := filepath.Join(bin, name)

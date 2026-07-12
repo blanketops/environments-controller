@@ -20,7 +20,7 @@ limitations under the License.
 package environments
 
 import (
-	internalenv "github.com/ntlaletsi70/blanketops-environments-controller/internal/controller/environments"
+	internalenv "github.com/blanketops/environments-controller/internal/controller/environments"
 )
 
 type (

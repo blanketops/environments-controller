@@ -24,8 +24,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	utils "github.com/ntlaletsi70/blanketops-environments/pkg/utils"
-	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
+	utils "github.com/BlanketOps/environments/pkg/utils"
+	deploymentResolution "github.com/BlanketOps/environments/resolution/deployment"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"

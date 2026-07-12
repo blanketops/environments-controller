@@ -29,10 +29,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/BlanketOps/environments/pkg/apis/environment/query"
+	"github.com/BlanketOps/environments/pkg/secrets/git"
+	deploymentResolution "github.com/BlanketOps/environments/resolution/deployment"
 	"github.com/go-logr/logr"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/environment/query"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/secrets/git"
-	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/events"

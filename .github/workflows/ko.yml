@@ -8,7 +8,7 @@
 #   ko.yml   — standard controller builds; fast, Go-native, no Containerfile
 #   apko.yml — when a hardened Wolfi base is required (compliance, CVE posture)
 #
-# Registry: ghcr.io/ntlaletsi70/blanketops-environments-controller
+# Registry: ghcr.io/BlanketOps/blanketops-environments-controller
 #
 # What it does:
 #   1. Builds multi-arch image via ko (linux/amd64, linux/arm64)
@@ -47,7 +47,7 @@ permissions:
 
 env:
   GO_VERSION_FILE: go.mod
-  IMAGE_REPO: ghcr.io/ntlaletsi70/blanketops-environments-controller
+  IMAGE_REPO: ghcr.io/BlanketOps/blanketops-environments-controller
 
 jobs:
   build-and-publish:
@@ -68,7 +68,7 @@ jobs:
 
       - name: Configure git for private modules
         run: |
-          git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/BlanketOps/"
+          git config --global url."git@github.com:BlanketOps/".insteadOf "https://github.com/BlanketOps/"
           go env -w GOPRIVATE=github.com/BlanketOps/*
           go env -w GONOSUMDB=github.com/BlanketOps/*
           go env -w GOPROXY=direct
@@ -144,7 +144,7 @@ jobs:
       # - name: Publish CRD artifact (ORAS)
       #   id: publish
       #   env:
-      #     ARTIFACT_REF: ghcr.io/ntlaletsi70/blanketops-environments-controller-crds:${{ github.ref_name }}
+      #     ARTIFACT_REF: ghcr.io/BlanketOps/blanketops-environments-controller-crds:${{ github.ref_name }}
       #   run: |
       #     FILE_ARGS=()
       #     for f in config/crd/bases/*.yaml; do

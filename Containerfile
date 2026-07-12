@@ -27,7 +27,7 @@ ENV GONOSUMDB=github.com/BlanketOps/*
 ENV GOPROXY=direct
 
 # Rewrite HTTPS to SSH for private org
-RUN git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/BlanketOps/"
+RUN git config --global url."git@github.com:BlanketOps/".insteadOf "https://github.com/BlanketOps/"
 
 # Copy go mod files first (better layer caching)
 COPY go.mod go.sum ./
