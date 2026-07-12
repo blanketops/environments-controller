@@ -25,11 +25,11 @@ import (
 	"context"
 
 	eventsv1alpha1 "github.com/BlanketOps/environments-api/api/events/v1alpha1"
+	"github.com/BlanketOps/environments/core"
+	githubeventapi "github.com/BlanketOps/environments/pkg/apis/githubevent/api"
+	githubeventapp "github.com/BlanketOps/environments/pkg/apis/githubevent/application"
 	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	"github.com/go-logr/logr"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	githubeventapi "github.com/ntlaletsi70/blanketops-environments/pkg/apis/githubevent/api"
-	githubeventapp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/githubevent/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -39,9 +39,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
-	githubeventdomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/githubevent"
-	githubevent "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/githubevent"
-	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
+	githubeventdomain "github.com/blanketops/environments-controller/internal/domains/githubevent"
+	githubevent "github.com/blanketops/environments-controller/internal/mediators/githubevent"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 // githuEventFinalizer gates deletion of a GitHubEvent CR until CleanupPrerequisites and

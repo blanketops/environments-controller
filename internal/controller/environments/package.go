@@ -22,19 +22,19 @@ import (
 	"context"
 
 	packagev1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
+	"github.com/BlanketOps/environments/core"
+	pkgProvider "github.com/BlanketOps/environments/pkg/apis/packages/api"
+	pkgApp "github.com/BlanketOps/environments/pkg/apis/packages/application"
 	"github.com/go-logr/logr"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	pkgProvider "github.com/ntlaletsi70/blanketops-environments/pkg/apis/packages/api"
-	pkgApp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/packages/application"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	pkgDomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/packages"
-	pkgMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/packages"
-	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
+	pkgDomain "github.com/blanketops/environments-controller/internal/domains/packages"
+	pkgMediator "github.com/blanketops/environments-controller/internal/mediators/packages"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 // PackageReconciler reconciles a Package object

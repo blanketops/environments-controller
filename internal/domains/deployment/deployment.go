@@ -31,16 +31,16 @@ import (
 	"reflect"
 
 	environmentv1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
+	libdeployment "github.com/BlanketOps/environments/cache/deployment"
+	"github.com/BlanketOps/environments/core"
+	deployapp "github.com/BlanketOps/environments/pkg/apis/deployment/application"
+	deploymentResolution "github.com/BlanketOps/environments/resolution/deployment"
+	"github.com/BlanketOps/environments/resolution/serviceunit"
 	"github.com/go-logr/logr"
-	libdeployment "github.com/ntlaletsi70/blanketops-environments/cache/deployment"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	deployapp "github.com/ntlaletsi70/blanketops-environments/pkg/apis/deployment/application"
-	deploymentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/deployment"
-	"github.com/ntlaletsi70/blanketops-environments/resolution/serviceunit"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	deploymentMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/deployment"
+	deploymentMediator "github.com/blanketops/environments-controller/internal/mediators/deployment"
 )
 
 // DeployDomain implements the Deployment resource domain.

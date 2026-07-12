@@ -30,14 +30,14 @@ import (
 	"reflect"
 
 	serviceunitv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
+	libserviceunit "github.com/BlanketOps/environments/cache/serviceunit"
+	"github.com/BlanketOps/environments/core"
+	serviceunitResolution "github.com/BlanketOps/environments/resolution/serviceunit"
 	"github.com/go-logr/logr"
-	libserviceunit "github.com/ntlaletsi70/blanketops-environments/cache/serviceunit"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	serviceunitResolution "github.com/ntlaletsi70/blanketops-environments/resolution/serviceunit"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/serviceunit"
+	"github.com/blanketops/environments-controller/internal/mediators/serviceunit"
 )
 
 // ServiceUnitDomain implements the ServiceUnit resource domain.

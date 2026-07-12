@@ -22,8 +22,8 @@ limitations under the License.
 package deployment
 
 import (
-	libdeployment "github.com/ntlaletsi70/blanketops-environments/cache/deployment"
-	"github.com/ntlaletsi70/blanketops-environments/core"
+	libdeployment "github.com/BlanketOps/environments/cache/deployment"
+	"github.com/BlanketOps/environments/core"
 )
 
 func New(c *core.Cache) *libdeployment.DeploymentCache {

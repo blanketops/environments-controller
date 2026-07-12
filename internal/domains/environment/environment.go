@@ -39,10 +39,10 @@ import (
 	"reflect"
 
 	environmentsv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
+	libenvironment "github.com/BlanketOps/environments/cache/environment"
+	"github.com/BlanketOps/environments/core"
+	environmentResolution "github.com/BlanketOps/environments/resolution/environment"
 	"github.com/go-logr/logr"
-	libenvironment "github.com/ntlaletsi70/blanketops-environments/cache/environment"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	environmentResolution "github.com/ntlaletsi70/blanketops-environments/resolution/environment"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"

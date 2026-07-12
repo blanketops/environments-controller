@@ -21,8 +21,8 @@ limitations under the License.
 package githubevent
 
 import (
-	libgithubevent "github.com/ntlaletsi70/blanketops-environments/cache/githubevent"
-	"github.com/ntlaletsi70/blanketops-environments/core"
+	libgithubevent "github.com/BlanketOps/environments/cache/githubevent"
+	"github.com/BlanketOps/environments/core"
 )
 
 func New(c *core.Cache) *libgithubevent.GitHubEventCache {

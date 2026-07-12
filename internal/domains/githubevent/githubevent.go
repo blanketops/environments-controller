@@ -30,15 +30,15 @@ import (
 	"reflect"
 
 	eventsv1alpha1 "github.com/BlanketOps/environments-api/api/events/v1alpha1"
+	libgithubevent "github.com/BlanketOps/environments/cache/githubevent"
+	"github.com/BlanketOps/environments/core"
+	"github.com/BlanketOps/environments/pkg/apis/githubevent/application"
+	githubEventResolution "github.com/BlanketOps/environments/resolution/githubevent"
 	"github.com/go-logr/logr"
-	libgithubevent "github.com/ntlaletsi70/blanketops-environments/cache/githubevent"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/githubevent/application"
-	githubEventResolution "github.com/ntlaletsi70/blanketops-environments/resolution/githubevent"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	githubEventMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/githubevent"
+	githubEventMediator "github.com/blanketops/environments-controller/internal/mediators/githubevent"
 )
 
 // GitHubEventDomain implements the GitHubEvent resource domain.

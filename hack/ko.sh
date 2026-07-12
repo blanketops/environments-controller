@@ -14,7 +14,7 @@
 set -euo pipefail
 
 # ── config ────────────────────────────────────────────────────────────────────
-REPO_OWNER="ntlaletsi70"
+REPO_OWNER="BlanketOps"
 REPO="${REPO_OWNER}/blanketops-environments-controller"
 REF_NAME="${REF_NAME:-$(git describe --tags --exact-match 2>/dev/null || git rev-parse --abbrev-ref HEAD)}"
 GIT_SHA="$(git rev-parse HEAD)"
