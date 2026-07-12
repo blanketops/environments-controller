@@ -24,10 +24,10 @@ import (
 	"context"
 
 	environmentsv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
+	"github.com/BlanketOps/environments/core"
+	"github.com/BlanketOps/environments/pkg/apis/deployment/api"
+	"github.com/BlanketOps/environments/pkg/apis/deployment/application"
 	"github.com/go-logr/logr"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/deployment/api"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/deployment/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -36,9 +36,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	deploydomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/deployment"
-	deployment "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/deployment"
-	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
+	deploydomain "github.com/BlanketOps/environments-controller/internal/domains/deployment"
+	deployment "github.com/BlanketOps/environments-controller/internal/mediators/deployment"
+	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
 )
 
 // deploymentFinalizer gates deletion of a Deployment CR until CleanupPrerequisites and

@@ -5,7 +5,7 @@
 # Docker Hub. Runs alongside ko.yml which pushes to GHCR.
 #
 # Registry split:
-#   ko.yml    → ghcr.io/ntlaletsi70/blanketops-environments-controller (GHCR)
+#   ko.yml    → ghcr.io/BlanketOps/blanketops-environments-controller (GHCR)
 #   image.yml → docker.io/nkanyezisolutions/blanketops-environments-controller (Docker Hub)
 #
 # Go version:
@@ -137,5 +137,5 @@ jobs:
           | Registry | Workflow | Image |
           |----------|----------|-------|
           | Docker Hub | \`image.yml\` | \`${{ env.IMAGE_REPO }}\` |
-          | GHCR | \`ko.yml\` | \`ghcr.io/ntlaletsi70/blanketops-environments-controller\` |
+          | GHCR | \`ko.yml\` | \`ghcr.io/BlanketOps/blanketops-environments-controller\` |
           EOF

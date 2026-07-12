@@ -35,8 +35,8 @@ limitations under the License.
 package gitrepository
 
 import (
-	libgitrepository "github.com/ntlaletsi70/blanketops-environments/cache/gitrepository"
-	"github.com/ntlaletsi70/blanketops-environments/core"
+	libgitrepository "github.com/BlanketOps/environments/cache/gitrepository"
+	"github.com/BlanketOps/environments/core"
 )
 
 func New(c *core.Cache) *libgitrepository.GitRepositoryCache {

@@ -27,10 +27,10 @@ import (
 	"context"
 
 	sourcesv1alpha1 "github.com/BlanketOps/environments-api/api/sources/v1alpha1"
+	"github.com/BlanketOps/environments/core"
+	gitrepoapi "github.com/BlanketOps/environments/pkg/apis/gitrepository/api"
+	"github.com/BlanketOps/environments/pkg/apis/gitrepository/application"
 	"github.com/go-logr/logr"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	gitrepoapi "github.com/ntlaletsi70/blanketops-environments/pkg/apis/gitrepository/api"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/gitrepository/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -39,9 +39,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	gitrepositorydomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/gitrepository"
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/gitrepository"
-	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
+	gitrepositorydomain "github.com/BlanketOps/environments-controller/internal/domains/gitrepository"
+	"github.com/BlanketOps/environments-controller/internal/mediators/gitrepository"
+	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
 )
 
 // GitRepositoryFinalizer gates GitRepository deletion on teardown of the

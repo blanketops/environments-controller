@@ -30,16 +30,16 @@ import (
 	"reflect"
 
 	environmentv1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
+	libpackages "github.com/BlanketOps/environments/cache/packages"
+	"github.com/BlanketOps/environments/core"
+	pkgApplication "github.com/BlanketOps/environments/pkg/apis/packages/application"
+	pkgIntent "github.com/BlanketOps/environments/pkg/apis/packages/intent"
+	pkgResolution "github.com/BlanketOps/environments/resolution/packages"
 	"github.com/go-logr/logr"
-	libpackages "github.com/ntlaletsi70/blanketops-environments/cache/packages"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	pkgApplication "github.com/ntlaletsi70/blanketops-environments/pkg/apis/packages/application"
-	pkgIntent "github.com/ntlaletsi70/blanketops-environments/pkg/apis/packages/intent"
-	pkgResolution "github.com/ntlaletsi70/blanketops-environments/resolution/packages"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	pkgMediator "github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/packages"
+	pkgMediator "github.com/BlanketOps/environments-controller/internal/mediators/packages"
 )
 
 // PackageDomain implements the Package resource domain logic.

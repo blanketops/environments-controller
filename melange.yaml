@@ -71,7 +71,7 @@ environment:
 pipeline:
 - uses: git-checkout
   with:
-    repository: https://github.com/BlanketOps/blanketops-environments-controller
+    repository: https://github.com/BlanketOps/environments-controller
     tag: v${{package.version}}
     expected-commit: ""
 

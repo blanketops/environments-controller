@@ -22,10 +22,10 @@ import (
 	"time"
 
 	buildv1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
+	"github.com/BlanketOps/environments/core"
+	"github.com/BlanketOps/environments/pkg/apis/build/application"
+	"github.com/BlanketOps/environments/pkg/apis/build/domain"
 	"github.com/go-logr/logr"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/application"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/build/domain"
 	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

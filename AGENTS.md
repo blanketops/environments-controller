@@ -4,7 +4,7 @@
 
 This is a **thin Kubernetes controller**. It contains no business logic — it
 watches CRDs and calls into the external engine module
-(`github.com/BlanketOps/blanketops-environments`, mid-migration to
+(`github.com/BlanketOps/environments`, mid-migration to
 `github.com/BlanketOps/environments`) for domain logic, resolution, and
 mediation. See [README.md](README.md) for the architecture split.
 
@@ -58,10 +58,10 @@ registered in `internal/bootstrap/register.go` (`RegisterSchemes`).
 
 ### Engine Module Path Migration In Progress
 Imports across this repo currently read
-`github.com/BlanketOps/blanketops-environments/...`. The engine repo is
+`github.com/BlanketOps/environments/...`. The engine repo is
 moving to `github.com/BlanketOps/environments`, but as of this writing the
 upstream module's own `go.mod` still declares
-`module github.com/BlanketOps/blanketops-environments` — so the import-path
+`module github.com/BlanketOps/environments` — so the import-path
 rename here must wait until upstream retags under the new module path, or a
 require on the new path will fail to resolve.
 

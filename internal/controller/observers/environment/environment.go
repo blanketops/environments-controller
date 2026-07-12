@@ -52,7 +52,7 @@ import (
 	environmentsv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
 	networksv1alpha1 "github.com/BlanketOps/environments-api/api/networks/v1alpha1"
 	sourcesv1alpha1 "github.com/BlanketOps/environments-api/api/sources/v1alpha1"
-	"github.com/ntlaletsi70/blanketops-environments/core"
+	"github.com/BlanketOps/environments/core"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"

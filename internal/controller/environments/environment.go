@@ -27,8 +27,8 @@ import (
 	"context"
 
 	environmentv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
+	"github.com/BlanketOps/environments/core"
 	"github.com/go-logr/logr"
-	"github.com/ntlaletsi70/blanketops-environments/core"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -36,8 +36,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	environmentdomain "github.com/ntlaletsi70/blanketops-environments-controller/internal/domains/environment"
-	runtimeinfra "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
+	environmentdomain "github.com/BlanketOps/environments-controller/internal/domains/environment"
+	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
 )
 
 // EnvironmentReconciler reconciles an Environment object.

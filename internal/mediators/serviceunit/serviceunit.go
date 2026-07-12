@@ -19,8 +19,8 @@ import (
 	"context"
 	"fmt"
 
+	serviceunitResolution "github.com/BlanketOps/environments/resolution/serviceunit"
 	"github.com/go-logr/logr"
-	serviceunitResolution "github.com/ntlaletsi70/blanketops-environments/resolution/serviceunit"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

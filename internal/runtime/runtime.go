@@ -16,8 +16,8 @@ limitations under the License.
 package runtime
 
 import (
+	"github.com/BlanketOps/environments/core"
 	"github.com/go-logr/logr"
-	"github.com/ntlaletsi70/blanketops-environments/core"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 

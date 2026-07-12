@@ -37,7 +37,7 @@ permissions:
 
 env:
   GO_VERSION_FILE: go.mod
-  IMAGE_REPO: ghcr.io/ntlaletsi70/blanketops-environments-controller
+  IMAGE_REPO: ghcr.io/BlanketOps/blanketops-environments-controller
 
 jobs:
   govulncheck:

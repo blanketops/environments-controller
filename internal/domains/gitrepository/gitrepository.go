@@ -31,15 +31,15 @@ import (
 	"reflect"
 
 	sourcesv1alpha1 "github.com/BlanketOps/environments-api/api/sources/v1alpha1"
+	libgitrepository "github.com/BlanketOps/environments/cache/gitrepository"
+	"github.com/BlanketOps/environments/core"
+	"github.com/BlanketOps/environments/pkg/apis/gitrepository/application"
+	gitrepoResolution "github.com/BlanketOps/environments/resolution/gitrepository"
 	"github.com/go-logr/logr"
-	libgitrepository "github.com/ntlaletsi70/blanketops-environments/cache/gitrepository"
-	"github.com/ntlaletsi70/blanketops-environments/core"
-	"github.com/ntlaletsi70/blanketops-environments/pkg/apis/gitrepository/application"
-	gitrepoResolution "github.com/ntlaletsi70/blanketops-environments/resolution/gitrepository"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/ntlaletsi70/blanketops-environments-controller/internal/mediators/gitrepository"
+	"github.com/BlanketOps/environments-controller/internal/mediators/gitrepository"
 )
 
 // GitRepositoryDomain implements the GitRepository resource domain logic.

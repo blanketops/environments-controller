@@ -20,7 +20,7 @@ limitations under the License.
 package runtime
 
 import (
-	internalruntime "github.com/ntlaletsi70/blanketops-environments-controller/internal/runtime"
+	internalruntime "github.com/BlanketOps/environments-controller/internal/runtime"
 )
 
 type Runtime = internalruntime.Runtime
