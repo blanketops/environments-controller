@@ -36,9 +36,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	deploydomain "github.com/BlanketOps/environments-controller/internal/domains/deployment"
-	deployment "github.com/BlanketOps/environments-controller/internal/mediators/deployment"
-	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
+	deploydomain "github.com/blanketops/environments-controller/internal/domains/deployment"
+	deployment "github.com/blanketops/environments-controller/internal/mediators/deployment"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 // deploymentFinalizer gates deletion of a Deployment CR until CleanupPrerequisites and

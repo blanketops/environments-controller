@@ -1,4 +1,4 @@
-module github.com/BlanketOps/environments-controller
+module github.com/blanketops/environments-controller
 
 go 1.26.4
 

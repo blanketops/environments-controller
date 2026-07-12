@@ -60,16 +60,16 @@ import (
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/BlanketOps/environments-controller/internal/controller/environments"
-	eventsContr "github.com/BlanketOps/environments-controller/internal/controller/events"
-	"github.com/BlanketOps/environments-controller/internal/controller/observers/build"
-	"github.com/BlanketOps/environments-controller/internal/controller/observers/buildrun"
-	"github.com/BlanketOps/environments-controller/internal/controller/observers/deployment"
-	environment "github.com/BlanketOps/environments-controller/internal/controller/observers/environment"
-	"github.com/BlanketOps/environments-controller/internal/controller/observers/githubevent"
-	"github.com/BlanketOps/environments-controller/internal/controller/observers/gitrepository"
-	"github.com/BlanketOps/environments-controller/internal/controller/sources"
-	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
+	"github.com/blanketops/environments-controller/internal/controller/environments"
+	eventsContr "github.com/blanketops/environments-controller/internal/controller/events"
+	"github.com/blanketops/environments-controller/internal/controller/observers/build"
+	"github.com/blanketops/environments-controller/internal/controller/observers/buildrun"
+	"github.com/blanketops/environments-controller/internal/controller/observers/deployment"
+	environment "github.com/blanketops/environments-controller/internal/controller/observers/environment"
+	"github.com/blanketops/environments-controller/internal/controller/observers/githubevent"
+	"github.com/blanketops/environments-controller/internal/controller/observers/gitrepository"
+	"github.com/blanketops/environments-controller/internal/controller/sources"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 // RegisterSchemes adds every API group the controller and its dependent

@@ -39,9 +39,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	builddomain "github.com/BlanketOps/environments-controller/internal/domains/build"
-	"github.com/BlanketOps/environments-controller/internal/mediators/build"
-	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
+	builddomain "github.com/blanketops/environments-controller/internal/domains/build"
+	"github.com/blanketops/environments-controller/internal/mediators/build"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 // buildFinalizer gates deletion of a Build CR until CleanupPrerequisites and

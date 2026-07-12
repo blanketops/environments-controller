@@ -39,9 +39,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 
-	githubeventdomain "github.com/BlanketOps/environments-controller/internal/domains/githubevent"
-	githubevent "github.com/BlanketOps/environments-controller/internal/mediators/githubevent"
-	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
+	githubeventdomain "github.com/blanketops/environments-controller/internal/domains/githubevent"
+	githubevent "github.com/blanketops/environments-controller/internal/mediators/githubevent"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 // githuEventFinalizer gates deletion of a GitHubEvent CR until CleanupPrerequisites and

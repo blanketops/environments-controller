@@ -39,7 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/BlanketOps/environments-controller/internal/mediators/gitrepository"
+	"github.com/blanketops/environments-controller/internal/mediators/gitrepository"
 )
 
 // GitRepositoryDomain implements the GitRepository resource domain logic.

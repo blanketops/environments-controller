@@ -39,7 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	pkgMediator "github.com/BlanketOps/environments-controller/internal/mediators/packages"
+	pkgMediator "github.com/blanketops/environments-controller/internal/mediators/packages"
 )
 
 // PackageDomain implements the Package resource domain logic.

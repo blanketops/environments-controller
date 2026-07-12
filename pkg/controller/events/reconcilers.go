@@ -20,7 +20,7 @@ limitations under the License.
 package events
 
 import (
-	internalevents "github.com/BlanketOps/environments-controller/internal/controller/events"
+	internalevents "github.com/blanketops/environments-controller/internal/controller/events"
 )
 
 type (

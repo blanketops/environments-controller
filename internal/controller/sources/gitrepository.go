@@ -39,9 +39,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	gitrepositorydomain "github.com/BlanketOps/environments-controller/internal/domains/gitrepository"
-	"github.com/BlanketOps/environments-controller/internal/mediators/gitrepository"
-	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
+	gitrepositorydomain "github.com/blanketops/environments-controller/internal/domains/gitrepository"
+	"github.com/blanketops/environments-controller/internal/mediators/gitrepository"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 // GitRepositoryFinalizer gates GitRepository deletion on teardown of the

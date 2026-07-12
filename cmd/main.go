@@ -32,8 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	bootstrap "github.com/BlanketOps/environments-controller/internal/bootstrap"
-	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
+	bootstrap "github.com/blanketops/environments-controller/internal/bootstrap"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 var (

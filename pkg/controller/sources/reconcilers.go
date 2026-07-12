@@ -20,7 +20,7 @@ limitations under the License.
 package sources
 
 import (
-	internalsources "github.com/BlanketOps/environments-controller/internal/controller/sources"
+	internalsources "github.com/blanketops/environments-controller/internal/controller/sources"
 )
 
 type (

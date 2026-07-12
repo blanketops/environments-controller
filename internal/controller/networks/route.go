@@ -47,8 +47,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	// routedomain "github.com/BlanketOps/environments-controller/internal/domains/route"
-	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
+	// routedomain "github.com/blanketops/environments-controller/internal/domains/route"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 // routeFinalizer gates deletion of a Route CR until CleanupPrerequisites and

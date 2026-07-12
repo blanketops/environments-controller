@@ -37,7 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/BlanketOps/environments-controller/internal/mediators/serviceunit"
+	"github.com/blanketops/environments-controller/internal/mediators/serviceunit"
 )
 
 // ServiceUnitDomain implements the ServiceUnit resource domain.

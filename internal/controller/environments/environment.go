@@ -36,8 +36,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	environmentdomain "github.com/BlanketOps/environments-controller/internal/domains/environment"
-	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
+	environmentdomain "github.com/blanketops/environments-controller/internal/domains/environment"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 // EnvironmentReconciler reconciles an Environment object.

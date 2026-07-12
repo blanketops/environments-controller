@@ -20,7 +20,7 @@ limitations under the License.
 package networks
 
 import (
-	internalnetworks "github.com/BlanketOps/environments-controller/internal/controller/networks"
+	internalnetworks "github.com/blanketops/environments-controller/internal/controller/networks"
 )
 
 type (

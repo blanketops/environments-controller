@@ -32,9 +32,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	pkgDomain "github.com/BlanketOps/environments-controller/internal/domains/packages"
-	pkgMediator "github.com/BlanketOps/environments-controller/internal/mediators/packages"
-	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
+	pkgDomain "github.com/blanketops/environments-controller/internal/domains/packages"
+	pkgMediator "github.com/blanketops/environments-controller/internal/mediators/packages"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 // PackageReconciler reconciles a Package object

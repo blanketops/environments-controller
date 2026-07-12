@@ -32,7 +32,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	runtimeinfra "github.com/BlanketOps/environments-controller/internal/runtime"
+	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
 // ServiceUnitReconciler reconciles a ServiceUnit object
