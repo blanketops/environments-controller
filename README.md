@@ -9,7 +9,7 @@ Kubernetes controller for BlanketOps Environments.
 
 The system is split into two parts:
 
-### 🧠 Engine (blanketops-environments)
+### 🧠 Engine (blanketops-environments, migrating to `BlanketOps/environments`)
 
 - Domain logic
 - Resolution layer
@@ -33,20 +33,21 @@ It orchestrates reconciliation.
 The controller reconciles:
 
 - Build
-- BuildTrigger
 - Deployment
 - Environment
 - Package
 - ServiceUnit
-- GitHubEvent
 - GitRepository
+- GitHubEvent
+- Route, Domain (written, not yet registered — deferred to v0.7.0)
 
-All behavior is delegated to the engine layer.
+CRD schemas for these Kinds live in the external `environments-api` module,
+not in this repo. All behavior is delegated to the engine layer.
 
 ## Prerequisites
 
 ```bash
-Go v1.24+
+Go v1.26+
 Docker
 Kubernetes v1.25+
 kubectl
@@ -54,30 +55,29 @@ kubectl
 
 ## Development
 
+Build tooling is [mage](https://magefile.org), not make — there is no Makefile in this repo.
+
 Run locally:
 
 ```bash
-make run
+mage run
 ```
 
-Build image:
+Build and push image:
 
 ```bash
-make docker-build docker-push IMG=<registry>/blanketops-environments-controller:<tag>
+IMG=<registry>/blanketops-environments-controller:<tag> mage dockerbuild dockerpush
 ```
 
-Deploy to cluster:
+Run the unit test suite:
 
 ```bash
-make deploy IMG=<registry>/blanketops-environments-controller:<tag>
+mage test
 ```
 
-Uninstall:
-
-```bash
-make undeploy
-make uninstall
-```
+This repo does not own cluster deployment manifests (no `config/manager`,
+`config/default`, or Helm chart) — only `config/rbac/role.yaml` is generated
+here and synced to the separate install repo that owns actual deployment.
 
 ## Release
 

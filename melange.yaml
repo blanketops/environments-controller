@@ -32,33 +32,33 @@ package:
   epoch: 0
   description: "BlanketOps Environments Kubernetes Controller"
   target-architecture:
-    - x86_64
+  - x86_64
   copyright:
-    - license: Apache-2.0
+  - license: Apache-2.0
   dependencies:
     runtime: []
   checks:
     disabled:
-      - usrlocal
-      - setuidgid
+    - usrlocal
+    - setuidgid
 update:
   enabled: false
 
 environment:
   contents:
     repositories:
-      - https://packages.wolfi.dev/os
+    - https://packages.wolfi.dev/os
     keyring:
-      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
     packages:
-      - busybox
-      - ca-certificates-bundle
-      - go
-      - git
-      - openssh-client
+    - busybox
+    - ca-certificates-bundle
+    - go
+    - git
+    - openssh-client
   environment:
-    GOPRIVATE: github.com/ntlaletsi70/*
-    GONOSUMDB: github.com/ntlaletsi70/*
+    GOPRIVATE: github.com/BlanketOps/*
+    GONOSUMDB: github.com/BlanketOps/*
     GOPROXY: direct
     CGO_ENABLED: "0"
     # Pin HOME so .netrc is always found at /root/.netrc regardless of
@@ -69,31 +69,31 @@ environment:
     GIT_CONFIG_GLOBAL: /etc/gitconfig-blanketops
 
 pipeline:
-  - uses: git-checkout
-    with:
-      repository: https://github.com/ntlaletsi70/blanketops-environments-controller
-      tag: v${{package.version}}
-      expected-commit: ""
+- uses: git-checkout
+  with:
+    repository: https://github.com/BlanketOps/blanketops-environments-controller
+    tag: v${{package.version}}
+    expected-commit: ""
 
-  # Configure credentials for private module downloads inside bwrap.
-  # git config --global is unreliable in bwrap (user home ambiguity).
-  # .netrc is universally picked up by git and go regardless of user.
-  # MELANGE_PAT is replaced by apko.yml sed pass 3 before the build.
-  - name: Configure authentication for private modules
-    runs: |
-      # .netrc — go mod download uses this for HTTPS credential resolution
-      mkdir -p /root
-      printf 'machine github.com\nlogin git\npassword MELANGE_PAT\n' > /root/.netrc
-      chmod 600 /root/.netrc
-      # git insteadOf rewrite — written to explicit path via GIT_CONFIG_GLOBAL
-      git config --file /etc/gitconfig-blanketops \
-        url."https://MELANGE_PAT@github.com/ntlaletsi70/".insteadOf \
-        "https://github.com/ntlaletsi70/"
+# Configure credentials for private module downloads inside bwrap.
+# git config --global is unreliable in bwrap (user home ambiguity).
+# .netrc is universally picked up by git and go regardless of user.
+# MELANGE_PAT is replaced by apko.yml sed pass 3 before the build.
+- name: Configure authentication for private modules
+  runs: |
+    # .netrc — go mod download uses this for HTTPS credential resolution
+    mkdir -p /root
+    printf 'machine github.com\nlogin git\npassword MELANGE_PAT\n' > /root/.netrc
+    chmod 600 /root/.netrc
+    # git insteadOf rewrite — written to explicit path via GIT_CONFIG_GLOBAL
+    git config --file /etc/gitconfig-blanketops \
+      url."https://MELANGE_PAT@github.com/BlanketOps/".insteadOf \
+      "https://github.com/BlanketOps/"
 
-  - uses: go/build
-    with:
-      packages: ./cmd
-      output: manager
-      ldflags: -s -w
+- uses: go/build
+  with:
+    packages: ./cmd
+    output: manager
+    ldflags: -s -w
 
-  - uses: strip
+- uses: strip
