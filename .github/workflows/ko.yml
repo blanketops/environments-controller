@@ -68,9 +68,9 @@ jobs:
 
       - name: Configure git for private modules
         run: |
-          git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/ntlaletsi70/"
-          go env -w GOPRIVATE=github.com/ntlaletsi70/*
-          go env -w GONOSUMDB=github.com/ntlaletsi70/*
+          git config --global url."git@github.com:ntlaletsi70/".insteadOf "https://github.com/BlanketOps/"
+          go env -w GOPRIVATE=github.com/BlanketOps/*
+          go env -w GONOSUMDB=github.com/BlanketOps/*
           go env -w GOPROXY=direct
 
       - name: Setup ko
