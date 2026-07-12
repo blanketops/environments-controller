@@ -8,7 +8,7 @@ layout:
 - go.kubebuilder.io/v4
 multigroup: true
 projectName: blanketops-environments-controller
-repo: github.com/ntlaletsi70/blanketops-environments-controller
+repo: github.com/BlanketOps/blanketops-environments-controller
 resources:
 - controller: true
   domain: blanketops.dev
