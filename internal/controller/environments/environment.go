@@ -26,8 +26,8 @@ package environments
 import (
 	"context"
 
-	environmentv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
-	"github.com/BlanketOps/environments/core"
+	environmentv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
+	"github.com/blanketops/environments/core"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"

@@ -21,10 +21,10 @@ package environments
 import (
 	"context"
 
-	packagev1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
-	"github.com/BlanketOps/environments/core"
-	pkgProvider "github.com/BlanketOps/environments/pkg/apis/packages/api"
-	pkgApp "github.com/BlanketOps/environments/pkg/apis/packages/application"
+	packagev1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
+	"github.com/blanketops/environments/core"
+	pkgProvider "github.com/blanketops/environments/pkg/apis/packages/api"
+	pkgApp "github.com/blanketops/environments/pkg/apis/packages/application"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"

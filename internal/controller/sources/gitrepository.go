@@ -26,10 +26,10 @@ package sources
 import (
 	"context"
 
-	sourcesv1alpha1 "github.com/BlanketOps/environments-api/api/sources/v1alpha1"
-	"github.com/BlanketOps/environments/core"
-	gitrepoapi "github.com/BlanketOps/environments/pkg/apis/gitrepository/api"
-	"github.com/BlanketOps/environments/pkg/apis/gitrepository/application"
+	sourcesv1alpha1 "github.com/blanketops/environments-api/api/sources/v1alpha1"
+	"github.com/blanketops/environments/core"
+	gitrepoapi "github.com/blanketops/environments/pkg/apis/gitrepository/api"
+	"github.com/blanketops/environments/pkg/apis/gitrepository/application"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"

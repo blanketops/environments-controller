@@ -29,9 +29,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/BlanketOps/environments/pkg/apis/environment/query"
-	"github.com/BlanketOps/environments/pkg/secrets/git"
-	deploymentResolution "github.com/BlanketOps/environments/resolution/deployment"
+	"github.com/blanketops/environments/pkg/apis/environment/query"
+	"github.com/blanketops/environments/pkg/secrets/git"
+	deploymentResolution "github.com/blanketops/environments/resolution/deployment"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
