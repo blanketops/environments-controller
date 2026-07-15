@@ -1,0 +1,56 @@
+# ── Binaries ─────────────────────────────────────────────
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+Dockerfile.cross
+
+# ── Go build & test artifacts ────────────────────────────
+*.test
+*.out
+coverage.html
+go.work
+go.work.sum
+
+# ── Kubernetes generated files ───────────────────────────
+# skip generated files, except for vendored files
+!vendor/**/zz_generated.*
+
+# ── apko / melange build artifacts ───────────────────────
+packages/
+*.apk
+sbom-*.json
+*.oci.tar
+*.oci.tar.gz
+
+# melange signing keys — private key must NEVER be committed
+melange.rsa
+melange.rsa.pub
+
+# ── ko build artifacts ───────────────────────────────────
+.ko.yaml.local
+
+# ── act (local GitHub Actions) ───────────────────────────
+.actrc
+.act/
+
+# ── Local environment & secrets ──────────────────────────
+.env
+.env.*
+.secrets
+*.kubeconfig
+kubeconfig
+*.pem
+*.key
+
+# ── Editor and IDE paraphernalia ─────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── OS noise ─────────────────────────────────────────────
+.DS_Store

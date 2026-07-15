@@ -1,0 +1,13 @@
+defaultBaseImage: gcr.io/distroless/static:nonroot
+
+builds:
+- id: manager
+  main: ./cmd/main.go
+  env:
+  - CGO_ENABLED=0
+  ldflags:
+  - -s
+  - -w
+  platforms:
+  - linux/amd64
+  - linux/arm64

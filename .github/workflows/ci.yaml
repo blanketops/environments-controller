@@ -1,0 +1,84 @@
+# =============================================================================
+# ci.yaml — CI Build and Lint
+#
+# Runs on every push to main and every pull request.
+# Builds the controller binary and runs golangci-lint.
+#
+# Changes from previous:
+#   - go-version-file: go.mod instead of hardcoded version
+#   - Removed Force Remote Dependency step — replace directives must not be
+#     committed to go.mod; local replace is development-only
+#   - Removed -mod=vendor — controller fetches deps via SSH + GOPRIVATE at
+#     build time; vendor directory is not committed in this repo
+#   - golangci-lint replaces staticcheck — consistent with library CI
+#   - go vet added before lint
+#   - GONOSUMDB + GOPRIVATE + GOPROXY=direct set consistently
+#
+# Secrets required:
+#   GH_PAT — private module access
+# =============================================================================
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION_FILE: go.mod
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: true
+
+      - name: Configure Git for private modules
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+          go env -w GOPRIVATE=github.com/blanketops/*
+          go env -w GONOSUMDB=github.com/blanketops/*
+          go env -w GOPROXY=direct
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: CI Summary
+        if: always()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          # 🔧 CI Build
+
+          **Branch:** \`${{ github.ref_name }}\`
+          **Trigger:** \`${{ github.event_name }}\`
+          **Commit:** \`${{ github.sha }}\`
+
+          ## Steps
+          - Checkout
+          - Setup Go (from \`go.mod\`)
+          - Configure private module access (SSH + GOPRIVATE)
+          - \`go build ./...\`
+          - \`go vet ./...\`
+          - \`golangci-lint run\`
+          EOF

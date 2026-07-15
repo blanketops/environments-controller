@@ -1,0 +1,155 @@
+# =============================================================================
+# vulnscan.yml — Vulnerability Scanning
+#
+# Two independent jobs:
+#   govulncheck  — Go module + stdlib reachable-vulnerability scan. Runs on
+#                  push to main, PRs, and a weekly schedule (CVE databases
+#                  change even when the code doesn't).
+#   trivy-image  — OS + library CVE scan of the published GHCR image (the
+#                  ko.yml build). Only meaningful once an image exists, so it
+#                  runs on tag push (same trigger as ko.yml) and the weekly
+#                  schedule, scanning :latest on the scheduled run.
+#
+# Report-only for now: this repo is private, so SARIF upload to the Security
+# tab would need GitHub Advanced Security. Findings surface via job logs and
+# the step summary. Once the repo goes public, wire up SARIF upload for both
+# jobs to get free Security-tab integration.
+#
+# Secrets required:
+#   GH_PAT — private module access (govulncheck) + GHCR pull (trivy-image)
+# =============================================================================
+
+name: Vulnerability Scan
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  schedule:
+    - cron: "0 6 * * 1" # every Monday 06:00 UTC
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  GO_VERSION_FILE: go.mod
+  IMAGE_REPO: ghcr.io/blanketops/environments-controller
+
+jobs:
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: true
+
+      - name: Configure Git for private modules
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+          go env -w GOPRIVATE=github.com/blanketops/*
+          go env -w GONOSUMDB=github.com/blanketops/*
+          go env -w GOPROXY=direct
+
+      - name: Run govulncheck
+        id: govulncheck
+        continue-on-error: true
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@latest -json ./... > govulncheck-report.json 2>govulncheck-stderr.txt || true
+
+      - name: Govulncheck Summary
+        if: always()
+        run: |
+          {
+            echo "# 🛡️ govulncheck"
+            echo
+            echo "**Branch:** \`${{ github.ref_name }}\`"
+            echo "**Trigger:** \`${{ github.event_name }}\`"
+            echo
+            echo "Report-only — this job does not fail the build."
+            echo
+            COUNT=$(jq -s '[.[] | select(.finding != null)] | length' govulncheck-report.json 2>/dev/null || echo 0)
+            if [[ "$COUNT" -gt 0 ]]; then
+              echo "| OSV ID | Module | Version | Fixed | Function |"
+              echo "|---|---|---|---|---|"
+              jq -s -r '.[] | select(.finding != null) | .finding |
+                {
+                  osv: .osv,
+                  module: ([.trace[]? | select(.module) | .module] | first // "-"),
+                  version: ([.trace[]? | select(.version) | .version] | first // "-"),
+                  fixed: (.fixed_version // "-"),
+                  function: ([.trace[]? | select(.function) | .function] | first // "-")
+                } | "| \(.osv) | \(.module) | \(.version) | \(.fixed) | \(.function) |"' \
+                govulncheck-report.json | sort -u
+            else
+              echo "No known vulnerabilities found."
+            fi
+            echo
+            echo "<details><summary>Raw report (JSON)</summary>"
+            echo
+            echo '```json'
+            head -c 60000 govulncheck-report.json 2>/dev/null
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  trivy-image:
+    if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute image ref
+        id: image
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "ref=${{ env.IMAGE_REPO }}:${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ env.IMAGE_REPO }}:latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GH_PAT }}
+
+      - name: Run Trivy image scan
+        id: trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        continue-on-error: true
+        with:
+          image-ref: ${{ steps.image.outputs.ref }}
+          format: template
+          template: "@/contrib/markdown.tpl"
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: "0"
+          output: trivy-report.md
+
+      - name: Trivy Summary
+        if: always()
+        run: |
+          {
+            echo "# 🐳 Trivy Image Scan"
+            echo
+            echo "**Image:** \`${{ steps.image.outputs.ref }}\`"
+            echo "**Trigger:** \`${{ github.event_name }}\`"
+            echo
+            echo "Report-only — this job does not fail the build."
+            echo
+            if [[ -s trivy-report.md ]]; then
+              head -c 100000 trivy-report.md
+            else
+              echo "No findings."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
