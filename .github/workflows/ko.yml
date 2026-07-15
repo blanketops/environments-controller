@@ -8,7 +8,7 @@
 #   ko.yml   — standard controller builds; fast, Go-native, no Containerfile
 #   apko.yml — when a hardened Wolfi base is required (compliance, CVE posture)
 #
-# Registry: ghcr.io/BlanketOps/blanketops-environments-controller
+# Registry: ghcr.io/blanketops/blanketops-environments-controller
 #
 # What it does:
 #   1. Builds multi-arch image via ko (linux/amd64, linux/arm64)
@@ -22,8 +22,7 @@
 #   manual    → {ref_name} only
 #
 # Secrets required:
-#   GH_PAT         — GHCR push + private module access
-#   SSH_PRIVATE_KEY — private module git access
+#   GH_PAT — GHCR push + private module git access (HTTPS)
 # =============================================================================
 
 name: Ko Image
@@ -47,7 +46,7 @@ permissions:
 
 env:
   GO_VERSION_FILE: go.mod
-  IMAGE_REPO: ghcr.io/BlanketOps/blanketops-environments-controller
+  IMAGE_REPO: ghcr.io/blanketops/blanketops-environments-controller
 
 jobs:
   build-and-publish:
@@ -61,14 +60,9 @@ jobs:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache: true
 
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
       - name: Configure git for private modules
         run: |
-          git config --global url."git@github.com:blanketops/".insteadOf "https://github.com/blanketops/"
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
           go env -w GOPRIVATE=github.com/blanketops/*
           go env -w GONOSUMDB=github.com/blanketops/*
           go env -w GOPROXY=direct
@@ -144,7 +138,7 @@ jobs:
       # - name: Publish CRD artifact (ORAS)
       #   id: publish
       #   env:
-      #     ARTIFACT_REF: ghcr.io/BlanketOps/blanketops-environments-controller-crds:${{ github.ref_name }}
+      #     ARTIFACT_REF: ghcr.io/blanketops/blanketops-environments-controller-crds:${{ github.ref_name }}
       #   run: |
       #     FILE_ARGS=()
       #     for f in config/crd/bases/*.yaml; do

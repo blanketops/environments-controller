@@ -5,7 +5,7 @@
 # Docker Hub. Runs alongside ko.yml which pushes to GHCR.
 #
 # Registry split:
-#   ko.yml    → ghcr.io/BlanketOps/blanketops-environments-controller (GHCR)
+#   ko.yml    → ghcr.io/blanketops/blanketops-environments-controller (GHCR)
 #   image.yml → docker.io/nkanyezisolutions/blanketops-environments-controller (Docker Hub)
 #
 # Go version:
@@ -21,7 +21,7 @@
 # Secrets required:
 #   DOCKERHUB_USERNAME — Docker Hub login
 #   DOCKERHUB_TOKEN    — Docker Hub access token
-#   SSH_PRIVATE_KEY    — private module git access during build
+#   GH_PAT             — private module git access during build (HTTPS)
 # =============================================================================
 
 name: Image
@@ -54,11 +54,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -97,7 +92,8 @@ jobs:
           context: .
           file: Containerfile
           push: true
-          ssh: default=${{ env.SSH_AUTH_SOCK }}
+          secrets: |
+            gh_pat=${{ secrets.GH_PAT }}
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
@@ -137,5 +133,5 @@ jobs:
           | Registry | Workflow | Image |
           |----------|----------|-------|
           | Docker Hub | \`image.yml\` | \`${{ env.IMAGE_REPO }}\` |
-          | GHCR | \`ko.yml\` | \`ghcr.io/BlanketOps/blanketops-environments-controller\` |
+          | GHCR | \`ko.yml\` | \`ghcr.io/blanketops/blanketops-environments-controller\` |
           EOF
