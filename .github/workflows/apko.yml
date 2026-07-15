@@ -106,7 +106,7 @@ jobs:
 
           # Pass 2: checkout URL → HTTPS+PAT
           sed -i \
-            "s|https://github.com/BlanketOps/|https://${{ secrets.GH_PAT }}@github.com/BlanketOps/|g" \
+            "s|https://github.com/blanketops/|https://${{ secrets.GH_PAT }}@github.com/blanketops/|g" \
             melange.yaml
 
           # Pass 3: MELANGE_PAT placeholder → actual PAT

@@ -57,8 +57,8 @@ environment:
     - git
     - openssh-client
   environment:
-    GOPRIVATE: github.com/BlanketOps/*
-    GONOSUMDB: github.com/BlanketOps/*
+    GOPRIVATE: github.com/blanketops/*
+    GONOSUMDB: github.com/blanketops/*
     GOPROXY: direct
     CGO_ENABLED: "0"
     # Pin HOME so .netrc is always found at /root/.netrc regardless of
@@ -71,7 +71,7 @@ environment:
 pipeline:
 - uses: git-checkout
   with:
-    repository: https://github.com/BlanketOps/environments-controller
+    repository: https://github.com/blanketops/environments-controller
     tag: v${{package.version}}
     expected-commit: ""
 
@@ -87,8 +87,8 @@ pipeline:
     chmod 600 /root/.netrc
     # git insteadOf rewrite — written to explicit path via GIT_CONFIG_GLOBAL
     git config --file /etc/gitconfig-blanketops \
-      url."https://MELANGE_PAT@github.com/BlanketOps/".insteadOf \
-      "https://github.com/BlanketOps/"
+      url."https://MELANGE_PAT@github.com/blanketops/".insteadOf \
+      "https://github.com/blanketops/"
 
 - uses: go/build
   with:
