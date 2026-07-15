@@ -7,7 +7,7 @@ permissions:
     contents: write
     packages: read
 env:
-    IMAGE_REPO: ghcr.io/blanketops/blanketops-environments-controller
+    IMAGE_REPO: ghcr.io/blanketops/environments-controller
 jobs:
     release:
       runs-on: ubuntu-latest
@@ -85,7 +85,7 @@ jobs:
               \`\`\`
 
               - Digest: \`${{ env.IMAGE_REPO }}@${{ steps.image.outputs.digest }}\`
-              - Package: https://github.com/blanketops/environments-controller/pkgs/container/blanketops-environments-controller
+              - Package: https://github.com/blanketops/environments-controller/pkgs/container/environments-controller
               EOF
 
         - name: Create GitHub Release

@@ -8,7 +8,7 @@
 #   ko.yml   — standard controller builds; fast, Go-native, no Containerfile
 #   apko.yml — when a hardened Wolfi base is required (compliance, CVE posture)
 #
-# Registry: ghcr.io/blanketops/blanketops-environments-controller
+# Registry: ghcr.io/blanketops/environments-controller
 #
 # What it does:
 #   1. Builds multi-arch image via ko (linux/amd64, linux/arm64)
@@ -46,7 +46,7 @@ permissions:
 
 env:
   GO_VERSION_FILE: go.mod
-  IMAGE_REPO: ghcr.io/blanketops/blanketops-environments-controller
+  IMAGE_REPO: ghcr.io/blanketops/environments-controller
 
 jobs:
   build-and-publish:
@@ -138,7 +138,7 @@ jobs:
       # - name: Publish CRD artifact (ORAS)
       #   id: publish
       #   env:
-      #     ARTIFACT_REF: ghcr.io/blanketops/blanketops-environments-controller-crds:${{ github.ref_name }}
+      #     ARTIFACT_REF: ghcr.io/blanketops/environments-controller-crds:${{ github.ref_name }}
       #   run: |
       #     FILE_ARGS=()
       #     for f in config/crd/bases/*.yaml; do

@@ -66,7 +66,7 @@ permissions:
   attestations: write
 
 env:
-  IMAGE_REPO: ghcr.io/blanketops/blanketops-environments-controller
+  IMAGE_REPO: ghcr.io/blanketops/environments-controller
 
 jobs:
   wolfi:
