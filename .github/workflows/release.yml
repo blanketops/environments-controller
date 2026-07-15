@@ -85,7 +85,7 @@ jobs:
               \`\`\`
 
               - Digest: \`${{ env.IMAGE_REPO }}@${{ steps.image.outputs.digest }}\`
-              - Package: https://github.com/BlanketOps/environments-controller/pkgs/container/blanketops-environments-controller
+              - Package: https://github.com/blanketops/environments-controller/pkgs/container/blanketops-environments-controller
               EOF
 
         - name: Create GitHub Release
