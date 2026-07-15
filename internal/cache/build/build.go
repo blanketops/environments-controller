@@ -21,8 +21,8 @@ limitations under the License.
 package build
 
 import (
-	libbuild "github.com/BlanketOps/environments/cache/build"
-	"github.com/BlanketOps/environments/core"
+	libbuild "github.com/blanketops/environments/cache/build"
+	"github.com/blanketops/environments/core"
 )
 
 // New constructs the Build domain cache for this controller runtime.

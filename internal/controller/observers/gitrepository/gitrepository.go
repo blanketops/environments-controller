@@ -18,10 +18,10 @@ package gitrepository
 import (
 	"context"
 
-	sourcesv1alpha1 "github.com/BlanketOps/environments-api/api/sources/v1alpha1"
-	"github.com/BlanketOps/environments/core"
-	"github.com/BlanketOps/environments/pkg/apis/gitrepository/application"
-	"github.com/BlanketOps/environments/pkg/apis/gitrepository/domain"
+	sourcesv1alpha1 "github.com/blanketops/environments-api/api/sources/v1alpha1"
+	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/pkg/apis/gitrepository/application"
+	"github.com/blanketops/environments/pkg/apis/gitrepository/domain"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
