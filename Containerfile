@@ -22,12 +22,12 @@ RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
 RUN ssh-keyscan github.com >> /root/.ssh/known_hosts
 
 # Go private module configuration
-ENV GOPRIVATE=github.com/BlanketOps/*
-ENV GONOSUMDB=github.com/BlanketOps/*
+ENV GOPRIVATE=github.com/blanketops/*
+ENV GONOSUMDB=github.com/blanketops/*
 ENV GOPROXY=direct
 
 # Rewrite HTTPS to SSH for private org
-RUN git config --global url."git@github.com:BlanketOps/".insteadOf "https://github.com/BlanketOps/"
+RUN git config --global url."git@github.com:blanketops/".insteadOf "https://github.com/blanketops/"
 
 # Copy go mod files first (better layer caching)
 COPY go.mod go.sum ./
