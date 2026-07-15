@@ -19,8 +19,8 @@ import (
 	"context"
 	"encoding/json"
 
-	env1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
-	environmentResolution "github.com/BlanketOps/environments/resolution/environment"
+	env1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
+	environmentResolution "github.com/blanketops/environments/resolution/environment"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

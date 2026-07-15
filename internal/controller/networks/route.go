@@ -34,11 +34,11 @@ package networks
 import (
 	"context"
 
-	networksv1alpha1 "github.com/BlanketOps/environments-api/api/networks/v1alpha1"
-	"github.com/BlanketOps/environments/core"
+	networksv1alpha1 "github.com/blanketops/environments-api/api/networks/v1alpha1"
+	"github.com/blanketops/environments/core"
 	"github.com/go-logr/logr"
 
-	// routeapp "github.com/BlanketOps/environments/pkg/apis/route/application"
+	// routeapp "github.com/blanketops/environments/pkg/apis/route/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"

@@ -22,13 +22,13 @@ limitations under the License.
 package cache
 
 import (
-	libbuild "github.com/BlanketOps/environments/cache/build"
-	libdeployment "github.com/BlanketOps/environments/cache/deployment"
-	libgithubevent "github.com/BlanketOps/environments/cache/githubevent"
-	libgitrepository "github.com/BlanketOps/environments/cache/gitrepository"
-	libpackages "github.com/BlanketOps/environments/cache/packages"
-	libserviceunit "github.com/BlanketOps/environments/cache/serviceunit"
-	"github.com/BlanketOps/environments/core"
+	libbuild "github.com/blanketops/environments/cache/build"
+	libdeployment "github.com/blanketops/environments/cache/deployment"
+	libgithubevent "github.com/blanketops/environments/cache/githubevent"
+	libgitrepository "github.com/blanketops/environments/cache/gitrepository"
+	libpackages "github.com/blanketops/environments/cache/packages"
+	libserviceunit "github.com/blanketops/environments/cache/serviceunit"
+	"github.com/blanketops/environments/core"
 )
 
 // Caches aggregates all domain caches, constructed once in main and

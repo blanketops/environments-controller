@@ -24,10 +24,10 @@ package environments
 import (
 	"context"
 
-	environmentsv1alpha1 "github.com/BlanketOps/environments-api/api/environments/v1alpha1"
-	"github.com/BlanketOps/environments/core"
-	buildapi "github.com/BlanketOps/environments/pkg/apis/build/api"
-	buildapp "github.com/BlanketOps/environments/pkg/apis/build/application"
+	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
+	"github.com/blanketops/environments/core"
+	buildapi "github.com/blanketops/environments/pkg/apis/build/api"
+	buildapp "github.com/blanketops/environments/pkg/apis/build/application"
 	"github.com/go-logr/logr"
 	buildclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
@@ -71,6 +71,9 @@ type BuildReconciler struct {
 // +kubebuilder:rbac:groups=shipwright.io,resources=builds/status;buildruns/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=tekton.dev,resources=pipelines;pipelineruns;tasks;taskruns,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=tekton.dev,resources=pipelineruns/status;taskruns/status,verbs=get;update;patch
+
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
