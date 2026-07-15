@@ -1,0 +1,68 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. v0.0.9)"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+      - name: Create release branch
+        run: |
+          git checkout -b release/${{ github.event.inputs.version }}
+          git push origin release/${{ github.event.inputs.version }}
+
+      - name: Open PR to main
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          gh pr create \
+            --base main \
+            --head release/${{ github.event.inputs.version }} \
+            --title "release: ${{ github.event.inputs.version }}" \
+            --body "## Release ${{ github.event.inputs.version }}
+
+          Release branch cut from \`develop\`. Merge fix PRs into this branch before finalizing.
+
+          **Next step:** once all fixes are merged, run the _Finalize Release_ workflow." \
+          || echo "::warning::PR creation failed — branch release/${{ github.event.inputs.version }} was created successfully. Open the PR manually."
+
+      - name: Release Summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY <<EOF 
+          # 🚀 Release Branch Created 
+          **Version:** \`${{ github.event.inputs.version }}\`
+          ## Completed 
+           - Checked out \`develop\`
+           - Created \`release/${{ github.event.inputs.version }}\` 
+           - Pushed release branch to origin 
+           - Opened (or attempted to open) a PR to \`main\` 
+           ## Release Flow 
+           -  develop → release/${{ github.event.inputs.version }} → main 
+           ## Next Steps 
+           1. Merge any release fixes into the release branch.
+           2. Validate the release candidate .
+           3. Run the **Finalize Release** workflow. 
+          EOF

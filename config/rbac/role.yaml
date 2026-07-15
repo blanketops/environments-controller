@@ -1,0 +1,395 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  - serviceaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - eventsources
+  - sensors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - eventsources/finalizers
+  - sensors/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - argoproj.io
+  resources:
+  - eventsources/status
+  - sensors/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  - issuers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - data.packaging.carvel.dev
+  resources:
+  - packages
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - environments.blanketops.dev
+  resources:
+  - builds
+  - deployments
+  - environments
+  - packages
+  - serviceunits
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - environments.blanketops.dev
+  resources:
+  - builds/finalizers
+  - deployments/finalizers
+  - environments/finalizers
+  - packages/finalizers
+  - serviceunits/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - environments.blanketops.dev
+  resources:
+  - builds/status
+  - deployments/status
+  - environments/status
+  - packages/status
+  - serviceunits/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - events.blanketops.dev
+  resources:
+  - githubevents
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - events.blanketops.dev
+  resources:
+  - githubevents/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - events.blanketops.dev
+  resources:
+  - githubevents/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update
+- apiGroups:
+  - external-secrets.io
+  resources:
+  - clustersecretstores
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - external-secrets.io
+  resources:
+  - externalsecrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - github.upbound.io
+  resources:
+  - providerconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - helm.toolkit.fluxcd.io
+  resources:
+  - helmreleases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kappctrl.k14s.io
+  resources:
+  - apps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kustomize.toolkit.fluxcd.io
+  resources:
+  - kustomizations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.internal.knative.dev
+  resources:
+  - clusterdomainclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networks.blanketops.dev
+  resources:
+  - domains
+  - routes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networks.blanketops.dev
+  resources:
+  - domains/finalizers
+  - routes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - networks.blanketops.dev
+  resources:
+  - domains/status
+  - routes/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - packaging.carvel.dev
+  resources:
+  - packageinstalls
+  - packagerepositories
+  - packages
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - packaging.carvel.dev
+  resources:
+  - packageinstalls/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - repo.github.upbound.io
+  resources:
+  - repositories
+  - repositorywebhooks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - serving.knative.dev
+  resources:
+  - domainmappings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - shipwright.io
+  resources:
+  - buildruns
+  - builds
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - shipwright.io
+  resources:
+  - buildruns/status
+  - builds/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - source.toolkit.fluxcd.io
+  resources:
+  - gitrepositories
+  - helmrepositories
+  - ocirepositories
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - source.toolkit.fluxcd.io
+  - sources.blanketops.dev
+  resources:
+  - gitrepositories/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - sources.blanketops.dev
+  resources:
+  - gitrepositories
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - sources.blanketops.dev
+  resources:
+  - gitrepositories/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - tekton.dev
+  resources:
+  - pipelineruns
+  - pipelines
+  - taskruns
+  - tasks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - tekton.dev
+  resources:
+  - pipelineruns/status
+  - taskruns/status
+  verbs:
+  - get
+  - patch
+  - update
