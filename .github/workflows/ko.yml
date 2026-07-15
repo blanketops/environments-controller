@@ -4,9 +4,8 @@
 # Builds the BlanketOps Environments Controller image via ko and pushes to
 # GHCR. Fires on tag push and manual dispatch only — not on branch pushes.
 #
-# When to use vs apko.yml:
-#   ko.yml   — standard controller builds; fast, Go-native, no Containerfile
-#   apko.yml — when a hardened Wolfi base is required (compliance, CVE posture)
+# Sole image-publishing path — Docker Hub (image.yml/Containerfile) and the
+# Wolfi/melange build (apko.yml) were retired; see issue #92.
 #
 # Registry: ghcr.io/blanketops/environments-controller
 #
