@@ -40,8 +40,11 @@ import (
 
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	libenvironment "github.com/blanketops/environments/cache/environment"
-	"github.com/blanketops/environments/core"
-	environmentResolution "github.com/blanketops/environments/resolution/environment"
+	"github.com/blanketops/environments/core/cache"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/conditions"
+	"github.com/blanketops/environments/core/events"
+	environmentResolution "github.com/blanketops/environments/resolution/environment/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -59,7 +62,7 @@ type EnvironmentDomain struct {
 	// computation; correctness never depends on a hit.
 	environmentCache *libenvironment.EnvironmentCache
 	// events handles logging of Kubernetes events.
-	events *core.EventRecorder
+	events *events.EventRecorder
 	// log is the logger instance for this domain.
 	log logr.Logger
 }
@@ -68,8 +71,8 @@ type EnvironmentDomain struct {
 func New(
 	c client.Client,
 	scheme *runtime.Scheme,
-	cache *core.Cache,
-	events *core.EventRecorder,
+	cache *cache.Cache,
+	events *events.EventRecorder,
 	log logr.Logger,
 ) *EnvironmentDomain {
 	return &EnvironmentDomain{
@@ -86,8 +89,8 @@ func (d *EnvironmentDomain) GVK() schema.GroupVersionKind {
 	return environmentsv1alpha1.GroupVersion.WithKind("Environment")
 }
 
-// Handle executes core.Command operations routed by the Engine.
-func (d *EnvironmentDomain) Handle(ctx context.Context, cmd core.Command) error {
+// Handle executes command.Command operations routed by the Engine.
+func (d *EnvironmentDomain) Handle(ctx context.Context, cmd command.Command) error {
 	environmentCR, ok := cmd.Obj.(*environmentsv1alpha1.Environment)
 	if !ok || environmentCR == nil {
 		return fmt.Errorf("invalid object passed to EnvironmentDomain: %T", cmd.Obj)
@@ -104,14 +107,14 @@ func (d *EnvironmentDomain) Handle(ctx context.Context, cmd core.Command) error 
 	gen := environmentCR.GetGeneration()
 
 	switch cmd.Type {
-	case core.CmdCreate, core.CmdUpdate:
+	case command.CmdCreate, command.CmdUpdate:
 		// ── Stage 0: Resolve environment contract ─────────────────────────────
 		log.Info("resolving environment contract")
 		resolved, err := environmentResolution.ResolveEnvironment(environmentCR)
 		if err != nil {
 			log.Error(err, "environment resolution failed")
 			d.events.FromError(environmentCR, "EnvironmentResolveFailed", err)
-			core.SetCondition(&environmentCR.Status.Conditions, "EnvironmentResolveFailed", core.ConditionFalse, "EnvironmentResolve", err.Error())
+			conditions.SetCondition(&environmentCR.Status.Conditions, "EnvironmentResolveFailed", conditions.ConditionFalse, "EnvironmentResolve", err.Error())
 			return err
 		}
 
@@ -119,16 +122,16 @@ func (d *EnvironmentDomain) Handle(ctx context.Context, cmd core.Command) error 
 		if cerr := d.environmentCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(environmentCR, "EnvironmentCacheFailed", cerr)
-			core.SetCondition(&environmentCR.Status.Conditions, "EnvironmentCacheFailed", core.ConditionFalse, "resolved projection publish incomplete", cerr.Error())
+			conditions.SetCondition(&environmentCR.Status.Conditions, "EnvironmentCacheFailed", conditions.ConditionFalse, "resolved projection publish incomplete", cerr.Error())
 		}
 
 		log.Info("environment resolved successfully")
 		d.events.Normal(environmentCR, "EnvironmentResolve", "Environment specification resolved successfully")
-		core.SetCondition(&environmentCR.Status.Conditions, "EnvironmentResolved", core.ConditionTrue, "EnvironmentSpecResolved", "Environment specification resolved successfully")
+		conditions.SetCondition(&environmentCR.Status.Conditions, "EnvironmentResolved", conditions.ConditionTrue, "EnvironmentSpecResolved", "Environment specification resolved successfully")
 
 		log.Info("environment cached successfully")
 		d.events.Normal(environmentCR, "EnvironmentCache", "Environment specification cached successfully")
-		core.SetCondition(&environmentCR.Status.Conditions, "EnvironmentCached", core.ConditionTrue, "EnvironmentSpecCached", "Environment specification cached successfully")
+		conditions.SetCondition(&environmentCR.Status.Conditions, "EnvironmentCached", conditions.ConditionTrue, "EnvironmentSpecCached", "Environment specification cached successfully")
 
 		// ── Stage 2: Ready ────────────────────────────────────────────────────
 		// Secret store connection validation deferred — next phase.
@@ -136,17 +139,17 @@ func (d *EnvironmentDomain) Handle(ctx context.Context, cmd core.Command) error 
 		_ = resolved
 		log.Info("environment ready")
 		d.events.Normal(environmentCR, "EnvironmentReady", "Environment is ready")
-		core.SetCondition(&environmentCR.Status.Conditions, "EnvironmentReady", core.ConditionTrue, "EnvironmentReady", "Environment is ready")
+		conditions.SetCondition(&environmentCR.Status.Conditions, "EnvironmentReady", conditions.ConditionTrue, "EnvironmentReady", "Environment is ready")
 
 		log.Info("environment domain handling complete")
 
-	case core.CmdDelete:
+	case command.CmdDelete:
 		if cerr := d.environmentCache.Invalidate(ctx, nn); cerr != nil {
 			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
 		}
 		log.Info("environment deletion marked")
 		d.events.Normal(environmentCR, "EnvironmentDeletion", "environment deleted")
-		core.SetCondition(&environmentCR.Status.Conditions, "EnvironmentDeleted", core.ConditionTrue, "EnvironmentMarkedDelete", "environment deleted")
+		conditions.SetCondition(&environmentCR.Status.Conditions, "EnvironmentDeleted", conditions.ConditionTrue, "EnvironmentMarkedDelete", "environment deleted")
 		log.Info("environment domain handling complete")
 	}
 

@@ -44,10 +44,10 @@ import (
 	"time"
 
 	environmentv1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/events"
 	"github.com/blanketops/environments/pkg/apis/deployment/application"
 	"github.com/blanketops/environments/pkg/apis/deployment/domain"
-	deploymentResolution "github.com/blanketops/environments/resolution/deployment"
+	deploymentResolution "github.com/blanketops/environments/resolution/deployment/resolve"
 	fluxkustomize "github.com/fluxcd/kustomize-controller/api/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -64,7 +64,7 @@ type Reconciler struct {
 	// state is observed.
 	Status *application.StatusWriter
 	// Recorder emits Kubernetes events on the owning Deployment resource.
-	Recorder *core.EventRecorder
+	Recorder *events.EventRecorder
 }
 
 // Reconcile is invoked by controller-runtime for every Flux Kustomization event.
@@ -216,7 +216,7 @@ func (r *Reconciler) Reconcile(
 // signals whether GitOps delivery succeeded or failed. Watching the Deployment
 // CR itself would give us no signal about what Flux actually did on the cluster.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("deployment-observer"))
+	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("deployment-observer"))
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fluxkustomize.Kustomization{}).

@@ -27,7 +27,8 @@ import (
 	"context"
 
 	environmentv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	coreCommand "github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/predicates"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -82,9 +83,9 @@ func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	)
 
 	// ── Route to engine ───────────────────────────────────────────────────────
-	cmd := core.Command{
+	cmd := coreCommand.Command{
 		GVK:  environmentv1alpha1.GroupVersion.WithKind("Environment"),
-		Type: core.CmdUpdate,
+		Type: coreCommand.CmdUpdate,
 		Obj:  &environment,
 	}
 
@@ -150,6 +151,6 @@ func (r *EnvironmentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&environmentv1alpha1.Environment{}).
 		Named("environments").
-		WithEventFilter(core.MeaningfulChangePredicate()).
+		WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Complete(r)
 }

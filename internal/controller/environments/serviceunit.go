@@ -23,7 +23,8 @@ import (
 	"context"
 
 	serviceunitv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/predicates"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -83,9 +84,9 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// ------------------------------------------------
 	// Construct core command
 	// ------------------------------------------------
-	cmd := core.Command{
+	cmd := command.Command{
 		GVK:  serviceunitv1alpha1.GroupVersion.WithKind("ServiceUnit"),
-		Type: core.CmdUpdate,
+		Type: command.CmdUpdate,
 		Obj:  &serviceunit,
 	}
 
@@ -151,6 +152,6 @@ func (r *ServiceUnitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&serviceunitv1alpha1.ServiceUnit{}).
 		Named("environments-serviceunit").
-		WithEventFilter(core.MeaningfulChangePredicate()).
+		WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Complete(r)
 }

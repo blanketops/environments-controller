@@ -27,7 +27,8 @@ import (
 	"context"
 
 	sourcesv1alpha1 "github.com/blanketops/environments-api/api/sources/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/predicates"
 	gitrepoapi "github.com/blanketops/environments/pkg/apis/gitrepository/api"
 	"github.com/blanketops/environments/pkg/apis/gitrepository/application"
 	"github.com/go-logr/logr"
@@ -108,9 +109,9 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{}, nil
 		}
 		log.Info("gitrepository deletion requested; routing teardown")
-		cmd := core.Command{
+		cmd := command.Command{
 			GVK:  sourcesv1alpha1.GroupVersion.WithKind("GitRepository"),
-			Type: core.CmdDelete,
+			Type: command.CmdDelete,
 			Obj:  &gitRepositoryCR,
 		}
 		if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
@@ -165,9 +166,9 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// ------------------------------------------------
 	// Construct core command
 	// ------------------------------------------------
-	cmd := core.Command{
+	cmd := command.Command{
 		GVK:  sourcesv1alpha1.GroupVersion.WithKind("GitRepository"),
-		Type: core.CmdUpdate,
+		Type: command.CmdUpdate,
 		Obj:  &gitRepositoryCR,
 	}
 	log.Info("routing gitrepository to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
@@ -244,6 +245,6 @@ func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&sourcesv1alpha1.GitRepository{}).
 		Named("sources-gitrepository").
-		WithEventFilter(core.MeaningfulChangePredicate()).
+		WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Complete(r)
 }

@@ -23,10 +23,10 @@ import (
 
 	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	eventsv1alpha1 "github.com/blanketops/environments-api/api/events/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/events"
 	"github.com/blanketops/environments/pkg/apis/githubevent/application"
 	"github.com/blanketops/environments/pkg/apis/githubevent/domain"
-	githubeventresolution "github.com/blanketops/environments/resolution/githubevent"
+	githubeventresolution "github.com/blanketops/environments/resolution/githubevent/resolve"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,7 +44,7 @@ const (
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
-	Recorder *core.EventRecorder
+	Recorder *events.EventRecorder
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -64,8 +64,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	contract := resolved.Spec.ToGitHubEventContract()
-	payloadReceived := contract.GetEventId() != "" && contract.GetEventType() != nil
+	payloadReceived := resolved.Spec.EventID != "" && resolved.Spec.EventType != ""
 	log = log.WithValues("payloadReceived", payloadReceived)
 	log.Info("githubevent resolved")
 
@@ -173,7 +172,7 @@ func (r *Reconciler) buildContractAndConditions(
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("githubevent-observer"))
+	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("githubevent-observer"))
 	r.Status = application.NewStatusWriter(mgr.GetClient(), ctrl.Log.WithName("githubevent-status-writer"))
 
 	return ctrl.NewControllerManagedBy(mgr).

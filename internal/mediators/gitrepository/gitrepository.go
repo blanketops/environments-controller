@@ -34,8 +34,9 @@ import (
 
 	"github.com/blanketops/environments/pkg/apis/environment/query"
 	providerconfig "github.com/blanketops/environments/pkg/providerconfig"
-	"github.com/blanketops/environments/pkg/secrets/github"
-	gitrepoResolution "github.com/blanketops/environments/resolution/gitrepository"
+	githubCrossplane "github.com/blanketops/environments/pkg/secrets/github/crossplane"
+	githubHookurl "github.com/blanketops/environments/pkg/secrets/github/hookurl"
+	gitrepoResolution "github.com/blanketops/environments/resolution/gitrepository/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -97,7 +98,7 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *gitrepoRes
 	// ------------------------------------------------------------------------------------------------------------
 	// Stage 1: GitHub provider credentials (store-dependent, shared)
 	// ------------------------------------------------------------------------------------------------------------
-	providerSecret := github.NewGitHubProviderSecretReconciler(m.Client, m.Log, envCtx.StoreName)
+	providerSecret := githubCrossplane.NewGitHubProviderSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 	if err := providerSecret.Reconcile(ctx); err != nil {
 		return fmt.Errorf("github provider credentials: %w", err)
 	}
@@ -110,7 +111,7 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *gitrepoRes
 	// ------------------------------------------------------------------------------------------------------------
 	// Stage 3: Webhook URL secret (CR-sourced, per GitRepository)
 	// ------------------------------------------------------------------------------------------------------------
-	hookURL := github.NewHookURLSecretReconciler(m.Client, m.Scheme, m.Log)
+	hookURL := githubHookurl.NewHookURLSecretReconciler(m.Client, m.Scheme, m.Log)
 	if err := hookURL.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("hookurl secret: %w", err)
 	}
@@ -149,7 +150,7 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *gitrepoRe
 	// ------------------------------------------------------------------------------------------------------------
 	// Stage 3: Webhook URL secret
 	// ------------------------------------------------------------------------------------------------------------
-	hookURL := github.NewHookURLSecretReconciler(m.Client, m.Scheme, m.Log)
+	hookURL := githubHookurl.NewHookURLSecretReconciler(m.Client, m.Scheme, m.Log)
 	if err := hookURL.Delete(ctx, resolved); err != nil {
 		errs = append(errs, fmt.Errorf("delete hookurl secret: %w", err))
 	}
