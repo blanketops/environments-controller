@@ -30,10 +30,10 @@ import (
 	"fmt"
 
 	"github.com/blanketops/environments/pkg/apis/environment/query"
-	"github.com/blanketops/environments/pkg/secrets/git"
-	"github.com/blanketops/environments/pkg/secrets/registry"
+	git "github.com/blanketops/environments/pkg/secrets/git/staterepo"
+	registry "github.com/blanketops/environments/pkg/secrets/registry/packageregistry"
 	serviceaccounts "github.com/blanketops/environments/pkg/serviceaccounts"
-	packageResolution "github.com/blanketops/environments/resolution/packages"
+	packageResolution "github.com/blanketops/environments/resolution/packages/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"

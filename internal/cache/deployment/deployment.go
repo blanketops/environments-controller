@@ -23,9 +23,9 @@ package deployment
 
 import (
 	libdeployment "github.com/blanketops/environments/cache/deployment"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
 )
 
-func New(c *core.Cache) *libdeployment.DeploymentCache {
+func New(c *cache.Cache) *libdeployment.DeploymentCache {
 	return libdeployment.NewDeploymentCache(c)
 }

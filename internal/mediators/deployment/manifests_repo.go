@@ -25,7 +25,7 @@ import (
 	"strings"
 
 	utils "github.com/blanketops/environments/pkg/utils"
-	deploymentResolution "github.com/blanketops/environments/resolution/deployment"
+	deploymentResolution "github.com/blanketops/environments/resolution/deployment/resolve"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"

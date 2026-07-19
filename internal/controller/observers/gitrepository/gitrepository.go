@@ -19,7 +19,7 @@ import (
 	"context"
 
 	sourcesv1alpha1 "github.com/blanketops/environments-api/api/sources/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/events"
 	"github.com/blanketops/environments/pkg/apis/gitrepository/application"
 	"github.com/blanketops/environments/pkg/apis/gitrepository/domain"
 	corev1 "k8s.io/api/core/v1"
@@ -32,7 +32,7 @@ import (
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
-	Recorder *core.EventRecorder
+	Recorder *events.EventRecorder
 }
 
 var repositoryGVK = schema.GroupVersionKind{
@@ -139,7 +139,7 @@ func extractReady(obj unstructured.Unstructured) (bool, string) {
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("sources-gitrepository"))
+	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("sources-gitrepository"))
 	r.Status = application.NewStatusWriter()
 
 	return ctrl.NewControllerManagedBy(mgr).

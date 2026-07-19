@@ -26,7 +26,10 @@ import (
 	"flag"
 	"os"
 
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
+	"github.com/blanketops/environments/core/engine"
+	"github.com/blanketops/environments/core/events"
+	"github.com/blanketops/environments/core/registry"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -50,10 +53,10 @@ func init() {
 // Runtime describes read access to the core engine's Engine, Cache,
 // Events, and Registry subsystems.
 type Runtime interface {
-	Engine() *core.Engine
-	Cache() *core.Cache
-	Events() *core.EventRecorder
-	Registry() *core.Registry
+	Engine() *engine.Engine
+	Cache() *cache.Cache
+	Events() *events.EventRecorder
+	Registry() *registry.Registry
 }
 
 func main() {

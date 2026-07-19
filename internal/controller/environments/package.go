@@ -22,7 +22,8 @@ import (
 	"context"
 
 	packagev1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/predicates"
 	pkgProvider "github.com/blanketops/environments/pkg/apis/packages/api"
 	pkgApp "github.com/blanketops/environments/pkg/apis/packages/application"
 	"github.com/go-logr/logr"
@@ -91,9 +92,9 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// ------------------------------------------------
 	// Construct core command
 	// ------------------------------------------------
-	cmd := core.Command{
+	cmd := command.Command{
 		GVK:  packagev1alpha1.GroupVersion.WithKind("Package"),
-		Type: core.CmdUpdate,
+		Type: command.CmdUpdate,
 		Obj:  &packages,
 	}
 
@@ -187,6 +188,6 @@ func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&packagev1alpha1.Package{}).
 		Named("environments-package").
-		WithEventFilter(core.MeaningfulChangePredicate()).
+		WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Complete(r)
 }

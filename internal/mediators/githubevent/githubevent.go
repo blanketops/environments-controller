@@ -29,8 +29,8 @@ import (
 	"fmt"
 
 	"github.com/blanketops/environments/pkg/apis/environment/query"
-	"github.com/blanketops/environments/pkg/secrets/github"
-	githubeventResolution "github.com/blanketops/environments/resolution/githubevent"
+	github "github.com/blanketops/environments/pkg/secrets/github/webhook"
+	githubeventResolution "github.com/blanketops/environments/resolution/githubevent/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"

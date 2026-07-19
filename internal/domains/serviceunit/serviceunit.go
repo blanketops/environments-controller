@@ -31,8 +31,11 @@ import (
 
 	serviceunitv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	libserviceunit "github.com/blanketops/environments/cache/serviceunit"
-	"github.com/blanketops/environments/core"
-	serviceunitResolution "github.com/blanketops/environments/resolution/serviceunit"
+	"github.com/blanketops/environments/core/cache"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/conditions"
+	"github.com/blanketops/environments/core/events"
+	serviceunitResolution "github.com/blanketops/environments/resolution/serviceunit/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,11 +51,11 @@ type ServiceUnitDomain struct {
 	// ServiceUnit resources. Advisory only: misses and errors fall through
 	// to full computation; correctness never depends on a hit.
 	serviceUnitCache *libserviceunit.ServiceUnitCache
-	events           *core.EventRecorder
+	events           *events.EventRecorder
 	log              logr.Logger
 }
 
-func New(mediator *serviceunit.Mediator, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *ServiceUnitDomain {
+func New(mediator *serviceunit.Mediator, cache *cache.Cache, events *events.EventRecorder, log logr.Logger) *ServiceUnitDomain {
 	return &ServiceUnitDomain{
 		serviceUnitMediator: mediator,
 		serviceUnitCache:    libserviceunit.NewServiceUnitCache(cache),
@@ -65,7 +68,7 @@ func (d *ServiceUnitDomain) GVK() schema.GroupVersionKind {
 	return serviceunitv1alpha1.GroupVersion.WithKind("ServiceUnit")
 }
 
-func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error {
+func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd command.Command) error {
 
 	su, ok := cmd.Obj.(*serviceunitv1alpha1.ServiceUnit)
 	if !ok || su == nil {
@@ -91,14 +94,14 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error 
 
 		log.Error(err, "serviceunit resolution failed")
 		d.events.FromError(su, "ServiceUnitResolveFailed", err)
-		core.SetCondition(&su.Status.Conditions, "ServiceUnitResolved", core.ConditionFalse, "InvalidSpec", err.Error())
+		conditions.SetCondition(&su.Status.Conditions, "ServiceUnitResolved", conditions.ConditionFalse, "InvalidSpec", err.Error())
 
 		return err
 	}
 
 	log.Info("serviceunit resolved successfully")
 	d.events.Normal(su, "ServiceUnitResolved", "ServiceUnit specification resolved successfully")
-	core.SetCondition(&su.Status.Conditions, "ServiceUnitResolved", core.ConditionTrue, "Resolved", "ServiceUnit specification resolved successfully")
+	conditions.SetCondition(&su.Status.Conditions, "ServiceUnitResolved", conditions.ConditionTrue, "Resolved", "ServiceUnit specification resolved successfully")
 
 	// ------------------------------------------------
 	// Stage 2: Ensure prerequisites
@@ -110,14 +113,14 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error 
 
 		log.Error(err, "serviceunit prerequisites failed")
 		d.events.FromError(su, "ServiceUnitPrerequisitesFailed", err)
-		core.SetCondition(&su.Status.Conditions, "ServiceUnitPrerequisitesReady", core.ConditionFalse, "PrerequisitesFailed", err.Error())
+		conditions.SetCondition(&su.Status.Conditions, "ServiceUnitPrerequisitesReady", conditions.ConditionFalse, "PrerequisitesFailed", err.Error())
 
 		return err
 	}
 
 	log.Info("serviceunit prerequisites ensured")
 	d.events.Normal(su, "ServiceUnitPrerequisitesReady", "All ServiceUnit prerequisites created successfully")
-	core.SetCondition(&su.Status.Conditions, "ServiceUnitPrerequisitesReady", core.ConditionTrue, "PrerequisitesReady", "All prerequisites created successfully")
+	conditions.SetCondition(&su.Status.Conditions, "ServiceUnitPrerequisitesReady", conditions.ConditionTrue, "PrerequisitesReady", "All prerequisites created successfully")
 
 	// ------------------------------------------------
 	// Stage 3: Execute intent
@@ -131,10 +134,10 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error 
 
 	// 	d.events.FromError(su, "ServiceUnitReconcileFailed", err)
 
-	// 	core.SetCondition(
+	// 	conditions.SetCondition(
 	// 		&su.Status.Conditions,
 	// 		"ServiceUnitReady",
-	// 		core.ConditionFalse,
+	// 		conditions.ConditionFalse,
 	// 		"ReconcileFailed",
 	// 		err.Error(),
 	// 	)
@@ -146,7 +149,7 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error 
 
 	d.events.Normal(su, "ServiceUnitReady", "ServiceUnit successfully reconciled")
 
-	core.SetCondition(&su.Status.Conditions, "ServiceUnitReady", core.ConditionTrue, "Ready", "ServiceUnit successfully reconciled")
+	conditions.SetCondition(&su.Status.Conditions, "ServiceUnitReady", conditions.ConditionTrue, "Ready", "ServiceUnit successfully reconciled")
 
 	log.Info("serviceunit domain handling complete")
 

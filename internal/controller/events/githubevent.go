@@ -26,7 +26,8 @@ import (
 
 	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	eventsv1alpha1 "github.com/blanketops/environments-api/api/events/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/predicates"
 	githubeventapi "github.com/blanketops/environments/pkg/apis/githubevent/api"
 	githubeventapp "github.com/blanketops/environments/pkg/apis/githubevent/application"
 	"github.com/go-logr/logr"
@@ -103,13 +104,13 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// ------------------------------------------------
 	// Finalizer gate — determines cmd.Type
 	// ------------------------------------------------
-	cmdType := core.CmdUpdate
+	cmdType := command.CmdUpdate
 	if !gitHubEventCR.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(&gitHubEventCR, githuEventFinalizer) {
 			log.Info("reconcile exit: deletion in progress, finalizer already removed")
 			return ctrl.Result{}, nil
 		}
-		cmdType = core.CmdDelete
+		cmdType = command.CmdDelete
 	} else if !controllerutil.ContainsFinalizer(&gitHubEventCR, githuEventFinalizer) {
 		controllerutil.AddFinalizer(&gitHubEventCR, githuEventFinalizer)
 		if err := r.Update(ctx, &gitHubEventCR); err != nil {
@@ -123,9 +124,9 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// ------------------------------------------------
 	// Construct core command
 	// ------------------------------------------------
-	cmd := core.Command{
+	cmd := command.Command{
 		GVK:  eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"),
-		Type: core.CmdUpdate,
+		Type: command.CmdUpdate,
 		Obj:  &gitHubEventCR,
 	}
 
@@ -150,7 +151,7 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// removed, and racing a status update against finalizer removal serves
 	// no purpose.
 	// ------------------------------------------------
-	if cmdType == core.CmdDelete {
+	if cmdType == command.CmdDelete {
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			var latest eventsv1alpha1.GitHubEvent
 			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -249,6 +250,6 @@ func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		),
 	).
 		Named("events-githubevent").
-		WithEventFilter(core.MeaningfulChangePredicate()).
+		WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Complete(r)
 }

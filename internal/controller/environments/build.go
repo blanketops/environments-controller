@@ -25,7 +25,7 @@ import (
 	"context"
 
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/command"
 	buildapi "github.com/blanketops/environments/pkg/apis/build/api"
 	buildapp "github.com/blanketops/environments/pkg/apis/build/application"
 	"github.com/go-logr/logr"
@@ -108,13 +108,13 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	// ------------------------------------------------
 	// Finalizer gate — determines cmd.Type
 	// ------------------------------------------------
-	cmdType := core.CmdUpdate
+	cmdType := command.CmdUpdate
 	if !buildCR.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(&buildCR, buildFinalizer) {
 			log.Info("reconcile exit: deletion in progress, finalizer already removed")
 			return ctrl.Result{}, nil
 		}
-		cmdType = core.CmdDelete
+		cmdType = command.CmdDelete
 	} else if !controllerutil.ContainsFinalizer(&buildCR, buildFinalizer) {
 		controllerutil.AddFinalizer(&buildCR, buildFinalizer)
 		if err := r.Update(ctx, &buildCR); err != nil {
@@ -128,7 +128,7 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	// -------------------------------------------------
 	// Construct core command
 	// -------------------------------------------------
-	cmd := core.Command{
+	cmd := command.Command{
 		GVK:  environmentsv1alpha1.GroupVersion.WithKind("Build"),
 		Type: cmdType,
 		Obj:  &buildCR,
@@ -154,7 +154,7 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	// removed, and racing a status update against finalizer removal serves
 	// no purpose.
 	// ------------------------------------------------
-	if cmdType == core.CmdDelete {
+	if cmdType == command.CmdDelete {
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			var latest environmentsv1alpha1.Build
 			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -264,7 +264,7 @@ func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// 		&shipwrightv1alpha1.BuildRun{},
 		// 	),
 		// ).
-		// WithEventFilter(core.MeaningfulChangePredicate()).
+		// WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Named("environments-build").
 		Complete(r)
 }

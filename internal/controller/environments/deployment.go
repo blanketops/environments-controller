@@ -24,9 +24,13 @@ import (
 	"context"
 
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/predicates"
 	"github.com/blanketops/environments/pkg/apis/deployment/api"
 	"github.com/blanketops/environments/pkg/apis/deployment/application"
+	"github.com/blanketops/environments/pkg/apis/deployment/reconcile"
+	"github.com/blanketops/environments/pkg/apis/deployment/strategy"
+	deploymentintent "github.com/blanketops/environments/pkg/intent/deployment"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -108,13 +112,13 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// ------------------------------------------------
 	// Finalizer gate — determines cmd.Type
 	// ------------------------------------------------
-	cmdType := core.CmdUpdate
+	cmdType := command.CmdUpdate
 	if !deploymentCR.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(&deploymentCR, deploymentFinalizer) {
 			log.Info("reconcile exit: deletion in progress, finalizer already removed")
 			return ctrl.Result{}, nil
 		}
-		cmdType = core.CmdDelete
+		cmdType = command.CmdDelete
 	} else if !controllerutil.ContainsFinalizer(&deploymentCR, deploymentFinalizer) {
 		controllerutil.AddFinalizer(&deploymentCR, deploymentFinalizer)
 		if err := r.Update(ctx, &deploymentCR); err != nil {
@@ -129,9 +133,9 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// Construct core command
 	// ------------------------------------------------
 
-	cmd := core.Command{
+	cmd := command.Command{
 		GVK:  environmentsv1alpha1.GroupVersion.WithKind("Deployment"),
-		Type: core.CmdUpdate,
+		Type: command.CmdUpdate,
 		Obj:  &deploymentCR,
 	}
 
@@ -155,7 +159,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// removed, and racing a status update against finalizer removal serves
 	// no purpose.
 	// ------------------------------------------------
-	if cmdType == core.CmdDelete {
+	if cmdType == command.CmdDelete {
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			var latest environmentsv1alpha1.Deployment
 			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -231,7 +235,7 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// ---------------------------------------------------------------------
 	// Runtime Provider (imperative backends)
 	// ---------------------------------------------------------------------
-	runtimeProvider := api.NewRuntimeProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("runtime"), r.Recorder)
+	runtimeProvider := strategy.NewRuntimeProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("runtime"), r.Recorder)
 
 	// ---------------------------------------------------------------------
 	// GitOps Reconciler (Flux integration layer)
@@ -241,12 +245,12 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// ---------------------------------------------------------------------
 	// Reconciliation Executor (delivery axis)
 	// ---------------------------------------------------------------------
-	reconciliationExecutor := api.NewReconciliationExecutor(runtimeProvider, kustomizer, r.Log.WithName("reconciliation"))
+	reconciliationExecutor := reconcile.NewReconciliationExecutor(runtimeProvider, kustomizer, r.Log.WithName("reconciliation"))
 
 	// ---------------------------------------------------------------------
 	// Service Layer
 	// ---------------------------------------------------------------------
-	intentBuilder := application.NewIntentBuilder()
+	intentBuilder := deploymentintent.NewIntentBuilder()
 	statusWriter := application.NewStatusWriter(mgr.GetClient(), r.Log.WithName("deployment.status-writer"))
 	r.DeploymentService = application.NewDeploymentService(intentBuilder, statusWriter, reconciliationExecutor, ctrl.Log)
 
@@ -262,6 +266,6 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&environmentsv1alpha1.Deployment{}).
 		Named("environments-deployment").
-		WithEventFilter(core.MeaningfulChangePredicate()).
+		WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Complete(r)
 }
