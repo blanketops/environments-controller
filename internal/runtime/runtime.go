@@ -35,17 +35,17 @@ type Runtime struct {
 func New(mgr ctrl.Manager) *Runtime {
 
 	log := ctrl.Log.WithName("environments-runtime")
-	cache := cache.NewCache(mgr, nil)
-	registry := registry.NewRegistry()
+	objCache := cache.NewCache(mgr, nil)
+	reg := registry.NewRegistry()
 
-	engine := engine.NewEngine(registry, ctrl.Log.WithName("environments-engine"))
-	events := events.NewEventRecorder(mgr.GetEventRecorder("environments-runtime"))
+	eng := engine.NewEngine(reg, ctrl.Log.WithName("environments-engine"))
+	eventRecorder := events.NewEventRecorder(mgr.GetEventRecorder("environments-runtime"))
 
 	return &Runtime{
-		Cache:    cache,
-		Registry: registry,
-		Engine:   engine,
-		Events:   events,
+		Cache:    objCache,
+		Registry: reg,
+		Engine:   eng,
+		Events:   eventRecorder,
 		Log:      log,
 	}
 }

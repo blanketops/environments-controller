@@ -35,6 +35,12 @@ import (
 
 const testAppName = "app-sample"
 
+// Repeated across fixtures below — named to satisfy goconst.
+const (
+	stateRepoURL         = "https://github.com/blanketops/app-state.git"
+	stateRepoCloneSecret = "app-state-git-ssh"
+)
+
 func newEnvironment() *environmentsv1alpha1.Environment {
 	return &environmentsv1alpha1.Environment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -113,8 +119,8 @@ func TestMediator_EnsurePrerequisites_NoStateRepository_NoPanic(t *testing.T) {
 func TestMediator_EnsurePrerequisites_WithStateRepository(t *testing.T) {
 	env := newEnvironment()
 	resolved := newResolvedPackage(&packageResolution.ResolvedStateRepository{
-		URL:         "https://github.com/blanketops/app-state.git",
-		CloneSecret: "app-state-git-ssh",
+		URL:         stateRepoURL,
+		CloneSecret: stateRepoCloneSecret,
 	}, "")
 	c := testsupport.NewFakeClient(env, resolved.Package)
 	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
@@ -127,8 +133,8 @@ func TestMediator_EnsurePrerequisites_WithStateRepository(t *testing.T) {
 func TestMediator_EnsurePrerequisites_Idempotent(t *testing.T) {
 	env := newEnvironment()
 	resolved := newResolvedPackage(&packageResolution.ResolvedStateRepository{
-		URL:         "https://github.com/blanketops/app-state.git",
-		CloneSecret: "app-state-git-ssh",
+		URL:         stateRepoURL,
+		CloneSecret: stateRepoCloneSecret,
 	}, "app-registry-creds")
 	c := testsupport.NewFakeClient(env, resolved.Package)
 	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
@@ -156,8 +162,8 @@ func TestMediator_CleanupPrerequisites_NoStateRepository_NoPanic(t *testing.T) {
 func TestMediator_CleanupPrerequisites_AfterEnsure(t *testing.T) {
 	env := newEnvironment()
 	resolved := newResolvedPackage(&packageResolution.ResolvedStateRepository{
-		URL:         "https://github.com/blanketops/app-state.git",
-		CloneSecret: "app-state-git-ssh",
+		URL:         stateRepoURL,
+		CloneSecret: stateRepoCloneSecret,
 	}, "app-registry-creds")
 	c := testsupport.NewFakeClient(env, resolved.Package)
 	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())

@@ -66,12 +66,12 @@ type GitRepositoryDomain struct {
 }
 
 // New returns a new GitRepositoryDomain instance configured with the necessary dependencies.
-func New(gitRepositoryMediator *gitrepository.Mediator, gitRepositoryService *application.GitRepositoryService, cache *cache.Cache, events *events.EventRecorder, log logr.Logger) *GitRepositoryDomain {
+func New(gitRepositoryMediator *gitrepository.Mediator, gitRepositoryService *application.GitRepositoryService, domainCache *cache.Cache, eventRecorder *events.EventRecorder, log logr.Logger) *GitRepositoryDomain {
 	return &GitRepositoryDomain{
 		gitRepositoryMediator: gitRepositoryMediator,
 		gitRepositoryService:  gitRepositoryService,
-		gitRepositoryCache:    libgitrepository.NewGitRepositoryCache(cache),
-		events:                events,
+		gitRepositoryCache:    libgitrepository.NewGitRepositoryCache(domainCache),
+		events:                eventRecorder,
 		log:                   log,
 	}
 }

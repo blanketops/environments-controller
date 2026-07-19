@@ -32,6 +32,9 @@ import (
 
 const testAppName = "app-sample"
 
+// Repeated across fixtures below — named to satisfy goconst.
+const keyPackageName = "packageName"
+
 func newEnvironment() *environmentv1.Environment {
 	return &environmentv1.Environment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -72,7 +75,7 @@ func newPackageCR(contract map[string]any) *environmentv1.Package {
 
 func validPackageContract() map[string]any {
 	return map[string]any{
-		"packageName":    "app",
+		keyPackageName:   "app",
 		"packageVersion": "1.0.0",
 		"packageRepository": map[string]any{
 			"url": "oci://ghcr.io/blanketops/packages/app",
@@ -154,8 +157,8 @@ func TestPackageDomain_CanUpdate(t *testing.T) {
 	}{
 		{
 			name:   "spec changed",
-			oldObj: newPackageCR(map[string]any{"packageName": "a"}),
-			newObj: newPackageCR(map[string]any{"packageName": "b"}),
+			oldObj: newPackageCR(map[string]any{keyPackageName: "a"}),
+			newObj: newPackageCR(map[string]any{keyPackageName: "b"}),
 			want:   true,
 		},
 		{

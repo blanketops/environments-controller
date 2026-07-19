@@ -30,13 +30,19 @@ import (
 
 const testAppName = "app-sample"
 
+// Repeated across fixtures below — named to satisfy goconst.
+const (
+	testNamespace        = "default"
+	labelEnvironmentName = "environments.blanketops.dev/name"
+)
+
 func newEnvironment() *environmentv1.Environment {
 	return &environmentv1.Environment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testAppName,
-			Namespace: "default",
+			Namespace: testNamespace,
 			Labels: map[string]string{
-				"environments.blanketops.dev/name": testAppName,
+				labelEnvironmentName:               testAppName,
 				"environments.blanketops.dev/type": "dev",
 			},
 		},
@@ -56,9 +62,9 @@ func newDeploymentCR(contract map[string]any) *environmentv1.Deployment {
 	d := &environmentv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "deployment-sample",
-			Namespace: "default",
+			Namespace: testNamespace,
 			Labels: map[string]string{
-				"environments.blanketops.dev/name": testAppName,
+				labelEnvironmentName: testAppName,
 			},
 		},
 	}
@@ -87,9 +93,9 @@ func newServiceUnit(name string) *environmentv1.ServiceUnit {
 	return &environmentv1.ServiceUnit{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "default",
+			Namespace: testNamespace,
 			Labels: map[string]string{
-				"environments.blanketops.dev/name": testAppName,
+				labelEnvironmentName: testAppName,
 			},
 		},
 		Spec: environmentv1.ServiceUnitSpec{
@@ -108,7 +114,7 @@ func newServiceUnit(name string) *environmentv1.ServiceUnit {
 // on the domain's own orchestration (resolution, prerequisites, cross-CR
 // ServiceUnit resolution) rather than re-testing the deployment application
 // layer's reconciliation-executor/Flux Kustomize machinery.
-func newTestDomain(t *testing.T, objs ...client.Object) (*DeployDomain, client.Client) {
+func newTestDomain(t *testing.T, objs ...client.Object) *DeployDomain {
 	t.Helper()
 	c := testsupport.NewFakeClient(objs...)
 	log := logr.Discard()
@@ -116,8 +122,7 @@ func newTestDomain(t *testing.T, objs ...client.Object) (*DeployDomain, client.C
 	med := deploymentmediator.New(c, testsupport.NewScheme(), log, testsupport.NoopRawRecorder())
 	cache := &corecache.Cache{External: corecache.NoopExternalCache{}}
 
-	d := New(med, nil, cache, c, testsupport.NoopRecorder(), log)
-	return d, c
+	return New(med, nil, cache, c, testsupport.NoopRecorder(), log)
 }
 
 func conditionStatus(conds []metav1.Condition, condType string) (metav1.ConditionStatus, bool) {
@@ -203,7 +208,7 @@ func TestDeployDomain_Handle_InvalidObject(t *testing.T) {
 
 func TestDeployDomain_Handle_Create_ResolutionFailure(t *testing.T) {
 	depl := newDeploymentCR(nil)
-	d, _ := newTestDomain(t, depl)
+	d := newTestDomain(t, depl)
 
 	err := d.Handle(context.Background(), command.Command{Type: command.CmdCreate, Obj: depl})
 	if err == nil {
@@ -216,7 +221,7 @@ func TestDeployDomain_Handle_Create_ResolutionFailure(t *testing.T) {
 
 func TestDeployDomain_Handle_Create_MissingEnvironment(t *testing.T) {
 	depl := newDeploymentCR(validDeploymentContract())
-	d, _ := newTestDomain(t, depl)
+	d := newTestDomain(t, depl)
 
 	err := d.Handle(context.Background(), command.Command{Type: command.CmdCreate, Obj: depl})
 	if err == nil {
@@ -230,7 +235,7 @@ func TestDeployDomain_Handle_Create_MissingEnvironment(t *testing.T) {
 func TestDeployDomain_Handle_Create_ServiceUnitMissing(t *testing.T) {
 	env := newEnvironment()
 	depl := newDeploymentCR(validDeploymentContract("su-missing"))
-	d, _ := newTestDomain(t, env, depl)
+	d := newTestDomain(t, env, depl)
 
 	err := d.Handle(context.Background(), command.Command{Type: command.CmdCreate, Obj: depl})
 	if err == nil {
@@ -249,7 +254,7 @@ func TestDeployDomain_Handle_Create_Succeeds(t *testing.T) {
 	env := newEnvironment()
 	su := newServiceUnit("su-sample")
 	depl := newDeploymentCR(validDeploymentContract("su-sample"))
-	d, _ := newTestDomain(t, env, su, depl)
+	d := newTestDomain(t, env, su, depl)
 
 	if err := d.Handle(context.Background(), command.Command{Type: command.CmdCreate, Obj: depl}); err != nil {
 		t.Fatalf("Handle() = %v, want nil", err)
@@ -265,7 +270,7 @@ func TestDeployDomain_Handle_Create_Succeeds(t *testing.T) {
 
 func TestDeployDomain_Handle_Delete_ResolutionFailure(t *testing.T) {
 	depl := newDeploymentCR(nil)
-	d, _ := newTestDomain(t, depl)
+	d := newTestDomain(t, depl)
 
 	err := d.Handle(context.Background(), command.Command{Type: command.CmdDelete, Obj: depl})
 	if err == nil {
@@ -279,7 +284,7 @@ func TestDeployDomain_Handle_Delete_ResolutionFailure(t *testing.T) {
 func TestDeployDomain_Handle_Delete_Succeeds(t *testing.T) {
 	env := newEnvironment()
 	depl := newDeploymentCR(validDeploymentContract())
-	d, _ := newTestDomain(t, env, depl)
+	d := newTestDomain(t, env, depl)
 
 	if err := d.Handle(context.Background(), command.Command{Type: command.CmdDelete, Obj: depl}); err != nil {
 		t.Fatalf("Handle() delete = %v, want nil", err)
