@@ -94,10 +94,18 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *deployment
 	log.Info("environment context resolved", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
 	// ------------------------------------------------------------------------------------------------------------
 	// Stage 1: Git SSH secret (store-dependent)
+	//
+	// ManifestsRepo is documented-optional in resolution — a Deployment with
+	// no separate GitOps manifests repo (e.g. Imperative/runtime-only
+	// delivery) legitimately omits it. Gated the same way as Stage 3 below;
+	// without this check, the reconciler dereferences the nil
+	// ManifestsRepo.CloneSecret unconditionally.
 	// ------------------------------------------------------------------------------------------------------------
-	gitSSH := gitDeployment.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
-	if err := gitSSH.Reconcile(ctx, resolved); err != nil {
-		return fmt.Errorf("reconcile git ssh secret: %w", err)
+	if resolved.Spec.ManifestsRepo != nil {
+		gitSSH := gitDeployment.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+		if err := gitSSH.Reconcile(ctx, resolved); err != nil {
+			return fmt.Errorf("reconcile git ssh secret: %w", err)
+		}
 	}
 	// ------------------------------------------------------------------------------------------------------------
 	// Stage 2: Flux SSH secret (no store — keypair generated locally)
@@ -164,11 +172,14 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *deploymen
 		errs = append(errs, fmt.Errorf("delete fluxcd git ssh secret: %w", err))
 	}
 	// ------------------------------------------------------------------------------------------------------------
-	// Stage 1: Git SSH secret
+	// Stage 1: Git SSH secret — same ManifestsRepo gate as EnsurePrerequisites;
+	// Delete() dereferences ManifestsRepo.CloneSecret unconditionally.
 	// ------------------------------------------------------------------------------------------------------------
-	gitSSH := gitDeployment.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
-	if err := gitSSH.Delete(ctx, resolved); err != nil {
-		errs = append(errs, fmt.Errorf("delete git ssh secret: %w", err))
+	if resolved.Spec.ManifestsRepo != nil {
+		gitSSH := gitDeployment.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+		if err := gitSSH.Delete(ctx, resolved); err != nil {
+			errs = append(errs, fmt.Errorf("delete git ssh secret: %w", err))
+		}
 	}
 	if len(errs) > 0 {
 		return utilerrors.NewAggregate(errs)
