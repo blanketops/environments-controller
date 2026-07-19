@@ -33,6 +33,9 @@ import (
 
 const testAppName = "app-sample"
 
+// Repeated across fixtures below — named to satisfy goconst.
+const keyProvider = "provider"
+
 func newEnvironment() *environmentsv1alpha1.Environment {
 	return &environmentsv1alpha1.Environment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -73,8 +76,8 @@ func newGitRepositoryCR(contract map[string]any) *sourcesv1alpha1.GitRepository 
 
 func validGitRepositoryContract() map[string]any {
 	return map[string]any{
-		"provider": "github",
-		"hookUrl":  "https://events.blanketops.dev/hooks/app-sample",
+		keyProvider: "github",
+		"hookUrl":   "https://events.blanketops.dev/hooks/app-sample",
 		"repository": map[string]any{
 			"owner": "blanketops",
 			"name":  "app",
@@ -144,8 +147,8 @@ func TestGitRepositoryDomain_CanUpdate(t *testing.T) {
 	}{
 		{
 			name:   "spec changed",
-			oldObj: newGitRepositoryCR(map[string]any{"provider": "a"}),
-			newObj: newGitRepositoryCR(map[string]any{"provider": "b"}),
+			oldObj: newGitRepositoryCR(map[string]any{keyProvider: "a"}),
+			newObj: newGitRepositoryCR(map[string]any{keyProvider: "b"}),
 			want:   true,
 		},
 		{

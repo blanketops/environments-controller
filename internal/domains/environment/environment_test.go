@@ -27,6 +27,9 @@ import (
 	"github.com/blanketops/environments-controller/internal/testsupport"
 )
 
+// Repeated across fixtures below — named to satisfy goconst.
+const keyApplicationName = "applicationName"
+
 func newEnvironmentCR(contract map[string]any) *environmentsv1alpha1.Environment {
 	e := &environmentsv1alpha1.Environment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -42,11 +45,11 @@ func newEnvironmentCR(contract map[string]any) *environmentsv1alpha1.Environment
 
 func validEnvironmentContract() map[string]any {
 	return map[string]any{
-		"applicationName": "env-sample",
-		"branch":          "main",
-		"gitOwner":        "blanketops",
-		"environmentType": "dev",
-		"version":         "v1",
+		keyApplicationName: "env-sample",
+		"branch":           "main",
+		"gitOwner":         "blanketops",
+		"environmentType":  "dev",
+		"version":          "v1",
 	}
 }
 
@@ -102,8 +105,8 @@ func TestEnvironmentDomain_CanUpdate(t *testing.T) {
 	}{
 		{
 			name:   "spec changed",
-			oldObj: newEnvironmentCR(map[string]any{"applicationName": "a"}),
-			newObj: newEnvironmentCR(map[string]any{"applicationName": "b"}),
+			oldObj: newEnvironmentCR(map[string]any{keyApplicationName: "a"}),
+			newObj: newEnvironmentCR(map[string]any{keyApplicationName: "b"}),
 			want:   true,
 		},
 		{

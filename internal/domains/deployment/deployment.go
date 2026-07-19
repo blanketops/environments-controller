@@ -70,12 +70,12 @@ type DeployDomain struct {
 }
 
 // New returns a new DeployDomain instance configured with the necessary dependencies.
-func New(deploymentMediatorIn *deploymentMediator.Mediator, deploymentServiceIn *deployapp.DeploymentService, cache *cache.Cache, reader client.Reader, events *events.EventRecorder, log logr.Logger) *DeployDomain {
+func New(deploymentMediatorIn *deploymentMediator.Mediator, deploymentServiceIn *deployapp.DeploymentService, domainCache *cache.Cache, reader client.Reader, eventRecorder *events.EventRecorder, log logr.Logger) *DeployDomain {
 	return &DeployDomain{
 		deploymentMediator: deploymentMediatorIn,
 		deployService:      deploymentServiceIn,
-		deploymentCache:    libdeployment.NewDeploymentCache(cache),
-		events:             events,
+		deploymentCache:    libdeployment.NewDeploymentCache(domainCache),
+		events:             eventRecorder,
 		log:                log,
 		reader:             reader,
 	}

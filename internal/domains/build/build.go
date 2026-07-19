@@ -66,12 +66,12 @@ type BuildDomain struct {
 }
 
 // New returns a new BuildDomain instance configured with the necessary dependencies.
-func New(buildMediator *build.Mediator, buildService *application.BuildService, cache *cache.Cache, events *events.EventRecorder, log logr.Logger) *BuildDomain {
+func New(buildMediator *build.Mediator, buildService *application.BuildService, domainCache *cache.Cache, eventRecorder *events.EventRecorder, log logr.Logger) *BuildDomain {
 	return &BuildDomain{
 		buildMediator: buildMediator,
 		buildService:  buildService,
-		buildCache:    libbuild.NewBuildCache(cache),
-		events:        events,
+		buildCache:    libbuild.NewBuildCache(domainCache),
+		events:        eventRecorder,
 		log:           log,
 	}
 }
