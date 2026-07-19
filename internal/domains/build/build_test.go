@@ -32,6 +32,14 @@ import (
 
 const testAppName = "app-sample"
 
+// Contract map keys repeated across fixtures below — named to satisfy
+// goconst rather than to document meaning (the keys are self-explanatory).
+const (
+	keyImage  = "image"
+	keySource = "source"
+	keyURL    = "url"
+)
+
 func newEnvironment() *environmentsv1alpha1.Environment {
 	return &environmentsv1alpha1.Environment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -72,9 +80,9 @@ func newBuildCR(contract map[string]any) *environmentsv1alpha1.Build {
 
 func validBuildContract() map[string]any {
 	return map[string]any{
-		"image": "ghcr.io/blanketops/app:latest",
-		"source": map[string]any{
-			"url":         "https://github.com/blanketops/app.git",
+		keyImage: "ghcr.io/blanketops/app:latest",
+		keySource: map[string]any{
+			keyURL:        "https://github.com/blanketops/app.git",
 			"cloneSecret": "app-git-ssh",
 		},
 		"strategy": map[string]any{
@@ -90,7 +98,7 @@ func validBuildContract() map[string]any {
 // fake client can satisfy (no real Shipwright controller runs BuildRuns to
 // completion, so success here means "dispatched correctly", not "the image
 // built").
-func newTestDomain(t *testing.T, objs ...client.Object) (*BuildDomain, client.Client) {
+func newTestDomain(t *testing.T, objs ...client.Object) *BuildDomain {
 	t.Helper()
 	c := testsupport.NewFakeClient(objs...)
 	log := logr.Discard()
@@ -113,8 +121,7 @@ func newTestDomain(t *testing.T, objs ...client.Object) (*BuildDomain, client.Cl
 	// (ObjectCache.PublishResolved/Invalidate) never touches. Only External
 	// is read, so a real manager would be pure unused ceremony in this test.
 	cache := &corecache.Cache{External: corecache.NoopExternalCache{}}
-	d := New(med, service, cache, testsupport.NoopRecorder(), log)
-	return d, c
+	return New(med, service, cache, testsupport.NoopRecorder(), log)
 }
 
 func conditionStatus(conds []metav1.Condition, condType string) (metav1.ConditionStatus, bool) {
@@ -168,8 +175,8 @@ func TestBuildDomain_CanUpdate(t *testing.T) {
 	}{
 		{
 			name:   "spec changed",
-			oldObj: newBuildCR(map[string]any{"image": "old", "source": map[string]any{"url": "x"}}),
-			newObj: newBuildCR(map[string]any{"image": "new", "source": map[string]any{"url": "x"}}),
+			oldObj: newBuildCR(map[string]any{keyImage: "old", keySource: map[string]any{keyURL: "x"}}),
+			newObj: newBuildCR(map[string]any{keyImage: "new", keySource: map[string]any{keyURL: "x"}}),
 			want:   true,
 		},
 		{
@@ -216,7 +223,7 @@ func TestBuildDomain_Handle_InvalidObject(t *testing.T) {
 
 func TestBuildDomain_Handle_Create_ResolutionFailure(t *testing.T) {
 	buildCR := newBuildCR(nil) // no contract -> resolution fails
-	d, _ := newTestDomain(t, buildCR)
+	d := newTestDomain(t, buildCR)
 
 	err := d.Handle(context.Background(), command.Command{Type: command.CmdCreate, Obj: buildCR})
 	if err == nil {
@@ -236,7 +243,7 @@ func TestBuildDomain_Handle_Create_MissingEnvironment(t *testing.T) {
 	// Environment referenced by the label doesn't exist in the fake client —
 	// the mediator's EnsurePrerequisites must fail at the query.Lookup gate.
 	buildCR := newBuildCR(validBuildContract())
-	d, _ := newTestDomain(t, buildCR)
+	d := newTestDomain(t, buildCR)
 
 	err := d.Handle(context.Background(), command.Command{Type: command.CmdCreate, Obj: buildCR})
 	if err == nil {
@@ -260,7 +267,7 @@ func TestBuildDomain_Handle_Create_MissingEnvironment(t *testing.T) {
 func TestBuildDomain_Handle_Create_PrerequisitesSucceed(t *testing.T) {
 	env := newEnvironment()
 	buildCR := newBuildCR(validBuildContract())
-	d, _ := newTestDomain(t, env, buildCR)
+	d := newTestDomain(t, env, buildCR)
 
 	// Prerequisites (git SSH secret, registry secret, ServiceAccount) should
 	// all provision successfully against the fake client once the owning
@@ -279,7 +286,7 @@ func TestBuildDomain_Handle_Create_PrerequisitesSucceed(t *testing.T) {
 
 func TestBuildDomain_Handle_Delete_ResolutionFailure(t *testing.T) {
 	buildCR := newBuildCR(nil)
-	d, _ := newTestDomain(t, buildCR)
+	d := newTestDomain(t, buildCR)
 
 	err := d.Handle(context.Background(), command.Command{Type: command.CmdDelete, Obj: buildCR})
 	if err == nil {
@@ -293,7 +300,7 @@ func TestBuildDomain_Handle_Delete_ResolutionFailure(t *testing.T) {
 
 func TestBuildDomain_Handle_Delete_MissingEnvironment(t *testing.T) {
 	buildCR := newBuildCR(validBuildContract())
-	d, _ := newTestDomain(t, buildCR)
+	d := newTestDomain(t, buildCR)
 
 	err := d.Handle(context.Background(), command.Command{Type: command.CmdDelete, Obj: buildCR})
 	if err == nil {
@@ -308,7 +315,7 @@ func TestBuildDomain_Handle_Delete_MissingEnvironment(t *testing.T) {
 func TestBuildDomain_Handle_Delete_Succeeds(t *testing.T) {
 	env := newEnvironment()
 	buildCR := newBuildCR(validBuildContract())
-	d, _ := newTestDomain(t, env, buildCR)
+	d := newTestDomain(t, env, buildCR)
 
 	if err := d.Handle(context.Background(), command.Command{Type: command.CmdDelete, Obj: buildCR}); err != nil {
 		t.Fatalf("Handle() delete = %v, want nil", err)

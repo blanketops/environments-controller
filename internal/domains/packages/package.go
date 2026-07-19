@@ -66,13 +66,13 @@ type PackageDomain struct {
 }
 
 // New returns a new PackageDomain instance configured with the necessary dependencies.
-func New(packageMediator *pkgMediator.Mediator, packageService *pkgApplication.PackageService, cache *cache.Cache, events *events.EventRecorder, log logr.Logger,
+func New(packageMediator *pkgMediator.Mediator, packageService *pkgApplication.PackageService, domainCache *cache.Cache, eventRecorder *events.EventRecorder, log logr.Logger,
 ) *PackageDomain {
 	return &PackageDomain{
 		packageMediator: packageMediator,
 		packageService:  packageService,
-		packageCache:    libpackages.NewPackageCache(cache),
-		events:          events,
+		packageCache:    libpackages.NewPackageCache(domainCache),
+		events:          eventRecorder,
 		log:             log,
 	}
 }

@@ -71,15 +71,15 @@ type EnvironmentDomain struct {
 func New(
 	c client.Client,
 	scheme *runtime.Scheme,
-	cache *cache.Cache,
-	events *events.EventRecorder,
+	domainCache *cache.Cache,
+	eventRecorder *events.EventRecorder,
 	log logr.Logger,
 ) *EnvironmentDomain {
 	return &EnvironmentDomain{
 		client:           c,
 		scheme:           scheme,
-		environmentCache: libenvironment.NewEnvironmentCache(cache),
-		events:           events,
+		environmentCache: libenvironment.NewEnvironmentCache(domainCache),
+		events:           eventRecorder,
 		log:              log,
 	}
 }

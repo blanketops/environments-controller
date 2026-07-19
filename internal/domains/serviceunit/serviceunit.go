@@ -55,11 +55,11 @@ type ServiceUnitDomain struct {
 	log              logr.Logger
 }
 
-func New(mediator *serviceunit.Mediator, cache *cache.Cache, events *events.EventRecorder, log logr.Logger) *ServiceUnitDomain {
+func New(mediator *serviceunit.Mediator, domainCache *cache.Cache, eventRecorder *events.EventRecorder, log logr.Logger) *ServiceUnitDomain {
 	return &ServiceUnitDomain{
 		serviceUnitMediator: mediator,
-		serviceUnitCache:    libserviceunit.NewServiceUnitCache(cache),
-		events:              events,
+		serviceUnitCache:    libserviceunit.NewServiceUnitCache(domainCache),
+		events:              eventRecorder,
 		log:                 log,
 	}
 }

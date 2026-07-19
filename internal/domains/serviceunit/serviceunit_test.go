@@ -28,6 +28,13 @@ import (
 	"github.com/blanketops/environments-controller/internal/testsupport"
 )
 
+// Repeated across fixtures below — named to satisfy goconst.
+const (
+	keyImage      = "image"
+	keyType       = "type"
+	valTypeStatic = "static"
+)
+
 func newServiceUnitCR(contract map[string]any) *environmentsv1alpha1.ServiceUnit {
 	su := &environmentsv1alpha1.ServiceUnit{
 		ObjectMeta: metav1.ObjectMeta{
@@ -43,8 +50,8 @@ func newServiceUnitCR(contract map[string]any) *environmentsv1alpha1.ServiceUnit
 
 func validServiceUnitContract() map[string]any {
 	return map[string]any{
-		"type":  "static",
-		"image": "ghcr.io/blanketops/app:latest",
+		keyType:  valTypeStatic,
+		keyImage: "ghcr.io/blanketops/app:latest",
 	}
 }
 
@@ -102,8 +109,8 @@ func TestServiceUnitDomain_CanUpdate(t *testing.T) {
 	}{
 		{
 			name:   "spec changed",
-			oldObj: newServiceUnitCR(map[string]any{"type": "static", "image": "a"}),
-			newObj: newServiceUnitCR(map[string]any{"type": "static", "image": "b"}),
+			oldObj: newServiceUnitCR(map[string]any{keyType: valTypeStatic, keyImage: "a"}),
+			newObj: newServiceUnitCR(map[string]any{keyType: valTypeStatic, keyImage: "b"}),
 			want:   true,
 		},
 		{

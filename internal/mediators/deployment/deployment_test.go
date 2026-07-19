@@ -34,11 +34,17 @@ import (
 	"github.com/blanketops/environments-controller/internal/testsupport"
 )
 
+// Repeated across fixtures below — named to satisfy goconst.
+const (
+	testNamespace    = "default"
+	manifestsRepoURL = "https://github.com/blanketops/app-manifests.git"
+)
+
 func newResolvedDeployment(manifestsRepo *deploymentResolution.ResolvedManifestsRepo) *deploymentResolution.ResolvedDeployment {
 	depl := &environmentsv1alpha1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "deployment-sample",
-			Namespace: "default",
+			Namespace: testNamespace,
 		},
 	}
 	return &deploymentResolution.ResolvedDeployment{
@@ -83,11 +89,11 @@ func TestTeardownManifestsRepo_NoManifestsRepo_NoOp(t *testing.T) {
 }
 
 func TestExtractPublicKey_PreStoredIdentityPub(t *testing.T) {
-	resolved := newResolvedDeployment(&deploymentResolution.ResolvedManifestsRepo{URL: "https://github.com/blanketops/app-manifests.git"})
+	resolved := newResolvedDeployment(&deploymentResolution.ResolvedManifestsRepo{URL: manifestsRepoURL})
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "deployment-sample-flux-ssh",
-			Namespace: "default",
+			Namespace: testNamespace,
 		},
 		Data: map[string][]byte{
 			"identity.pub": []byte("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINPreStoredKey test@blanketops"),
@@ -105,7 +111,7 @@ func TestExtractPublicKey_PreStoredIdentityPub(t *testing.T) {
 }
 
 func TestExtractPublicKey_SecretNotFound(t *testing.T) {
-	resolved := newResolvedDeployment(&deploymentResolution.ResolvedManifestsRepo{URL: "https://github.com/blanketops/app-manifests.git"})
+	resolved := newResolvedDeployment(&deploymentResolution.ResolvedManifestsRepo{URL: manifestsRepoURL})
 	m := New(testsupport.NewFakeClient(), testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
 
 	if _, err := m.extractPublicKey(context.Background(), resolved); err == nil {
@@ -114,11 +120,11 @@ func TestExtractPublicKey_SecretNotFound(t *testing.T) {
 }
 
 func TestWriteSSHKeyToDisk_WritesAndCleansUp(t *testing.T) {
-	resolved := newResolvedDeployment(&deploymentResolution.ResolvedManifestsRepo{URL: "https://github.com/blanketops/app-manifests.git"})
+	resolved := newResolvedDeployment(&deploymentResolution.ResolvedManifestsRepo{URL: manifestsRepoURL})
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "deployment-sample-flux-ssh",
-			Namespace: "default",
+			Namespace: testNamespace,
 		},
 		Data: map[string][]byte{
 			"identity": []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nfake-key-material\n-----END OPENSSH PRIVATE KEY-----\n"),
@@ -154,7 +160,7 @@ func TestWriteSSHKeyToDisk_WritesAndCleansUp(t *testing.T) {
 }
 
 func TestWriteSSHKeyToDisk_SecretNotFound(t *testing.T) {
-	resolved := newResolvedDeployment(&deploymentResolution.ResolvedManifestsRepo{URL: "https://github.com/blanketops/app-manifests.git"})
+	resolved := newResolvedDeployment(&deploymentResolution.ResolvedManifestsRepo{URL: manifestsRepoURL})
 	m := New(testsupport.NewFakeClient(), testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
 
 	if _, _, err := m.writeSSHKeyToDisk(context.Background(), resolved); err == nil {

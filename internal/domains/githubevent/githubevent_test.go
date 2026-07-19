@@ -33,6 +33,13 @@ import (
 
 const testAppName = "app-sample"
 
+// Repeated across fixtures below — named to satisfy goconst.
+const (
+	keyRepository = "repository"
+	keyEventType  = "eventType"
+	valPush       = "push"
+)
+
 func newEnvironment() *environmentsv1alpha1.Environment {
 	return &environmentsv1alpha1.Environment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -73,9 +80,9 @@ func newGitHubEventCR(contract map[string]any) *eventsv1alpha1.GitHubEvent {
 
 func validGitHubEventContract() map[string]any {
 	return map[string]any{
-		"repository": "blanketops/app",
-		"eventType":  "push",
-		"eventId":    "delivery-123",
+		keyRepository: "blanketops/app",
+		keyEventType:  valPush,
+		"eventId":     "delivery-123",
 		"webhook": map[string]any{
 			"secretRef": map[string]any{
 				"name": "app-webhook-secret",
@@ -146,8 +153,8 @@ func TestGitHubEventDomain_CanUpdate(t *testing.T) {
 	}{
 		{
 			name:   "spec changed",
-			oldObj: newGitHubEventCR(map[string]any{"repository": "a", "eventType": "push"}),
-			newObj: newGitHubEventCR(map[string]any{"repository": "b", "eventType": "push"}),
+			oldObj: newGitHubEventCR(map[string]any{keyRepository: "a", keyEventType: valPush}),
+			newObj: newGitHubEventCR(map[string]any{keyRepository: "b", keyEventType: valPush}),
 			want:   true,
 		},
 		{

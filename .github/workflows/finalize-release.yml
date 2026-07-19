@@ -1,3 +1,14 @@
+# Auth:
+#   Uses the BlanketOps-Environments GitHub App (via
+#   actions/create-github-app-token) instead of a personal-account PAT — a
+#   push made with the default GITHUB_TOKEN does not trigger downstream
+#   workflow runs (notably the tag push below, which release.yml listens
+#   for), but an App installation token does, same as a PAT would.
+#
+# Secrets required:
+#   APP_ID, APP_PRIVATE_KEY — GitHub App credentials, exchanged for a
+#   short-lived installation token scoped to this repo
+
 name: Finalize Release
 on:
   workflow_dispatch:
@@ -11,11 +22,20 @@ jobs:
   finalize:
     runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: environments-controller
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Configure git
         run: |

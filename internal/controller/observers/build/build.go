@@ -127,20 +127,20 @@ func (r *Reconciler) applyTriggers(ctx context.Context, build *buildv1.Build, re
 	// Deliberately no client.InNamespace(...) — GitHubEvents live in a
 	// different namespace (argo-events) than Build CRs. Correlate by label
 	// only. See package doc.
-	var events eventsv1alpha1.GitHubEventList
-	if err := r.List(ctx, &events,
+	var githubEvents eventsv1alpha1.GitHubEventList
+	if err := r.List(ctx, &githubEvents,
 		client.MatchingLabels{"environments.blanketops.dev/name": appName},
 	); err != nil {
 		return err
 	}
 
-	log.Info("trigger scan: candidates found", "appName", appName, "count", len(events.Items))
+	log.Info("trigger scan: candidates found", "appName", appName, "count", len(githubEvents.Items))
 
 	var latestEvent *eventsv1alpha1.GitHubEvent
 	var latestResolved *githubeventresolution.ResolvedGitHubEvent
 
-	for i := range events.Items {
-		ev := &events.Items[i]
+	for i := range githubEvents.Items {
+		ev := &githubEvents.Items[i]
 		ghResolved, err := githubeventresolution.ResolveGitHubEvent(ev)
 		if err != nil {
 			log.Info("trigger scan: resolve failed", "event", ev.Name, "error", err.Error())
