@@ -1,5 +1,5 @@
 /*
-Copyright 2026.
+Copyright 2026 The BlanketOps Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,39 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package githubevent (githubevent-observer) is the status rollup reconciler
+for GitHubEvent CRs.
+
+It reflects two independent signals onto GitHubEvent.Status:
+
+  - Payload receipt: whether the Argo Events Sensor has delivered a webhook
+    payload with a non-empty event id and event type. This is the primary,
+    always-available signal — it comes straight from the GitHubEvent spec
+    the Sensor already wrote.
+  - Sensor health: the Succeeded condition on the Sensor object the mediator
+    provisioned (named "github-sensor-<event-name>"). This is best-effort —
+    see the Sensor-lookup note below.
+
+Environment prerequisite: unlike build-observer, this reconciler itself
+never looks up the owning Environment. That gate lives one layer down, in
+the GitHubEvent mediator's EnsurePrerequisites (internal/mediators/githubevent),
+which is invoked from the domain's CmdCreate/CmdUpdate handling before this
+observer ever runs. If environments.blanketops.dev/name resolves to an
+Environment that doesn't exist yet, the domain reconcile fails there with
+"environment %q not found — must pre-exist" — the same fail-fast gate
+build's mediator enforces (see internal/mediators/build package doc). This
+observer's job starts after that gate has already passed once.
+
+Sensor-lookup note: fetching the Sensor is deliberately non-fatal. The
+Sensor is provisioned by the mediator asynchronously and may not exist yet
+on the very first reconcile after payload receipt, or may be transiently
+unreachable. Rather than fail the whole reconcile over a supplementary
+health signal, a fetch error is logged and the reconcile falls back to
+whatever success value was already persisted in status — payload receipt
+remains the authoritative "is this event real" signal regardless of
+Sensor lookup outcome.
+*/
 package githubevent
 
 import (
@@ -85,6 +118,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
+	// Best-effort: the Sensor is provisioned asynchronously by the mediator
+	// and may not exist yet, or may be transiently unreachable. A fetch
+	// failure here does not fail the reconcile — see package doc's
+	// Sensor-lookup note. `success` simply retains whatever value was
+	// already persisted in status.
 	sensorName := "github-sensor-" + gh.Name
 	var sensor argoeventsv1alpha1.Sensor
 	if err := r.Get(ctx, client.ObjectKey{Namespace: gh.Namespace, Name: sensorName}, &sensor); err != nil {
@@ -111,6 +149,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrl.Result{}, r.Status.Write(ctx, &gh, conditions...)
 }
 
+// buildContractAndConditions derives the GitHubEventStatus contract and the
+// single Condition to report from the three booleans Reconcile computed:
+// payloadReceived (from spec), triggered/success (from prior persisted
+// status, refined by the best-effort Sensor check above). Priority order
+// mirrors the delivery lifecycle: Ready (payload + sensor healthy) beats
+// Receiving (payload only) beats the prior Triggered state beats Pending.
 func (r *Reconciler) buildContractAndConditions(
 	gh *eventsv1alpha1.GitHubEvent,
 	payloadReceived, triggered, success bool,
