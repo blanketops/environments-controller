@@ -35,7 +35,7 @@ import (
 	"context"
 
 	networksv1alpha1 "github.com/blanketops/environments-api/api/networks/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/command"
 	"github.com/go-logr/logr"
 
 	// routeapp "github.com/blanketops/environments/pkg/apis/route/application"
@@ -107,13 +107,13 @@ func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	// ------------------------------------------------
 	// Finalizer gate — determines cmd.Type
 	// ------------------------------------------------
-	cmdType := core.CmdUpdate
+	cmdType := command.CmdUpdate
 	if !routeCR.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(&routeCR, routeFinalizer) {
 			log.Info("reconcile exit: deletion in progress, finalizer already removed")
 			return ctrl.Result{}, nil
 		}
-		cmdType = core.CmdDelete
+		cmdType = command.CmdDelete
 	} else if !controllerutil.ContainsFinalizer(&routeCR, routeFinalizer) {
 		controllerutil.AddFinalizer(&routeCR, routeFinalizer)
 		if err := r.Update(ctx, &routeCR); err != nil {
@@ -127,7 +127,7 @@ func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	// -------------------------------------------------
 	// Construct core command
 	// -------------------------------------------------
-	cmd := core.Command{
+	cmd := command.Command{
 		GVK:  networksv1alpha1.GroupVersion.WithKind("Route"),
 		Type: cmdType,
 		Obj:  &routeCR,
@@ -152,7 +152,7 @@ func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	// removed, and racing a status update against finalizer removal serves
 	// no purpose.
 	// ------------------------------------------------
-	if cmdType == core.CmdDelete {
+	if cmdType == command.CmdDelete {
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			var latest networksv1alpha1.Route
 			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {

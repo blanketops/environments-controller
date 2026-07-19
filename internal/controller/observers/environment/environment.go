@@ -52,7 +52,7 @@ import (
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	networksv1alpha1 "github.com/blanketops/environments-api/api/networks/v1alpha1"
 	sourcesv1alpha1 "github.com/blanketops/environments-api/api/sources/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/events"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -69,7 +69,7 @@ const (
 
 type Reconciler struct {
 	client.Client
-	Recorder *core.EventRecorder
+	Recorder *events.EventRecorder
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -329,7 +329,7 @@ func (r *Reconciler) mapToEnvironment(ctx context.Context, obj client.Object) []
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("environment-observer"))
+	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("environment-observer"))
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&environmentsv1alpha1.Environment{}).

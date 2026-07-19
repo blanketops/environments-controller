@@ -22,10 +22,10 @@ package build
 
 import (
 	libbuild "github.com/blanketops/environments/cache/build"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
 )
 
 // New constructs the Build domain cache for this controller runtime.
-func New(c *core.Cache) *libbuild.BuildCache {
+func New(c *cache.Cache) *libbuild.BuildCache {
 	return libbuild.NewBuildCache(c)
 }

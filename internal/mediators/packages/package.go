@@ -30,10 +30,10 @@ import (
 	"fmt"
 
 	"github.com/blanketops/environments/pkg/apis/environment/query"
-	"github.com/blanketops/environments/pkg/secrets/git"
-	"github.com/blanketops/environments/pkg/secrets/registry"
+	git "github.com/blanketops/environments/pkg/secrets/git/staterepo"
+	registry "github.com/blanketops/environments/pkg/secrets/registry/packageregistry"
 	serviceaccounts "github.com/blanketops/environments/pkg/serviceaccounts"
-	packageResolution "github.com/blanketops/environments/resolution/packages"
+	packageResolution "github.com/blanketops/environments/resolution/packages/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -95,8 +95,13 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageRes
 	m.Log.Info("environment context resolved", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
 	// ------------------------------------------------------------------------------------------------------------
 	// Stage 1: Git credentials (state repo, store-dependent)
+	//
+	// StateRepository is a documented-optional pointer ("not all packages
+	// track state via GitOps") — must be nil-checked before dereferencing
+	// CloneSecret, unlike PackageRepository below which is a required value
+	// type and always safe to access directly.
 	// ------------------------------------------------------------------------------------------------------------
-	if resolved.Spec.StateRepository.CloneSecret != "" {
+	if resolved.Spec.StateRepository != nil && resolved.Spec.StateRepository.CloneSecret != "" {
 		stateRepo := git.NewPackageStateRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 		if err := stateRepo.Reconcile(ctx, resolved); err != nil {
 			return fmt.Errorf("reconcile state repository credentials: %w", err)
@@ -149,9 +154,10 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageRe
 		}
 	}
 	// ------------------------------------------------------------------------------------------------------------
-	// Stage 1: Git credentials (state repo)
+	// Stage 1: Git credentials (state repo) — same nil-check as
+	// EnsurePrerequisites; StateRepository is a documented-optional pointer.
 	// ------------------------------------------------------------------------------------------------------------
-	if resolved.Spec.StateRepository.CloneSecret != "" {
+	if resolved.Spec.StateRepository != nil && resolved.Spec.StateRepository.CloneSecret != "" {
 		stateRepo := git.NewPackageStateRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 		if err := stateRepo.Delete(ctx, resolved); err != nil {
 			errs = append(errs, fmt.Errorf("delete state repository credentials: %w", err))

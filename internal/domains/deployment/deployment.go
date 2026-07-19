@@ -32,10 +32,13 @@ import (
 
 	environmentv1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	libdeployment "github.com/blanketops/environments/cache/deployment"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/conditions"
+	"github.com/blanketops/environments/core/events"
 	deployapp "github.com/blanketops/environments/pkg/apis/deployment/application"
-	deploymentResolution "github.com/blanketops/environments/resolution/deployment"
-	"github.com/blanketops/environments/resolution/serviceunit"
+	deploymentResolution "github.com/blanketops/environments/resolution/deployment/resolve"
+	serviceunit "github.com/blanketops/environments/resolution/serviceunit/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -61,13 +64,13 @@ type DeployDomain struct {
 	// serves cross-CR reads.
 	reader client.Reader
 	// events handles logging of Kubernetes events.
-	events *core.EventRecorder
+	events *events.EventRecorder
 	// log is the logger instance for this domain.
 	log logr.Logger
 }
 
 // New returns a new DeployDomain instance configured with the necessary dependencies.
-func New(deploymentMediatorIn *deploymentMediator.Mediator, deploymentServiceIn *deployapp.DeploymentService, cache *core.Cache, reader client.Reader, events *core.EventRecorder, log logr.Logger) *DeployDomain {
+func New(deploymentMediatorIn *deploymentMediator.Mediator, deploymentServiceIn *deployapp.DeploymentService, cache *cache.Cache, reader client.Reader, events *events.EventRecorder, log logr.Logger) *DeployDomain {
 	return &DeployDomain{
 		deploymentMediator: deploymentMediatorIn,
 		deployService:      deploymentServiceIn,
@@ -78,13 +81,13 @@ func New(deploymentMediatorIn *deploymentMediator.Mediator, deploymentServiceIn 
 	}
 }
 
-// GVK tells the core.Engine which CRD type this domain handles.
+// GVK tells the engine.Engine which CRD type this domain handles.
 func (d *DeployDomain) GVK() schema.GroupVersionKind {
 	return environmentv1.GroupVersion.WithKind("Deployment")
 }
 
-// Handle executes core.Command operations routed by the Engine.
-func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
+// Handle executes command.Command operations routed by the Engine.
+func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 
 	deploymentCR, ok := cmd.Obj.(*environmentv1.Deployment)
 	if !ok || deploymentCR == nil {
@@ -98,7 +101,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 	gen := deploymentCR.GetGeneration()
 
 	switch cmd.Type {
-	case core.CmdCreate, core.CmdUpdate:
+	case command.CmdCreate, command.CmdUpdate:
 
 		// ------------------------------------------------
 		// Stage 0: Resolve deployment contract
@@ -108,7 +111,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		if err != nil {
 			log.Error(err, "deployment resolution failed")
 			d.events.FromError(deploymentCR, "DeploymentResolveFailed", err)
-			core.SetCondition(&deploymentCR.Status.Conditions, "DeploymentResolveFailed", core.ConditionFalse, "DeploymentResolve", err.Error())
+			conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentResolveFailed", conditions.ConditionFalse, "DeploymentResolve", err.Error())
 			return err
 		}
 
@@ -118,16 +121,16 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		if cerr := d.deploymentCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(deploymentCR, "DeploymentCacheFailed", cerr)
-			core.SetCondition(&deploymentCR.Status.Conditions, "DeploymentCacheFailed", core.ConditionFalse, "resolved projection publish incomplete", cerr.Error())
+			conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentCacheFailed", conditions.ConditionFalse, "resolved projection publish incomplete", cerr.Error())
 		}
 
 		log.Info("deployment resolved successfully")
 		d.events.Normal(deploymentCR, "DeploymentResolved", "Deployment specification resolved successfully")
-		core.SetCondition(&deploymentCR.Status.Conditions, "DeploymentResolved", core.ConditionTrue, "Resolved", "Deployment specification resolved successfully")
+		conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentResolved", conditions.ConditionTrue, "Resolved", "Deployment specification resolved successfully")
 
 		log.Info("deployment cached successfully")
 		d.events.Normal(deploymentCR, "DeploymentCache", "Deployment specification cached successfully")
-		core.SetCondition(&deploymentCR.Status.Conditions, "DeploymentCached", core.ConditionTrue, "DeploymentSpecCached", "Deployment specification cached successfully")
+		conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentCached", conditions.ConditionTrue, "DeploymentSpecCached", "Deployment specification cached successfully")
 
 		// ------------------------------------------------
 		// Stage 2: Ensure prerequisites
@@ -136,13 +139,13 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		if err := d.deploymentMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "deployment prerequisites failed")
 			d.events.FromError(deploymentCR, "DeploymentPrerequisitesCreateFailed", err)
-			core.SetCondition(&deploymentCR.Status.Conditions, "DeploymentPrerequisitesCreateFailed", core.ConditionFalse, "DeploymentPrerequisitesCreateFailed", err.Error())
+			conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentPrerequisitesCreateFailed", conditions.ConditionFalse, "DeploymentPrerequisitesCreateFailed", err.Error())
 			return err
 		}
 
 		log.Info("deployment prerequisites ensured")
 		d.events.Normal(deploymentCR, "DeploymentPrerequisitesCreated", "All deployment prerequisites created successfully")
-		core.SetCondition(&deploymentCR.Status.Conditions, "DeploymentPrerequisitesCreated", core.ConditionTrue, "DeploymentPrerequisitesCreated", "All deployment prerequisites satisfied")
+		conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentPrerequisitesCreated", conditions.ConditionTrue, "DeploymentPrerequisitesCreated", "All deployment prerequisites satisfied")
 
 		// ------------------------------------------------
 		// 3. RESOLVE SERVICE UNITS (AUTHORITATIVE)
@@ -152,13 +155,13 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		if err != nil {
 			log.Error(err, "resolve serviceunits failed")
 			d.events.FromError(deploymentCR, "ServiceUnitResolutionFailed", err)
-			core.SetCondition(&deploymentCR.Status.Conditions, "ServiceUnitResolved", core.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
+			conditions.SetCondition(&deploymentCR.Status.Conditions, "ServiceUnitResolved", conditions.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
 			return err
 		}
 
 		log.Info("serviceunit resolved successfully")
 		d.events.Normal(deploymentCR, "ServiceUnitResolved", "ServiceUnit specification resolved successfully")
-		core.SetCondition(&deploymentCR.Status.Conditions, "ServiceUnitResolved", core.ConditionTrue, "Resolved", "ServiceUnit specification resolved successfully")
+		conditions.SetCondition(&deploymentCR.Status.Conditions, "ServiceUnitResolved", conditions.ConditionTrue, "Resolved", "ServiceUnit specification resolved successfully")
 
 		// ------------------------------------------------
 		// 4. EXECUTE DEPLOYMENT (OPTIONAL)
@@ -168,16 +171,16 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 			if err := d.deployService.Reconcile(ctx, resolved, serviceUnits, d.log); err != nil {
 				log.Error(err, "deployment of serviceunits failed")
 				d.events.FromError(deploymentCR, "DeploymentFailed", err)
-				core.SetCondition(&deploymentCR.Status.Conditions, "DeploymentFailed", core.ConditionFalse, "DeploymentFailed", err.Error())
+				conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentFailed", conditions.ConditionFalse, "DeploymentFailed", err.Error())
 				return err
 			}
 		}
 
 		log.Info("serviceunit resolved successfully")
 		d.events.Info(deploymentCR, "DeploymentSucceeded", "deployment reconciliation completed successfully")
-		core.SetCondition(&deploymentCR.Status.Conditions, "DeploymentSucceeded", core.ConditionTrue, "DeploymentSucceeded", "Deployment trigger completed successfully")
+		conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentSucceeded", conditions.ConditionTrue, "DeploymentSucceeded", "Deployment trigger completed successfully")
 
-	case core.CmdDelete:
+	case command.CmdDelete:
 		// --------------------------------------------------------
 		// Real teardown, gated by finalizer at the controller level.
 		// Handle() must return nil ONLY if it is safe for the
@@ -191,7 +194,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		if err != nil {
 			log.Error(err, "resolution failed during teardown")
 			d.events.FromError(deploymentCR, "DeploymentTeardownResolveFailed", err)
-			core.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", core.ConditionFalse, "DeploymentTeardownResolveFailed", err.Error())
+			conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", conditions.ConditionFalse, "DeploymentTeardownResolveFailed", err.Error())
 			return err
 		}
 
@@ -199,7 +202,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 		if err := d.deploymentMediator.CleanupPrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "prerequisites cleanup failed")
 			d.events.FromError(deploymentCR, "DeploymentPrerequisitesCleanupFailed", err)
-			core.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", core.ConditionFalse, "DeploymentPrerequisitesCleanupFailed", err.Error())
+			conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", conditions.ConditionFalse, "DeploymentPrerequisitesCleanupFailed", err.Error())
 			return err
 		}
 
@@ -212,7 +215,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd core.Command) error {
 
 		log.Info("deployment teardown complete")
 		d.events.Normal(deploymentCR, "DeploymentDeleted", "deployment and owned resources cleaned up successfully")
-		core.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", core.ConditionTrue, "DeploymentCleanupComplete", "deployment and owned resources cleaned up successfully")
+		conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", conditions.ConditionTrue, "DeploymentCleanupComplete", "deployment and owned resources cleaned up successfully")
 	}
 
 	return nil

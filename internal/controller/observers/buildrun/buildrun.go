@@ -22,7 +22,7 @@ import (
 	"time"
 
 	buildv1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/events"
 	"github.com/blanketops/environments/pkg/apis/build/application"
 	"github.com/blanketops/environments/pkg/apis/build/domain"
 	"github.com/go-logr/logr"
@@ -37,7 +37,7 @@ import (
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
-	Recorder *core.EventRecorder
+	Recorder *events.EventRecorder
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -141,7 +141,7 @@ func (r *Reconciler) buildContractAndConditions(
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("buildrun-observer"))
+	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("buildrun-observer"))
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&shipwrightv1alpha1.BuildRun{}).
 		Complete(r)

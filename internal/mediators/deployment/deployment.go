@@ -30,8 +30,9 @@ import (
 	"fmt"
 
 	"github.com/blanketops/environments/pkg/apis/environment/query"
-	"github.com/blanketops/environments/pkg/secrets/git"
-	deploymentResolution "github.com/blanketops/environments/resolution/deployment"
+	gitDeployment "github.com/blanketops/environments/pkg/secrets/git/deployment"
+	gitFluxcd "github.com/blanketops/environments/pkg/secrets/git/fluxcd"
+	deploymentResolution "github.com/blanketops/environments/resolution/deployment/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -54,7 +55,7 @@ type Mediator struct {
 	Recorder events.EventRecorder
 
 	// DeploymentFluxGitSSHSecretReconciler has no store dependency — generates keypair locally.
-	DeploymentFluxGitSSHSecretReconciler *git.DeploymentFluxGitSSHSecretReconciler
+	DeploymentFluxGitSSHSecretReconciler *gitFluxcd.DeploymentFluxGitSSHSecretReconciler
 }
 
 // New returns a new Mediator instance configured with the necessary dependencies.
@@ -64,7 +65,7 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder even
 		Scheme:                               scheme,
 		Log:                                  log,
 		Recorder:                             recorder,
-		DeploymentFluxGitSSHSecretReconciler: git.NewDeploymentFluxGitSSHSecretReconciler(c, log),
+		DeploymentFluxGitSSHSecretReconciler: gitFluxcd.NewDeploymentFluxGitSSHSecretReconciler(c, log),
 	}
 }
 
@@ -93,10 +94,18 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *deployment
 	log.Info("environment context resolved", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
 	// ------------------------------------------------------------------------------------------------------------
 	// Stage 1: Git SSH secret (store-dependent)
+	//
+	// ManifestsRepo is documented-optional in resolution — a Deployment with
+	// no separate GitOps manifests repo (e.g. Imperative/runtime-only
+	// delivery) legitimately omits it. Gated the same way as Stage 3 below;
+	// without this check, the reconciler dereferences the nil
+	// ManifestsRepo.CloneSecret unconditionally.
 	// ------------------------------------------------------------------------------------------------------------
-	gitSSH := git.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
-	if err := gitSSH.Reconcile(ctx, resolved); err != nil {
-		return fmt.Errorf("reconcile git ssh secret: %w", err)
+	if resolved.Spec.ManifestsRepo != nil {
+		gitSSH := gitDeployment.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+		if err := gitSSH.Reconcile(ctx, resolved); err != nil {
+			return fmt.Errorf("reconcile git ssh secret: %w", err)
+		}
 	}
 	// ------------------------------------------------------------------------------------------------------------
 	// Stage 2: Flux SSH secret (no store — keypair generated locally)
@@ -163,11 +172,14 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *deploymen
 		errs = append(errs, fmt.Errorf("delete fluxcd git ssh secret: %w", err))
 	}
 	// ------------------------------------------------------------------------------------------------------------
-	// Stage 1: Git SSH secret
+	// Stage 1: Git SSH secret — same ManifestsRepo gate as EnsurePrerequisites;
+	// Delete() dereferences ManifestsRepo.CloneSecret unconditionally.
 	// ------------------------------------------------------------------------------------------------------------
-	gitSSH := git.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
-	if err := gitSSH.Delete(ctx, resolved); err != nil {
-		errs = append(errs, fmt.Errorf("delete git ssh secret: %w", err))
+	if resolved.Spec.ManifestsRepo != nil {
+		gitSSH := gitDeployment.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+		if err := gitSSH.Delete(ctx, resolved); err != nil {
+			errs = append(errs, fmt.Errorf("delete git ssh secret: %w", err))
+		}
 	}
 	if len(errs) > 0 {
 		return utilerrors.NewAggregate(errs)

@@ -16,27 +16,30 @@ limitations under the License.
 package runtime
 
 import (
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
+	"github.com/blanketops/environments/core/engine"
+	"github.com/blanketops/environments/core/events"
+	"github.com/blanketops/environments/core/registry"
 	"github.com/go-logr/logr"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 type Runtime struct {
-	Cache    *core.Cache
-	Events   *core.EventRecorder
-	Registry *core.Registry
-	Engine   *core.Engine
+	Cache    *cache.Cache
+	Events   *events.EventRecorder
+	Registry *registry.Registry
+	Engine   *engine.Engine
 	Log      logr.Logger
 }
 
 func New(mgr ctrl.Manager) *Runtime {
 
 	log := ctrl.Log.WithName("environments-runtime")
-	cache := core.NewCache(mgr, nil)
-	registry := core.NewRegistry()
+	cache := cache.NewCache(mgr, nil)
+	registry := registry.NewRegistry()
 
-	engine := core.NewEngine(registry, ctrl.Log.WithName("environments-engine"))
-	events := core.NewEventRecorder(mgr.GetEventRecorder("environments-runtime"))
+	engine := engine.NewEngine(registry, ctrl.Log.WithName("environments-engine"))
+	events := events.NewEventRecorder(mgr.GetEventRecorder("environments-runtime"))
 
 	return &Runtime{
 		Cache:    cache,
