@@ -20,7 +20,11 @@ limitations under the License.
 package testsupport
 
 import (
+	"context"
 	"encoding/json"
+	"strings"
+	"sync"
+	"time"
 
 	kappctrlv1alpha1 "carvel.dev/kapp-controller/pkg/apis/kappctrl/v1alpha1"
 	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
@@ -60,9 +64,25 @@ var externalSecretListGVK = schema.GroupVersionKind{
 	Kind:    "ExternalSecretList",
 }
 
+// providerConfigGVK is the GVK the gitrepository mediator creates via
+// unstructured.Unstructured (pkg/providerconfig) — github.upbound.io has no
+// typed scheme dependency in this repo either.
+var providerConfigGVK = schema.GroupVersionKind{
+	Group:   "github.upbound.io",
+	Version: "v1beta1",
+	Kind:    "ProviderConfig",
+}
+
+var providerConfigListGVK = schema.GroupVersionKind{
+	Group:   "github.upbound.io",
+	Version: "v1beta1",
+	Kind:    "ProviderConfigList",
+}
+
 // NewScheme mirrors internal/bootstrap/register.go's RegisterSchemes, plus
-// the ExternalSecret GVK the build/deployment/githubevent/gitrepository/
-// packages mediators create via unstructured.Unstructured.
+// the ExternalSecret and ProviderConfig GVKs the build/deployment/
+// githubevent/gitrepository/packages mediators create via
+// unstructured.Unstructured.
 func NewScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -79,6 +99,8 @@ func NewScheme() *runtime.Scheme {
 
 	scheme.AddKnownTypeWithName(externalSecretGVK, &unstructured.Unstructured{})
 	scheme.AddKnownTypeWithName(externalSecretListGVK, &unstructured.UnstructuredList{})
+	scheme.AddKnownTypeWithName(providerConfigGVK, &unstructured.Unstructured{})
+	scheme.AddKnownTypeWithName(providerConfigListGVK, &unstructured.UnstructuredList{})
 	return scheme
 }
 
@@ -123,6 +145,64 @@ func (noopRawRecorder) Eventf(regarding, related runtime.Object, eventtype, reas
 // every call, for constructing mediators and build providers in tests.
 func NoopRawRecorder() rawevents.EventRecorder {
 	return noopRawRecorder{}
+}
+
+// FakeExternalCache is an in-memory, JSON-serializing implementation of
+// blanketops/environments' core/cache.ExternalCache, for testing this
+// repo's internal/cache/* constructor wrappers. Values are marshaled on Set
+// and unmarshaled on Get, matching how the real Redis/Memcached backends
+// behave — a naive map[string]any passthrough would hide (de)serialization
+// bugs. Mirrors the external library's own cache/internal/testutil fake,
+// reimplemented here since that package is unexported outside its module.
+type FakeExternalCache struct {
+	mu   sync.Mutex
+	data map[string][]byte
+}
+
+func NewFakeExternalCache() *FakeExternalCache {
+	return &FakeExternalCache{data: make(map[string][]byte)}
+}
+
+func (f *FakeExternalCache) Set(_ context.Context, key string, val any, _ time.Duration) error {
+	b, err := json.Marshal(val)
+	if err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.data[key] = b
+	return nil
+}
+
+func (f *FakeExternalCache) Get(_ context.Context, key string, into any) (bool, error) {
+	f.mu.Lock()
+	b, ok := f.data[key]
+	f.mu.Unlock()
+	if !ok {
+		return false, nil
+	}
+	if err := json.Unmarshal(b, into); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (f *FakeExternalCache) Del(_ context.Context, key string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.data, key)
+	return nil
+}
+
+func (f *FakeExternalCache) DelPrefix(_ context.Context, prefix string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for k := range f.data {
+		if strings.HasPrefix(k, prefix) {
+			delete(f.data, k)
+		}
+	}
+	return nil
 }
 
 // RawContract JSON-encodes m into a runtime.RawExtension, matching the
