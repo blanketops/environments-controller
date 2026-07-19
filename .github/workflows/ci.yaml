@@ -1,8 +1,11 @@
 # =============================================================================
-# ci.yaml — CI Build and Lint
+# ci.yaml — CI Build, Lint, Test, and Coverage
 #
-# Runs on every push to main and every pull request.
-# Builds the controller binary and runs golangci-lint.
+# Runs on every push to main and every pull request. Builds the controller
+# binary, checks formatting, lints, runs the test suite, and publishes a
+# coverage report (step summary table + gocov-html artifact) — mirroring the
+# environments library's own CI coverage job, minus the vendor-snapshot
+# machinery this repo doesn't need (no vendor/ directory here).
 #
 # Changes from previous:
 #   - go-version-file: go.mod instead of hardcoded version
@@ -13,6 +16,7 @@
 #   - golangci-lint replaces staticcheck — consistent with library CI
 #   - go vet added before lint
 #   - GONOSUMDB + GOPRIVATE + GOPROXY=direct set consistently
+#   - Added gofmt check, go test + coverage, and a gocov-html report
 #
 # Auth:
 #   Private-module git config (environments, environments-api,
@@ -75,23 +79,111 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Test
-        run: go test ./... -coverprofile=coverage.out -covermode=atomic
-
-      - name: Coverage summary
-        if: always()
+      - name: Check formatting
         run: |
-          TOTAL=$(go tool cover -func=coverage.out 2>/dev/null | grep "^total" | awk '{print $3}' || echo "N/A")
-          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
-          ## Test Coverage
-          **Total:** \`${TOTAL}\`
-          EOF
+          UNFORMATTED=$(gofmt -l $(find . -name "*.go" -not -path "./vendor/*"))
+          if [ -n "${UNFORMATTED}" ]; then
+            echo "The following files are not formatted:"
+            echo "${UNFORMATTED}"
+            exit 1
+          fi
+          echo "All files formatted correctly"
 
       - name: Lint
         uses: golangci/golangci-lint-action@v7
         with:
           version: latest
           args: --timeout=5m
+
+      - name: Test
+        run: go test ./... -coverprofile=coverage.out -covermode=atomic
+
+      - name: Ensure coverage file exists
+        run: test -f coverage.out
+
+      - name: Generate coverage HTML
+        run: go tool cover -html=coverage.out -o coverage.html
+
+      # gocov's tagged releases (and current master) pin golang.org/x/tools
+      # at a version that fails to compile under this repo's Go toolchain —
+      # confirmed the same way the environments library's own CI documents
+      # it. Building from source with a forced newer x/tools is the only
+      # way to get a working gocov binary here.
+      - name: Build gocov (patched for this Go toolchain)
+        run: |
+          git clone --depth 1 --branch v1.2.1 https://github.com/axw/gocov.git /tmp/gocov-src
+          cd /tmp/gocov-src
+          go mod edit -replace golang.org/x/tools=golang.org/x/tools@v0.48.0
+          go mod tidy
+          go build -o "$(go env GOPATH)/bin/gocov" ./gocov
+
+      - name: Install gocov-html
+        run: go install github.com/matm/gocov-html/cmd/gocov-html@latest
+
+      - name: Generate beauty coverage report
+        run: gocov convert coverage.out | gocov-html > beauty-report.html
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: coverage-report-${{ github.sha }}
+          path: |
+            coverage.out
+            coverage.html
+            beauty-report.html
+          retention-days: 14
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          TOTAL=$(go tool cover -func=coverage.out 2>/dev/null | grep "^total" | awk '{print $3}' || echo "N/A")
+
+          # coverage.out is a per-statement profile (mode: atomic\nfile:line.col,line.col numStmt count),
+          # not per-package — aggregate statement counts by package directory
+          # instead of dumping go tool cover -func's one-row-per-function
+          # output, which runs to hundreds of rows in a repo this size.
+          PKG_ROWS=$(awk '
+            NR==1 { next }
+            {
+              split($1, fp, ":")
+              n = split(fp[1], dirs, "/")
+              pkg = ""
+              for (i = 1; i < n; i++) pkg = pkg (i > 1 ? "/" : "") dirs[i]
+              total[pkg] += $2
+              if ($3 > 0) covered[pkg] += $2
+            }
+            END {
+              for (p in total) {
+                pct = (total[p] > 0) ? (covered[p] / total[p] * 100) : 0
+                printf "%.1f\t%s\n", pct, p
+              }
+            }
+          ' coverage.out 2>/dev/null | sort -n)
+
+          PKG_COUNT=$(echo "${PKG_ROWS}" | grep -c . || echo 0)
+
+          TABLE=$(echo "${PKG_ROWS}" | awk -F'\t' '{
+            pkg=$2; gsub(/github.com\/blanketops\/environments-controller\//, "", pkg);
+            printf "| %s | %.1f%% |\n", pkg, $1
+          }')
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          # 📊 Coverage Report
+
+          **Total Coverage:** \`${TOTAL}\`
+
+          <details>
+          <summary>Package coverage (${PKG_COUNT} packages, weakest first)</summary>
+
+          | Package | Coverage |
+          | ------- | -------- |
+          ${TABLE}
+
+          </details>
+
+          > 📦 Download artifact \`coverage-report-${{ github.sha }}\` from this run for the full \`gocov-html\` report (\`beauty-report.html\`) with per-function detail, plus the raw \`coverage.out\`/\`coverage.html\`.
+          EOF
 
       - name: CI Summary
         if: always()
@@ -106,8 +198,11 @@ jobs:
           ## Steps
           - Checkout
           - Setup Go (from \`go.mod\`)
-          - Configure private module access (SSH + GOPRIVATE)
+          - Configure private module access (GitHub App token + GOPRIVATE)
           - \`go build ./...\`
           - \`go vet ./...\`
+          - \`gofmt -l\`
           - \`golangci-lint run\`
+          - \`go test ./... -coverprofile\`
+          - Coverage report (see above)
           EOF
