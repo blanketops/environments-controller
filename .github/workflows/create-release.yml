@@ -1,3 +1,14 @@
+# Auth:
+#   Uses the BlanketOps-Environments GitHub App (via
+#   actions/create-github-app-token) instead of a personal-account PAT — a
+#   push/PR made with the default GITHUB_TOKEN does not trigger downstream
+#   workflow runs (e.g. CI on the new release branch), but an App
+#   installation token does, same as a PAT would.
+#
+# Secrets required:
+#   APP_ID, APP_PRIVATE_KEY — GitHub App credentials, exchanged for a
+#   short-lived installation token scoped to this repo
+
 name: Create Release
 
 on:
@@ -17,12 +28,21 @@ jobs:
 
 
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: environments-controller
+
       - name: Checkout develop
         uses: actions/checkout@v4
         with:
           ref: develop
           fetch-depth: 0
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Configure git
         run: |
@@ -36,7 +56,7 @@ jobs:
 
       - name: Open PR to main
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           gh pr create \
             --base main \

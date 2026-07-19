@@ -53,7 +53,7 @@ jobs:
           with:
             registry: ghcr.io
             username: ${{ github.actor }}
-            password: ${{ secrets.GH_PAT }}
+            password: ${{ secrets.GITHUB_TOKEN }}
 
         # ko.yml builds and pushes this same tag concurrently (both fire on
         # the same tag push) — poll rather than assume it's already there.
@@ -93,7 +93,7 @@ jobs:
           with:
             body_path: RELEASE_NOTES.md
           env:
-            GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
         - name: Release Summary
           run: |

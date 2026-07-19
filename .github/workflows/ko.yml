@@ -20,8 +20,20 @@
 #   tag push  → {version} + latest
 #   manual    → {ref_name} only
 #
+# Auth:
+#   Private-module git config uses the BlanketOps-Environments GitHub App
+#   (via actions/create-github-app-token) instead of a personal-account PAT
+#   — installation tokens are minted fresh per job and expire in an hour,
+#   instead of a PAT's expiry silently lapsing.
+#
+#   GHCR login uses GITHUB_TOKEN, not the App token — the App installation
+#   token was denied "Write organization package" against this GHCR package
+#   regardless of what permission was granted. GITHUB_TOKEN is scoped to
+#   this repo only, which is exactly what a same-repo package push needs.
+#
 # Secrets required:
-#   GH_PAT — GHCR push + private module git access (HTTPS)
+#   APP_ID, APP_PRIVATE_KEY — GitHub App credentials, exchanged for a
+#   short-lived installation token per job (private-module access only)
 # =============================================================================
 
 name: Ko Image
@@ -51,6 +63,15 @@ jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: environments,environments-api,environments-contract
+
       - uses: actions/checkout@v4
 
       - name: Setup Go
@@ -61,7 +82,7 @@ jobs:
 
       - name: Configure git for private modules
         run: |
-          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
           go env -w GOPRIVATE=github.com/blanketops/*
           go env -w GONOSUMDB=github.com/blanketops/*
           go env -w GOPROXY=direct
@@ -81,10 +102,10 @@ jobs:
 
       - name: Login to GHCR
         run: |
-          echo "${{ secrets.GH_PAT }}" | ko login ghcr.io \
+          echo "${{ secrets.GITHUB_TOKEN }}" | ko login ghcr.io \
             --username "${{ github.actor }}" \
             --password-stdin
-          echo "${{ secrets.GH_PAT }}" | oras login ghcr.io \
+          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io \
             --username "${{ github.actor }}" \
             --password-stdin
 
