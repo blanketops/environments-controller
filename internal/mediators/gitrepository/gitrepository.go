@@ -42,6 +42,8 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	mediatorenv "github.com/blanketops/environments-controller/internal/mediators"
 )
 
 // Mediator manages the prerequisite resources a GitRepository depends on.
@@ -140,7 +142,20 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *gitrepoRe
 	// Step 0: Environment lookup
 	// Same store binding used at creation time — needed so the reconcilers
 	// target the correct ClusterSecretStore-scoped resources on teardown.
+	//
+	// If the Environment was already deleted (e.g. out-of-order deletion
+	// alongside its children), query.Lookup below fails permanently and
+	// would otherwise leave this GitRepository's finalizer stuck forever.
+	// Skip store-bound cleanup in that case and let the finalizer proceed.
 	// ------------------------------------------------
+	gone, err := mediatorenv.EnvironmentGone(ctx, m.Client, repo.Namespace, repo.Labels)
+	if err != nil {
+		return fmt.Errorf("environment existence check: %w", err)
+	}
+	if gone {
+		m.Log.Info("environment already deleted, skipping store-bound cleanup", "namespace", repo.Namespace)
+		return nil
+	}
 	envCtx, err := query.Lookup(ctx, m.Client, repo.Namespace, repo.Labels)
 	if err != nil {
 		return fmt.Errorf("environment lookup: %w", err)

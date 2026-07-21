@@ -126,7 +126,7 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// ------------------------------------------------
 	cmd := command.Command{
 		GVK:  eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"),
-		Type: command.CmdUpdate,
+		Type: cmdType,
 		Obj:  &gitHubEventCR,
 	}
 

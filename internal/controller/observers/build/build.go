@@ -113,7 +113,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) applyTriggers(ctx context.Context, build *buildv1.Build, resolved *buildresolution.ResolvedBuild) error {
 	log := ctrl.LoggerFrom(ctx).WithValues("fn", "applyTriggers")
 
-	if len(resolved.Spec.Policy.Triggers) == 0 {
+	if resolved.Spec.Policy == nil || len(resolved.Spec.Policy.Triggers) == 0 {
 		log.Info("trigger scan: no triggers configured on policy, skipping")
 		return nil
 	}

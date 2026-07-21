@@ -17,10 +17,18 @@ before the application layer may act: the GitHub webhook HMAC secret used
 by the Argo Events sensor to verify payload signatures. It is invoked by
 the GitHubEvent domain during command handling — after resolution, before
 execution — and again during teardown.
-Prerequisite provisioning is gated on the Environment: the Environment CR
-must pre-exist as the root of the delivery chain, and it is the sole
-authority for the ClusterSecretStore binding used by every store-dependent
-secret this mediator reconciles.
+
+Provisioning (EnsurePrerequisites) is gated on the Environment: the
+Environment CR must pre-exist, and it is the sole authority for the
+ClusterSecretStore binding the webhook secret is written through.
+
+Teardown (CleanupPrerequisites) is deliberately NOT gated on the
+Environment. GitHubEvent CRs are written by the Argo Events Sensor into the
+fixed argo-events namespace, not the Environment's own namespace —
+Environment is namespace-scoped and dynamic, and has no authority over
+argo-events. Deleting the webhook secret only needs its name and namespace,
+not a store binding, so teardown skips the lookup entirely rather than
+depending on a relationship that doesn't hold for this CR.
 */
 package githubevents
 
@@ -33,7 +41,6 @@ import (
 	githubeventResolution "github.com/blanketops/environments/resolution/githubevent/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -97,35 +104,29 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *githubeven
 
 // CleanupPrerequisites reverses EnsurePrerequisites — deletes the GitHub
 // webhook HMAC secret this mediator provisioned. Called from the domain's
-// CmdDelete branch, gated by the finalizer at the controller level. Teardown
-// runs in reverse provisioning order. All teardown steps are attempted
-// regardless of individual failures, and errors are aggregated. Any returned
-// error keeps the finalizer in place for retry on next reconcile.
+// CmdDelete branch, gated by the finalizer at the controller level. Any
+// returned error keeps the finalizer in place for retry on next reconcile.
+//
+// Deliberately does NOT look up the owning Environment. GitHubEvent CRs are
+// written by the Argo Events Sensor into the fixed argo-events namespace,
+// not the Environment's own namespace — Environment is namespace-scoped and
+// dynamic, and cannot own resources living in argo-events. Requiring the
+// lookup here would make it permanently unsatisfiable (or, if the labels
+// happen to line up, would tie teardown to Environment lifecycle it has no
+// authority over). GitHubWebhookSecretReconciler.Delete only needs the
+// secret's name and namespace to remove it — the store binding was only
+// ever needed to create it, not to delete it — so no store context is
+// needed here either.
 func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *githubeventResolution.ResolvedGitHubEvent) error {
 	if resolved == nil || resolved.Event == nil || resolved.Spec == nil {
 		return fmt.Errorf("nil ResolvedGitHubEvent provided to mediator")
 	}
-	event := resolved.Event
-	// ------------------------------------------------
-	// Step 0: Environment lookup
-	// Same store binding used at creation time — needed so the reconcilers
-	// target the correct ClusterSecretStore-scoped resources on teardown.
-	// ------------------------------------------------
-	envCtx, err := query.Lookup(ctx, m.Client, event.Namespace, event.Labels)
-	if err != nil {
-		return fmt.Errorf("environment lookup: %w", err)
-	}
-	m.Log.Info("environment context resolved for teardown", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
-	var errs []error
 	// ------------------------------------------------------------------------------------------------------------
 	// Stage 1: GitHub webhook secret
 	// ------------------------------------------------------------------------------------------------------------
-	webhookSecret := github.NewGitHubWebhookSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+	webhookSecret := github.NewGitHubWebhookSecretReconciler(m.Client, m.Log, "", "")
 	if err := webhookSecret.Delete(ctx, resolved); err != nil {
-		errs = append(errs, fmt.Errorf("delete github webhook secret: %w", err))
-	}
-	if len(errs) > 0 {
-		return utilerrors.NewAggregate(errs)
+		return fmt.Errorf("delete github webhook secret: %w", err)
 	}
 	return nil
 }

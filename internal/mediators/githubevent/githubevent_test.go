@@ -105,6 +105,24 @@ func TestMediator_EnsurePrerequisites_Idempotent(t *testing.T) {
 	}
 }
 
+// TestMediator_CleanupPrerequisites_NoEnvironment locks in the fact that
+// teardown does not depend on the Environment lookup. In production,
+// GitHubEvent CRs are written by the Argo Events Sensor into the fixed
+// argo-events namespace — never the Environment's own namespace — so a
+// lookup gated the same way as EnsurePrerequisites would make teardown
+// permanently unsatisfiable. No Environment exists in the fake client at
+// all here, which would fail EnsurePrerequisites; CleanupPrerequisites must
+// still succeed.
+func TestMediator_CleanupPrerequisites_NoEnvironment(t *testing.T) {
+	resolved := newResolvedGitHubEvent()
+	c := testsupport.NewFakeClient(resolved.Event)
+	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
+
+	if err := m.CleanupPrerequisites(context.Background(), resolved); err != nil {
+		t.Fatalf("CleanupPrerequisites() with no Environment = %v, want nil", err)
+	}
+}
+
 func TestMediator_CleanupPrerequisites_NilResolved(t *testing.T) {
 	m := New(testsupport.NewFakeClient(), testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
 	if err := m.CleanupPrerequisites(context.Background(), nil); err == nil {

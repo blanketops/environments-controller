@@ -135,7 +135,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	cmd := command.Command{
 		GVK:  environmentsv1alpha1.GroupVersion.WithKind("Deployment"),
-		Type: command.CmdUpdate,
+		Type: cmdType,
 		Obj:  &deploymentCR,
 	}
 

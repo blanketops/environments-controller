@@ -27,6 +27,41 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// LabelEnvironmentName mirrors query.LabelEnvironmentName. Duplicated here
+// rather than imported to keep this package free of the engine module's
+// query package — EnvironmentGone is a pre-check callers run before invoking
+// query.Lookup, not a replacement for it.
+const LabelEnvironmentName = "environments.blanketops.dev/name"
+
+// EnvironmentGone reports whether the Environment CR named by the
+// environments.blanketops.dev/name label no longer exists. Mediators call
+// this at the top of CleanupPrerequisites before query.Lookup: if the
+// Environment was deleted out of order (ahead of, or alongside, its
+// children), query.Lookup fails permanently — "must pre-exist" — which
+// would keep the child's finalizer in place forever with no way to clear
+// it short of a manual patch. When the Environment is confirmed gone, the
+// store binding it authorized is no longer resolvable, so store-bound
+// cleanup is skipped and the caller lets the finalizer proceed.
+//
+// A missing name label returns false (not gone) — that's a distinct
+// misconfiguration query.Lookup already reports clearly, not something
+// this check should paper over.
+func EnvironmentGone(ctx context.Context, c client.Client, namespace string, labels map[string]string) (bool, error) {
+	name := labels[LabelEnvironmentName]
+	if name == "" {
+		return false, nil
+	}
+	var env env1alpha1.Environment
+	err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &env)
+	if apierrors.IsNotFound(err) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
 func EnsureEnvironment(
 	ctx context.Context,
 	c client.Client,

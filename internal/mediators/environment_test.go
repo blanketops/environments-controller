@@ -49,6 +49,50 @@ func newScopedObject(envName, envType string) client.Object {
 	}
 }
 
+func TestEnvironmentGone_TrueWhenDeleted(t *testing.T) {
+	c := testsupport.NewFakeClient()
+
+	gone, err := EnvironmentGone(context.Background(), c, testNamespace, map[string]string{
+		LabelEnvironmentName: testAppSampleName,
+	})
+	if err != nil {
+		t.Fatalf("EnvironmentGone() = %v, want nil error", err)
+	}
+	if !gone {
+		t.Error("EnvironmentGone() = false, want true for a nonexistent Environment")
+	}
+}
+
+func TestEnvironmentGone_FalseWhenPresent(t *testing.T) {
+	existing := &env1alpha1.Environment{
+		ObjectMeta: metav1.ObjectMeta{Name: testAppSampleName, Namespace: testNamespace},
+		Spec:       env1alpha1.EnvironmentSpec{Contract: testsupport.RawContract(map[string]any{keyApplicationName: testAppSampleName})},
+	}
+	c := testsupport.NewFakeClient(existing)
+
+	gone, err := EnvironmentGone(context.Background(), c, testNamespace, map[string]string{
+		LabelEnvironmentName: testAppSampleName,
+	})
+	if err != nil {
+		t.Fatalf("EnvironmentGone() = %v, want nil error", err)
+	}
+	if gone {
+		t.Error("EnvironmentGone() = true, want false for an existing Environment")
+	}
+}
+
+func TestEnvironmentGone_FalseWhenLabelMissing(t *testing.T) {
+	c := testsupport.NewFakeClient()
+
+	gone, err := EnvironmentGone(context.Background(), c, testNamespace, map[string]string{})
+	if err != nil {
+		t.Fatalf("EnvironmentGone() = %v, want nil error", err)
+	}
+	if gone {
+		t.Error("EnvironmentGone() = true, want false when the name label is absent — that's query.Lookup's error to report, not this check's")
+	}
+}
+
 func TestEnsureEnvironment_NotEnvironmentScoped(t *testing.T) {
 	c := testsupport.NewFakeClient()
 	obj := &env1alpha1.Build{ObjectMeta: metav1.ObjectMeta{Name: testBuildName, Namespace: testNamespace}}

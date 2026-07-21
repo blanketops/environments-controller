@@ -298,17 +298,22 @@ func TestBuildDomain_Handle_Delete_ResolutionFailure(t *testing.T) {
 	}
 }
 
+// TestBuildDomain_Handle_Delete_MissingEnvironment covers out-of-order
+// deletion: the owning Environment is already gone (e.g. deleted alongside
+// or ahead of its Build). Teardown must still succeed — erroring here would
+// leave the Build's finalizer in place forever, since the Environment can
+// never come back to satisfy a strict lookup.
 func TestBuildDomain_Handle_Delete_MissingEnvironment(t *testing.T) {
 	buildCR := newBuildCR(validBuildContract())
 	d := newTestDomain(t, buildCR)
 
 	err := d.Handle(context.Background(), command.Command{Type: command.CmdDelete, Obj: buildCR})
-	if err == nil {
-		t.Fatal("Handle() delete with no owning Environment = nil error, want error")
+	if err != nil {
+		t.Fatalf("Handle() delete with no owning Environment = %v, want nil", err)
 	}
 
-	if status, ok := conditionStatus(buildCR.Status.Conditions, "BuildDeleted"); !ok || status != metav1.ConditionFalse {
-		t.Errorf("BuildDeleted condition = (%v, found=%v), want (False, true)", status, ok)
+	if status, ok := conditionStatus(buildCR.Status.Conditions, "BuildDeleted"); !ok || status != metav1.ConditionTrue {
+		t.Errorf("BuildDeleted condition = (%v, found=%v), want (True, true)", status, ok)
 	}
 }
 
