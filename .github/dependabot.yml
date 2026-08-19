@@ -1,0 +1,35 @@
+# Automated dependency updates. Two ecosystems: Go modules (the actual
+# runtime dependency graph) and GitHub Actions (the workflow files under
+# .github/workflows/). PRs target develop, matching every other PR in this
+# repo's branch flow — release branches cut from develop, not from
+# dependency-update PRs directly.
+#
+# Private modules: environments, environments-api, and environments-contract
+# are private GitHub repos under this same org. Dependabot needs org-level
+# permission to reach them -- see Settings > Code security > Dependabot >
+# "Dependabot can access private repositories owned by this organization".
+# Without it, updates for those three modules will silently fail to open PRs.
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "dependencies"
+      - "ci"
