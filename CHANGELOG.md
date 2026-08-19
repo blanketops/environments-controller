@@ -1,3 +1,20 @@
+## [0.4.1] - 2026-08-19
+
+### 💼 Other
+
+- Merge release/v0.4.1 into main
+
+### 📚 Documentation
+
+- Auto-generate code documentation [skip ci]
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.4.0
+- *(release)* Update changelog for v0.4.0
+- Add code docs generation and richer coverage reporting
+- Sync develop with main (code docs + coverage workflows)
+- Sync develop with main (dependency bump)
 ## [0.4.0] - 2026-07-19
 
 ### 🐛 Bug Fixes
