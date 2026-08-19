@@ -5,8 +5,8 @@ go 1.26.4
 require (
 	carvel.dev/kapp-controller v0.60.3
 	github.com/argoproj/argo-events v1.9.10
-	github.com/blanketops/environments v0.7.5
-	github.com/blanketops/environments-api v0.2.6
+	github.com/blanketops/environments v0.7.6
+	github.com/blanketops/environments-api v0.2.7
 	github.com/fluxcd/kustomize-controller/api v1.9.2
 	github.com/fluxcd/source-controller/api v1.9.2
 	github.com/go-logr/logr v1.4.3
@@ -29,7 +29,7 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blanketops/environments-contract v0.4.9 // indirect
+	github.com/blanketops/environments-contract v0.5.1 // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20260422231931-4d751bb6e37c // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
