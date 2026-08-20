@@ -91,7 +91,7 @@ jobs:
         uses: ko-build/setup-ko@v0.7
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.7.0
+        uses: sigstore/cosign-installer@v4.1.2
         with:
           cosign-release: 'v2.4.1'
 
