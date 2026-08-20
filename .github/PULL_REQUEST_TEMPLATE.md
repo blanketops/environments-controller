@@ -1,4 +1,3 @@
-
 ## What
 
 <!-- One or two sentences. What does this PR change? -->
@@ -16,7 +15,7 @@
 * [ ] `sources`
 * [ ] `networks`
 * [ ] `common`
-* [ ] Application / domain layer (no API surface change)
+* [ ] Reconciler / controller-runtime wiring (no API surface change)
 * [ ] CI / tooling / docs
 
 ## API impact
@@ -30,14 +29,13 @@
 
 ## Checklist
 
-* [ ] `mage verify` passes locally
-* [ ] `buf breaking` reviewed (failures justified above if pre-v1)
-* [ ] Panic-free resolution — no `panic()` calls in resolution or domain layers
-* [ ] Import paths use `gen/go/blanketops/...` for contract types
+* [ ] `mage build` and `mage lint` pass locally
+* [ ] `mage test` passes
+* [ ] Business logic lives in the `environments` engine module, not in reconcilers here
+* [ ] Import paths use `github.com/blanketops/environments-api/api/...` for CRD types
 * [ ] BlanketOps labels present where required (`environments.blanketops.dev/*`)
-* [ ] Conditions written via `core.SetCondition` at each domain pipeline stage
-* [ ] Events emitted via `core.EventRecorder` for terminal outcomes
-* [ ] ESP-0001 updated if contract semantics changed
+* [ ] Conditions written via `core/conditions.SetCondition` at each domain pipeline stage
+* [ ] Events emitted via the reconciler's `Recorder` for terminal outcomes
 * [ ] Commit messages follow Conventional Commits
 
 ## Notes for reviewer
