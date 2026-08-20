@@ -25,8 +25,7 @@ The system is split into two parts:
 - Calls engine mediators
 - Updates status
 
-The controller does not contain business rules.
-It orchestrates reconciliation.
+The controller orchestrates reconciliation; business rules live in the engine module.
 
 ## Supported Resources
 
@@ -42,8 +41,7 @@ The controller reconciles:
 - Route (registered, but errors on every CR — no domain handler is registered for its GVK yet)
 - Domain (registered, but Reconcile is a no-op stub)
 
-CRD schemas for these Kinds live in the external `environments-api` module,
-not in this repo. All behavior is delegated to the engine layer.
+CRD schemas for these Kinds live in the external `environments-api` module. All behavior is delegated to the engine layer.
 
 ## Prerequisites
 
@@ -56,7 +54,7 @@ kubectl
 
 ## Development
 
-Build tooling is [mage](https://magefile.org), not make — there is no Makefile in this repo.
+Build tooling is [mage](https://magefile.org).
 
 Run locally:
 
@@ -76,9 +74,7 @@ Run the unit test suite:
 mage test
 ```
 
-This repo does not own cluster deployment manifests (no `config/manager`,
-`config/default`, or Helm chart) — only `config/rbac/role.yaml` is generated
-here and synced to the separate install repo that owns actual deployment.
+This repo generates `config/rbac/role.yaml` and syncs it to the separate install repo, which owns cluster deployment manifests (`config/manager`, `config/default`, Helm chart).
 
 ## Release
 

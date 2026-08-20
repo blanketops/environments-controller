@@ -62,12 +62,12 @@ import (
 
 	"github.com/blanketops/environments-controller/internal/controller/environments"
 	eventsContr "github.com/blanketops/environments-controller/internal/controller/events"
+	"github.com/blanketops/environments-controller/internal/controller/networks"
 	"github.com/blanketops/environments-controller/internal/controller/observers/build"
 	"github.com/blanketops/environments-controller/internal/controller/observers/buildrun"
 	"github.com/blanketops/environments-controller/internal/controller/observers/deployment"
 	environment "github.com/blanketops/environments-controller/internal/controller/observers/environment"
 	"github.com/blanketops/environments-controller/internal/controller/observers/githubevent"
-	"github.com/blanketops/environments-controller/internal/controller/networks"
 	"github.com/blanketops/environments-controller/internal/controller/observers/gitrepository"
 	"github.com/blanketops/environments-controller/internal/controller/sources"
 	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
