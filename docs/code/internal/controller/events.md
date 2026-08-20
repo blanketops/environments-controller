@@ -18,7 +18,7 @@ The finalizer \(githuEventFinalizer\) gates deletion until CleanupPrerequisites 
 
 
 <a name="GitHubEventReconciler"></a>
-## type GitHubEventReconciler
+## type [GitHubEventReconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/events/githubevent.go#L55-L64>)
 
 GitHubEventReconciler reconciles a GitHubEvent object
 
@@ -36,7 +36,7 @@ type GitHubEventReconciler struct {
 ```
 
 <a name="GitHubEventReconciler.Reconcile"></a>
-### func \(\*GitHubEventReconciler\) Reconcile
+### func \(\*GitHubEventReconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/events/githubevent.go#L84>)
 
 ```go
 func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -47,7 +47,7 @@ Reconcile is part of the main kubernetes reconciliation loop which aims to move 
 For more details, check Reconcile and its Result here: \- https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 
 <a name="GitHubEventReconciler.SetupWithManager"></a>
-### func \(\*GitHubEventReconciler\) SetupWithManager
+### func \(\*GitHubEventReconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/events/githubevent.go#L196>)
 
 ```go
 func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error

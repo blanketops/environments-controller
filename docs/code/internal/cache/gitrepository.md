@@ -16,7 +16,7 @@ The cache itself, and the write path that populates it, live in the external cor
 
 
 <a name="New"></a>
-## func New
+## func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/cache/gitrepository/gitrepository.go#L42>)
 
 ```go
 func New(c *cache.Cache) *libgitrepository.GitRepositoryCache

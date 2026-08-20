@@ -33,7 +33,7 @@ Unless required by applicable law or agreed to in writing, software distributed 
 
 
 <a name="Mediator"></a>
-## type Mediator
+## type [Mediator](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/deployment/deployment.go#L44-L59>)
 
 Mediator manages the prerequisite resources a Deployment depends on.
 
@@ -57,7 +57,7 @@ type Mediator struct {
 ```
 
 <a name="New"></a>
-### func New
+### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/deployment/deployment.go#L62>)
 
 ```go
 func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder events.EventRecorder) *Mediator
@@ -66,7 +66,7 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder even
 New returns a new Mediator instance configured with the necessary dependencies.
 
 <a name="Mediator.CleanupPrerequisites"></a>
-### func \(\*Mediator\) CleanupPrerequisites
+### func \(\*Mediator\) [CleanupPrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/deployment/deployment.go#L142>)
 
 ```go
 func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *deploymentResolution.ResolvedDeployment) error
@@ -75,7 +75,7 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *deploymen
 CleanupPrerequisites reverses EnsurePrerequisites — tears down the GitOps manifests repository \(remote and local clone\), the Flux git SSH keypair, and the git SSH secret this mediator provisioned. Called from the domain's CmdDelete branch, gated by the finalizer at the controller level. Teardown runs in reverse provisioning order. All teardown steps are attempted regardless of individual failures, and errors are aggregated — a stuck repository deletion shouldn't block cleanup of the secrets. Any returned error keeps the finalizer in place for retry on next reconcile.
 
 <a name="Mediator.EnsurePrerequisites"></a>
-### func \(\*Mediator\) EnsurePrerequisites
+### func \(\*Mediator\) [EnsurePrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/deployment/deployment.go#L78>)
 
 ```go
 func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *deploymentResolution.ResolvedDeployment) error
