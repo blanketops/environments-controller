@@ -33,6 +33,7 @@ package networks
 
 import (
 	"context"
+	"time"
 
 	networksv1alpha1 "github.com/blanketops/environments-api/api/networks/v1alpha1"
 	"github.com/blanketops/environments/core/command"
@@ -121,7 +122,7 @@ func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 			return ctrl.Result{}, err
 		}
 		log.Info("finalizer added")
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
 	// -------------------------------------------------
