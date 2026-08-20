@@ -1,3 +1,31 @@
+## [0.4.3] - 2026-08-20
+
+### 🐛 Bug Fixes
+
+- *(lint)* Replace deprecated Result.Requeue with RequeueAfter
+- *(templates)* Move issue templates to the path GitHub actually reads
+- *(templates)* Remove Contract Change issue type -- doesn't belong here
+- *(lint)* Replace deprecated Result.Requeue with RequeueAfter (deployment.go)
+
+### 💼 Other
+
+- Merge release/v0.4.3 into main
+
+### 📚 Documentation
+
+- Refresh generated code docs via gomarkdoc
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.4.2
+- Drop unnecessary App-token auth from read-only build/scan jobs
+- *(ci)* Bump actions/upload-artifact from 4 to 7
+- *(ci)* Bump softprops/action-gh-release from 2 to 3
+- *(ci)* Bump actions/create-github-app-token from 2 to 3
+- *(ci)* Bump actions/checkout from 4 to 7
+- *(ci)* Bump sigstore/cosign-installer from 3.7.0 to 4.1.2
+- Bring lint fix + template fixes into main
+- Bring deployment.go lint fix into main
 ## [0.4.2] - 2026-08-20
 
 ### 🚀 Features
