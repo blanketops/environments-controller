@@ -9,7 +9,7 @@ Kubernetes controller for BlanketOps Environments.
 
 The system is split into two parts:
 
-### 🧠 Engine (blanketops-environments, migrating to `BlanketOps/environments`)
+### 🧠 Engine (`blanketops/environments`)
 
 - Domain logic
 - Resolution layer
