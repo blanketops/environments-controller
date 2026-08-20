@@ -56,7 +56,7 @@ RegisterBuild wires up the build domain's backend providers — Buildah, Kaniko,
 func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error
 ```
 
-RegisterControllers wires up the primary CQRS reconcilers for the environments, events, and sources domains: GitRepository, GitHubEvent, Deployment, ServiceUnit, Package, and Environment. Route and Domain \(networks\) are registered separately once they're ready — see below.
+RegisterControllers wires up the primary CQRS reconcilers: GitRepository, GitHubEvent, Deployment, ServiceUnit, Package, Environment, Route, Domain.
 
 <a name="RegisterObservers"></a>
 ## func RegisterObservers
