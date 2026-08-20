@@ -14,27 +14,19 @@
 #                  (same trigger as ko.yml) + the weekly schedule, scanning
 #                  :latest on the scheduled run.
 #
-# All three are report-only — none fail the build. This repo is private, so
-# SARIF upload to the Security tab would need GitHub Advanced Security;
-# findings render into each job's summary instead. Once the repo goes
-# public, wire up SARIF upload for gosec/govulncheck to get free
+# All three are report-only — none fail the build. Findings render into
+# each job's summary rather than the Security tab; gosec/govulncheck could
+# be wired up for SARIF upload now that the repo is public, for free
 # Security-tab integration.
 #
-# Auth:
-#   Private-module git config (gosec, govulncheck) uses the
-#   BlanketOps-Environments GitHub App (via actions/create-github-app-token)
-#   instead of a personal-account PAT — installation tokens are minted fresh
-#   per job and expire in an hour, instead of a PAT's expiry silently
-#   lapsing.
+# gosec and govulncheck need no secrets — environments, environments-api,
+# and environments-contract are public modules, resolved via the public
+# module proxy with no git auth. This also means they run on Dependabot PRs.
 #
-#   trivy-image's GHCR login uses GITHUB_TOKEN, not the App token — the App
-#   installation token was denied package pulls against this org-scoped
-#   package regardless of what permission was granted; GITHUB_TOKEN is
-#   scoped to this repo, which is exactly what a same-repo pull needs.
-#
-# Secrets required:
-#   APP_ID, APP_PRIVATE_KEY — GitHub App credentials, exchanged for a
-#   short-lived installation token per job (private-module access only)
+# trivy-image's GHCR login uses GITHUB_TOKEN — an App installation token was
+# denied package pulls against this org-scoped package regardless of what
+# permission was granted; GITHUB_TOKEN is scoped to this repo, which is
+# exactly what a same-repo pull needs.
 # =============================================================================
 
 name: Security
@@ -70,15 +62,6 @@ jobs:
       github.event_name == 'pull_request' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
-      - name: Generate GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: blanketops
-          repositories: environments,environments-api,environments-contract
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -87,13 +70,6 @@ jobs:
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache: true
-
-      - name: Configure Git for private modules
-        run: |
-          git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
-          go env -w GOPRIVATE=github.com/blanketops/*
-          go env -w GONOSUMDB=github.com/blanketops/*
-          go env -w GOPROXY=direct
 
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
@@ -142,15 +118,6 @@ jobs:
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       github.event_name == 'schedule'
     steps:
-      - name: Generate GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: blanketops
-          repositories: environments,environments-api,environments-contract
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -159,13 +126,6 @@ jobs:
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache: true
-
-      - name: Configure Git for private modules
-        run: |
-          git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
-          go env -w GOPRIVATE=github.com/blanketops/*
-          go env -w GONOSUMDB=github.com/blanketops/*
-          go env -w GOPROXY=direct
 
       - name: Run govulncheck
         id: govulncheck
