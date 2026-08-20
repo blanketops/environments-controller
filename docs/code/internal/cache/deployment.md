@@ -12,7 +12,7 @@ import "github.com/blanketops/environments-controller/internal/cache/deployment"
 
 
 <a name="New"></a>
-## func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/cache/deployment/deployment.go#L29>)
+## func New
 
 ```go
 func New(c *cache.Cache) *libdeployment.DeploymentCache

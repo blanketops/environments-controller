@@ -16,7 +16,7 @@ The cache itself, and the write path that populates it, live in the external cor
 
 
 <a name="New"></a>
-## func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/cache/githubevent/githubevent.go#L28>)
+## func New
 
 ```go
 func New(c *cache.Cache) *libgithubevent.GitHubEventCache

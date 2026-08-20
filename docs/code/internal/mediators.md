@@ -13,7 +13,7 @@ import "github.com/blanketops/environments-controller/internal/mediators"
 
 
 <a name="EnsureEnvironment"></a>
-## func [EnsureEnvironment](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/environment.go#L30-L35>)
+## func EnsureEnvironment
 
 ```go
 func EnsureEnvironment(ctx context.Context, c client.Client, obj client.Object, contract runtime.RawExtension) (*env1alpha1.Environment, error)
@@ -22,7 +22,7 @@ func EnsureEnvironment(ctx context.Context, c client.Client, obj client.Object, 
 
 
 <a name="PatchEnvironmentAggregate"></a>
-## func [PatchEnvironmentAggregate](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/environment.go#L77-L82>)
+## func PatchEnvironmentAggregate
 
 ```go
 func PatchEnvironmentAggregate(ctx context.Context, c client.Client, env *env1alpha1.Environment, patchFn func(*environmentResolution.ResolvedEnvironmentSpec)) error

@@ -22,7 +22,7 @@ The Package domain is responsible for managing the lifecycle of Package resource
 
 
 <a name="PackageDomain"></a>
-## type [PackageDomain](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L49-L66>)
+## type PackageDomain
 
 PackageDomain implements the Package resource domain logic.
 
@@ -33,7 +33,7 @@ type PackageDomain struct {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L69-L70>)
+### func New
 
 ```go
 func New(packageMediator *pkgMediator.Mediator, packageService *pkgApplication.PackageService, domainCache *cache.Cache, eventRecorder *events.EventRecorder, log logr.Logger) *PackageDomain
@@ -42,7 +42,7 @@ func New(packageMediator *pkgMediator.Mediator, packageService *pkgApplication.P
 New returns a new PackageDomain instance configured with the necessary dependencies.
 
 <a name="PackageDomain.CanCreate"></a>
-### func \(\*PackageDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L224>)
+### func \(\*PackageDomain\) CanCreate
 
 ```go
 func (d *PackageDomain) CanCreate(obj client.Object) bool
@@ -51,7 +51,7 @@ func (d *PackageDomain) CanCreate(obj client.Object) bool
 CanCreate reports whether the supplied object can be processed as a Build create operation.
 
 <a name="PackageDomain.CanDelete"></a>
-### func \(\*PackageDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L246>)
+### func \(\*PackageDomain\) CanDelete
 
 ```go
 func (d *PackageDomain) CanDelete(obj client.Object) bool
@@ -60,7 +60,7 @@ func (d *PackageDomain) CanDelete(obj client.Object) bool
 CanDelete reports whether the supplied object can be processed as a Package delete operation.
 
 <a name="PackageDomain.CanUpdate"></a>
-### func \(\*PackageDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L231>)
+### func \(\*PackageDomain\) CanUpdate
 
 ```go
 func (d *PackageDomain) CanUpdate(oldObj, newObj client.Object) bool
@@ -69,7 +69,7 @@ func (d *PackageDomain) CanUpdate(oldObj, newObj client.Object) bool
 CanUpdate reports whether the supplied update should trigger Build reconciliation by comparing the specifications of the old and new objects.
 
 <a name="PackageDomain.GVK"></a>
-### func \(\*PackageDomain\) [GVK](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L81>)
+### func \(\*PackageDomain\) GVK
 
 ```go
 func (d *PackageDomain) GVK() schema.GroupVersionKind
@@ -78,7 +78,7 @@ func (d *PackageDomain) GVK() schema.GroupVersionKind
 GVK tells the engine which CRD this domain handles.
 
 <a name="PackageDomain.Handle"></a>
-### func \(\*PackageDomain\) [Handle](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L86>)
+### func \(\*PackageDomain\) Handle
 
 ```go
 func (d *PackageDomain) Handle(ctx context.Context, cmd command.Command) error

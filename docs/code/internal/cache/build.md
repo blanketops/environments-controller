@@ -16,7 +16,7 @@ The cache itself, and the write path that populates it, live in the external cor
 
 
 <a name="New"></a>
-## func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/cache/build/build.go#L29>)
+## func New
 
 ```go
 func New(c *cache.Cache) *libbuild.BuildCache

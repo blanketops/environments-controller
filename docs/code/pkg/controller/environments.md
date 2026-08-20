@@ -18,7 +18,7 @@ Package environments re\-exports the environments\-group reconciler types as pub
 
 
 <a name="BuildReconciler"></a>
-## type [BuildReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L28>)
+## type BuildReconciler
 
 
 
@@ -27,7 +27,7 @@ type BuildReconciler = internalenv.BuildReconciler
 ```
 
 <a name="DeploymentReconciler"></a>
-## type [DeploymentReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L29>)
+## type DeploymentReconciler
 
 
 
@@ -36,7 +36,7 @@ type DeploymentReconciler = internalenv.DeploymentReconciler
 ```
 
 <a name="EnvironmentReconciler"></a>
-## type [EnvironmentReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L27>)
+## type EnvironmentReconciler
 
 
 
@@ -45,7 +45,7 @@ type EnvironmentReconciler = internalenv.EnvironmentReconciler
 ```
 
 <a name="PackageReconciler"></a>
-## type [PackageReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L30>)
+## type PackageReconciler
 
 
 
@@ -54,7 +54,7 @@ type PackageReconciler = internalenv.PackageReconciler
 ```
 
 <a name="ServiceUnitReconciler"></a>
-## type [ServiceUnitReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L31>)
+## type ServiceUnitReconciler
 
 
 

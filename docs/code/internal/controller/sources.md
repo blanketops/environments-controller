@@ -27,7 +27,7 @@ const GitRepositoryFinalizer = "sources.blanketops.dev/gitrepository-finalizer"
 ```
 
 <a name="GitRepositoryReconciler"></a>
-## type [GitRepositoryReconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/sources/gitrepository.go#L57-L65>)
+## type GitRepositoryReconciler
 
 GitRepositoryReconciler reconciles a GitRepository object
 
@@ -44,7 +44,7 @@ type GitRepositoryReconciler struct {
 ```
 
 <a name="GitRepositoryReconciler.Reconcile"></a>
-### func \(\*GitRepositoryReconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/sources/gitrepository.go#L85>)
+### func \(\*GitRepositoryReconciler\) Reconcile
 
 ```go
 func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -57,7 +57,7 @@ The lifecycle is finalizer\-gated: live objects get the finalizer added before a
 For more details, check Reconcile and its Result here: \- https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 
 <a name="GitRepositoryReconciler.SetupWithManager"></a>
-### func \(\*GitRepositoryReconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/sources/gitrepository.go#L207>)
+### func \(\*GitRepositoryReconciler\) SetupWithManager
 
 ```go
 func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error

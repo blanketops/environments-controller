@@ -37,7 +37,7 @@ All business logic lives in pkg/routes/application. The reconciler does not buil
 
 
 <a name="DomainReconciler"></a>
-## type [DomainReconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/networks/domain.go#L45-L48>)
+## type DomainReconciler
 
 DomainReconciler reconciles a Domain CR by resolving its contract and handing it to the Domain application service.
 
@@ -49,7 +49,7 @@ type DomainReconciler struct {
 ```
 
 <a name="DomainReconciler.Reconcile"></a>
-### func \(\*DomainReconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/networks/domain.go#L59>)
+### func \(\*DomainReconciler\) Reconcile
 
 ```go
 func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -58,7 +58,7 @@ func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 Reconcile fetches the Domain, resolves its contract, and delegates to the application service. See file header for the responsibility split.
 
 <a name="DomainReconciler.SetupWithManager"></a>
-### func \(\*DomainReconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/networks/domain.go#L74>)
+### func \(\*DomainReconciler\) SetupWithManager
 
 ```go
 func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error
@@ -67,7 +67,7 @@ func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error
 SetupWithManager registers the reconciler with the controller manager and declares the Domain CR as the primary watched resource.
 
 <a name="RouteReconciler"></a>
-## type [RouteReconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/networks/route.go#L62-L69>)
+## type RouteReconciler
 
 RouteReconciler reconciles a Route CR by resolving its contract and handing it to the route application service.
 
@@ -83,7 +83,7 @@ type RouteReconciler struct {
 ```
 
 <a name="RouteReconciler.Reconcile"></a>
-### func \(\*RouteReconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/networks/route.go#L86>)
+### func \(\*RouteReconciler\) Reconcile
 
 ```go
 func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -94,7 +94,7 @@ Reconcile is part of the main kubernetes reconciliation loop which aims to move 
 For more details, check Reconcile and its Result here: \- https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 
 <a name="RouteReconciler.SetupWithManager"></a>
-### func \(\*RouteReconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/networks/route.go#L195>)
+### func \(\*RouteReconciler\) SetupWithManager
 
 ```go
 func (r *RouteReconciler) SetupWithManager(mgr ctrl.Manager) error

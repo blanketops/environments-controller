@@ -25,7 +25,7 @@ Package githubevents implements the GitHubEvent prerequisite mediator. The media
 
 
 <a name="Mediator"></a>
-## type [Mediator](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/githubevent/githubevent.go#L42-L51>)
+## type Mediator
 
 Mediator manages the prerequisite resources a GitHubEvent depends on.
 
@@ -43,7 +43,7 @@ type Mediator struct {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/githubevent/githubevent.go#L54-L59>)
+### func New
 
 ```go
 func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, rec events.EventRecorder) *Mediator
@@ -52,7 +52,7 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, rec events.Ev
 New returns a new Mediator instance configured with the necessary dependencies.
 
 <a name="Mediator.CleanupPrerequisites"></a>
-### func \(\*Mediator\) [CleanupPrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/githubevent/githubevent.go#L104>)
+### func \(\*Mediator\) CleanupPrerequisites
 
 ```go
 func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *githubeventResolution.ResolvedGitHubEvent) error
@@ -61,7 +61,7 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *githubeve
 CleanupPrerequisites reverses EnsurePrerequisites — deletes the GitHub webhook HMAC secret this mediator provisioned. Called from the domain's CmdDelete branch, gated by the finalizer at the controller level. Teardown runs in reverse provisioning order. All teardown steps are attempted regardless of individual failures, and errors are aggregated. Any returned error keeps the finalizer in place for retry on next reconcile.
 
 <a name="Mediator.EnsurePrerequisites"></a>
-### func \(\*Mediator\) [EnsurePrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/githubevent/githubevent.go#L73>)
+### func \(\*Mediator\) EnsurePrerequisites
 
 ```go
 func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *githubeventResolution.ResolvedGitHubEvent) error
