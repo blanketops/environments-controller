@@ -14,7 +14,7 @@ import "github.com/blanketops/environments-controller/internal/controller/observ
 
 
 <a name="Reconciler"></a>
-## type Reconciler
+## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/githubevent/githubevent.go#L44-L48>)
 
 
 
@@ -27,7 +27,7 @@ type Reconciler struct {
 ```
 
 <a name="Reconciler.Reconcile"></a>
-### func \(\*Reconciler\) Reconcile
+### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/githubevent/githubevent.go#L50>)
 
 ```go
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -36,7 +36,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 
 <a name="Reconciler.SetupWithManager"></a>
-### func \(\*Reconciler\) SetupWithManager
+### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/githubevent/githubevent.go#L174>)
 
 ```go
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error

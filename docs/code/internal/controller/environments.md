@@ -46,7 +46,7 @@ SetupWithManager does not yet construct a mediator, provider, or service, or cal
 
 
 <a name="BuildReconciler"></a>
-## type BuildReconciler
+## type [BuildReconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/build.go#L54-L64>)
 
 BuildReconciler reconciles a Build object
 
@@ -65,7 +65,7 @@ type BuildReconciler struct {
 ```
 
 <a name="BuildReconciler.Reconcile"></a>
-### func \(\*BuildReconciler\) Reconcile
+### func \(\*BuildReconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/build.go#L88>)
 
 ```go
 func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -76,7 +76,7 @@ Reconcile is part of the main kubernetes reconciliation loop which aims to move 
 For more details, check Reconcile and its Result here: \- https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 
 <a name="BuildReconciler.SetupWithManager"></a>
-### func \(\*BuildReconciler\) SetupWithManager
+### func \(\*BuildReconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/build.go#L198>)
 
 ```go
 func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error
@@ -85,7 +85,7 @@ func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- SetupWithManager sets up the controller with the Manager. \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 
 <a name="DeploymentReconciler"></a>
-## type DeploymentReconciler
+## type [DeploymentReconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/deployment.go#L55-L67>)
 
 DeploymentReconciler reconciles a Deployment object
 
@@ -104,7 +104,7 @@ type DeploymentReconciler struct {
 ```
 
 <a name="DeploymentReconciler.Reconcile"></a>
-### func \(\*DeploymentReconciler\) Reconcile
+### func \(\*DeploymentReconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/deployment.go#L93>)
 
 ```go
 func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -115,7 +115,7 @@ Reconcile is part of the main kubernetes reconciliation loop which aims to move 
 For more details, check Reconcile and its Result here: \- https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 
 <a name="DeploymentReconciler.SetupWithManager"></a>
-### func \(\*DeploymentReconciler\) SetupWithManager
+### func \(\*DeploymentReconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/deployment.go#L202>)
 
 ```go
 func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error
@@ -124,7 +124,7 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- SetupWithManager sets up the controller with the Manager. \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 
 <a name="EnvironmentReconciler"></a>
-## type EnvironmentReconciler
+## type [EnvironmentReconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/environment.go#L45-L51>)
 
 EnvironmentReconciler reconciles an Environment object.
 
@@ -139,7 +139,7 @@ type EnvironmentReconciler struct {
 ```
 
 <a name="EnvironmentReconciler.Reconcile"></a>
-### func \(\*EnvironmentReconciler\) Reconcile
+### func \(\*EnvironmentReconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/environment.go#L60>)
 
 ```go
 func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -148,7 +148,7 @@ func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 
 <a name="EnvironmentReconciler.SetupWithManager"></a>
-### func \(\*EnvironmentReconciler\) SetupWithManager
+### func \(\*EnvironmentReconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/environment.go#L122>)
 
 ```go
 func (r *EnvironmentReconciler) SetupWithManager(mgr ctrl.Manager) error
@@ -157,7 +157,7 @@ func (r *EnvironmentReconciler) SetupWithManager(mgr ctrl.Manager) error
 
 
 <a name="PackageReconciler"></a>
-## type PackageReconciler
+## type [PackageReconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/package.go#L42-L50>)
 
 PackageReconciler reconciles a Package object
 
@@ -174,7 +174,7 @@ type PackageReconciler struct {
 ```
 
 <a name="PackageReconciler.Reconcile"></a>
-### func \(\*PackageReconciler\) Reconcile
+### func \(\*PackageReconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/package.go#L70>)
 
 ```go
 func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -185,7 +185,7 @@ Reconcile is part of the main kubernetes reconciliation loop which aims to move 
 For more details, check Reconcile and its Result here: \- https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 
 <a name="PackageReconciler.SetupWithManager"></a>
-### func \(\*PackageReconciler\) SetupWithManager
+### func \(\*PackageReconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/package.go#L143>)
 
 ```go
 func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error
@@ -194,7 +194,7 @@ func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\- SetupWithManager sets up the controller with the Manager. \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 
 <a name="ServiceUnitReconciler"></a>
-## type ServiceUnitReconciler
+## type [ServiceUnitReconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/serviceunit.go#L40-L46>)
 
 ServiceUnitReconciler reconciles a ServiceUnit object
 
@@ -209,7 +209,7 @@ type ServiceUnitReconciler struct {
 ```
 
 <a name="ServiceUnitReconciler.Reconcile"></a>
-### func \(\*ServiceUnitReconciler\) Reconcile
+### func \(\*ServiceUnitReconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/serviceunit.go#L62>)
 
 ```go
 func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -220,7 +220,7 @@ Reconcile is part of the main kubernetes reconciliation loop which aims to move 
 For more details, check Reconcile and its Result here: \- https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 
 <a name="ServiceUnitReconciler.SetupWithManager"></a>
-### func \(\*ServiceUnitReconciler\) SetupWithManager
+### func \(\*ServiceUnitReconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/serviceunit.go#L135>)
 
 ```go
 func (r *ServiceUnitReconciler) SetupWithManager(mgr ctrl.Manager) error

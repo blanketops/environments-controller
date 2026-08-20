@@ -16,7 +16,7 @@ import "github.com/blanketops/environments-controller/internal/logging"
 
 
 <a name="AsLogr"></a>
-## func AsLogr
+## func [AsLogr](<https://github.com/blanketops/environments-controller/blob/main/internal/logging/logr.go#L24>)
 
 ```go
 func AsLogr(z *zap.Logger) logr.Logger
@@ -25,7 +25,7 @@ func AsLogr(z *zap.Logger) logr.Logger
 
 
 <a name="Init"></a>
-## func Init
+## func [Init](<https://github.com/blanketops/environments-controller/blob/main/internal/logging/init.go#L31>)
 
 ```go
 func Init(cfg Config) (logr.Logger, *zap.Logger, error)
@@ -34,7 +34,7 @@ func Init(cfg Config) (logr.Logger, *zap.Logger, error)
 
 
 <a name="SetupPapertrailJSONIngest"></a>
-## func SetupPapertrailJSONIngest
+## func [SetupPapertrailJSONIngest](<https://github.com/blanketops/environments-controller/blob/main/internal/logging/papertrail.go#L72>)
 
 ```go
 func SetupPapertrailJSONIngest(token string) func(msg string) error
@@ -45,7 +45,7 @@ SetupPapertrailJSONIngest returns a function that sends JSON logs directly to Pa
 This is intentionally decoupled from zap: \- no global logger \- no side effects \- safe to use from controllers, jobs, or goroutines
 
 <a name="Config"></a>
-## type Config
+## type [Config](<https://github.com/blanketops/environments-controller/blob/main/internal/logging/config.go#L18-L30>)
 
 
 
@@ -66,7 +66,7 @@ type Config struct {
 ```
 
 <a name="DefaultConfig"></a>
-### func DefaultConfig
+### func [DefaultConfig](<https://github.com/blanketops/environments-controller/blob/main/internal/logging/config.go#L32>)
 
 ```go
 func DefaultConfig() Config

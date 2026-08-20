@@ -22,7 +22,7 @@ The GitHubEvent domain is responsible for managing the lifecycle of GitHubEvent 
 
 
 <a name="GitHubEventDomain"></a>
-## type GitHubEventDomain
+## type [GitHubEventDomain](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L48-L61>)
 
 GitHubEventDomain implements the GitHubEvent resource domain.
 
@@ -33,7 +33,7 @@ type GitHubEventDomain struct {
 ```
 
 <a name="New"></a>
-### func New
+### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L64>)
 
 ```go
 func New(githubEventServiceIn *application.GitHubEventService, githubEventMediatorIn *githubEventMediator.Mediator, eventRecorder *events.EventRecorder, domainCache *cache.Cache, log logr.Logger) *GitHubEventDomain
@@ -42,7 +42,7 @@ func New(githubEventServiceIn *application.GitHubEventService, githubEventMediat
 New constructs a new GitHubEventDomain instance.
 
 <a name="GitHubEventDomain.CanCreate"></a>
-### func \(\*GitHubEventDomain\) CanCreate
+### func \(\*GitHubEventDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L203>)
 
 ```go
 func (d *GitHubEventDomain) CanCreate(obj client.Object) bool
@@ -51,7 +51,7 @@ func (d *GitHubEventDomain) CanCreate(obj client.Object) bool
 CanCreate reports whether the supplied object can be processed as a GitHubEvent create operation.
 
 <a name="GitHubEventDomain.CanDelete"></a>
-### func \(\*GitHubEventDomain\) CanDelete
+### func \(\*GitHubEventDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L225>)
 
 ```go
 func (d *GitHubEventDomain) CanDelete(obj client.Object) bool
@@ -60,7 +60,7 @@ func (d *GitHubEventDomain) CanDelete(obj client.Object) bool
 CanDelete reports whether the supplied object can be processed as a GitHubEvent delete operation.
 
 <a name="GitHubEventDomain.CanUpdate"></a>
-### func \(\*GitHubEventDomain\) CanUpdate
+### func \(\*GitHubEventDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L210>)
 
 ```go
 func (d *GitHubEventDomain) CanUpdate(oldObj, newObj client.Object) bool
@@ -69,7 +69,7 @@ func (d *GitHubEventDomain) CanUpdate(oldObj, newObj client.Object) bool
 CanUpdate reports whether the supplied update should trigger GitHubEvent reconciliation by comparing the specifications of the old and new objects.
 
 <a name="GitHubEventDomain.GVK"></a>
-### func \(\*GitHubEventDomain\) GVK
+### func \(\*GitHubEventDomain\) [GVK](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L75>)
 
 ```go
 func (d *GitHubEventDomain) GVK() schema.GroupVersionKind
@@ -78,7 +78,7 @@ func (d *GitHubEventDomain) GVK() schema.GroupVersionKind
 GVK tells the engine which CRD this domain handles.
 
 <a name="GitHubEventDomain.Handle"></a>
-### func \(\*GitHubEventDomain\) Handle
+### func \(\*GitHubEventDomain\) [Handle](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L80>)
 
 ```go
 func (d *GitHubEventDomain) Handle(ctx context.Context, cmd command.Command) error

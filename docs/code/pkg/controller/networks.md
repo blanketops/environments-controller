@@ -15,7 +15,7 @@ Package networks re\-exports the networks\-group reconciler types as public alia
 
 
 <a name="DomainReconciler"></a>
-## type DomainReconciler
+## type [DomainReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/networks/reconcilers.go#L27>)
 
 
 
@@ -24,7 +24,7 @@ type DomainReconciler = internalnetworks.DomainReconciler
 ```
 
 <a name="RouteReconciler"></a>
-## type RouteReconciler
+## type [RouteReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/networks/reconcilers.go#L28>)
 
 
 

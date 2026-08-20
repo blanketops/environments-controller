@@ -13,7 +13,7 @@ import "github.com/blanketops/environments-controller/internal/runtime"
 
 
 <a name="Runtime"></a>
-## type Runtime
+## type [Runtime](<https://github.com/blanketops/environments-controller/blob/main/internal/runtime/runtime.go#L27-L33>)
 
 
 
@@ -28,7 +28,7 @@ type Runtime struct {
 ```
 
 <a name="New"></a>
-### func New
+### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/runtime/runtime.go#L35>)
 
 ```go
 func New(mgr ctrl.Manager) *Runtime

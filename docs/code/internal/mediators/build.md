@@ -21,7 +21,7 @@ Prerequisite provisioning is gated on the Environment: the Environment CR must p
 
 
 <a name="Mediator"></a>
-## type Mediator
+## type [Mediator](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/build/build.go#L46-L58>)
 
 Mediator manages the prerequisite resources a Build depends on.
 
@@ -42,7 +42,7 @@ type Mediator struct {
 ```
 
 <a name="New"></a>
-### func New
+### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/build/build.go#L61>)
 
 ```go
 func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder events.EventRecorder) *Mediator
@@ -51,7 +51,7 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder even
 New returns a new Mediator instance configured with the necessary dependencies.
 
 <a name="Mediator.CleanupPrerequisites"></a>
-### func \(\*Mediator\) CleanupPrerequisites
+### func \(\*Mediator\) [CleanupPrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/build/build.go#L122>)
 
 ```go
 func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *buildResolution.ResolvedBuild) error
@@ -60,7 +60,7 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *buildReso
 CleanupPrerequisites reverses EnsurePrerequisites — deletes the git SSH secret, registry secret, and service account this mediator provisioned. Called from the domain's CmdDelete branch, gated by the finalizer at the controller level. Teardown runs in reverse provisioning order. All three teardown steps are attempted regardless of individual failures, and errors are aggregated — a stuck registry secret shouldn't block cleanup of the SA or git secret. Any returned error keeps the finalizer in place for retry on next reconcile.
 
 <a name="Mediator.EnsurePrerequisites"></a>
-### func \(\*Mediator\) EnsurePrerequisites
+### func \(\*Mediator\) [EnsurePrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/build/build.go#L76>)
 
 ```go
 func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *buildResolution.ResolvedBuild) error

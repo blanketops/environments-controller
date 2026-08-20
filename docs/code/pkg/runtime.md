@@ -14,7 +14,7 @@ Package runtime re\-exports the Runtime type as a public alias. It stays defined
 
 
 <a name="Runtime"></a>
-## type Runtime
+## type [Runtime](<https://github.com/blanketops/environments-controller/blob/main/pkg/runtime/runtime.go#L26>)
 
 
 
