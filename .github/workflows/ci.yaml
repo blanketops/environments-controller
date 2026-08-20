@@ -102,7 +102,7 @@ jobs:
         run: gocov convert coverage.out | gocov-html > beauty-report.html
 
       - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         continue-on-error: true
         with:
           name: coverage-report-${{ github.sha }}
