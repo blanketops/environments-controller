@@ -46,7 +46,7 @@ jobs:
           repositories: environments-controller,environments,environments-api,environments-contract
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
