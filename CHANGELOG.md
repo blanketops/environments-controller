@@ -1,3 +1,25 @@
+## [0.4.2] - 2026-08-20
+
+### 🚀 Features
+
+- *(networks)* Register Route and Domain reconcilers
+
+### 🐛 Bug Fixes
+
+- Gofmt import ordering, rewrite README negatives as positives
+
+### 📚 Documentation
+
+- Fix stale "migrating to" phrasing in README
+- Auto-generate code documentation [skip ci]
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.4.1
+- Sync develop with main after release/v0.4.1
+- Add dependabot.yml (gomod, github-actions)
+- Bring dependabot.yml into main (Dependabot reads config from default branch)
+- Bring gofmt fix + README rewrite into main
 ## [0.4.1] - 2026-08-19
 
 ### 💼 Other
