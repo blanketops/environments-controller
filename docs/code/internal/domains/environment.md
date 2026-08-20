@@ -34,7 +34,7 @@ Deferred:
 
 
 <a name="EnvironmentDomain"></a>
-## type EnvironmentDomain
+## type [EnvironmentDomain](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L55-L68>)
 
 EnvironmentDomain implements the Environment resource domain logic.
 
@@ -45,7 +45,7 @@ type EnvironmentDomain struct {
 ```
 
 <a name="New"></a>
-### func New
+### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L71-L77>)
 
 ```go
 func New(c client.Client, scheme *runtime.Scheme, domainCache *cache.Cache, eventRecorder *events.EventRecorder, log logr.Logger) *EnvironmentDomain
@@ -54,7 +54,7 @@ func New(c client.Client, scheme *runtime.Scheme, domainCache *cache.Cache, even
 New returns a new EnvironmentDomain configured with the necessary dependencies.
 
 <a name="EnvironmentDomain.CanCreate"></a>
-### func \(\*EnvironmentDomain\) CanCreate
+### func \(\*EnvironmentDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L161>)
 
 ```go
 func (d *EnvironmentDomain) CanCreate(obj client.Object) bool
@@ -63,7 +63,7 @@ func (d *EnvironmentDomain) CanCreate(obj client.Object) bool
 
 
 <a name="EnvironmentDomain.CanDelete"></a>
-### func \(\*EnvironmentDomain\) CanDelete
+### func \(\*EnvironmentDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L175>)
 
 ```go
 func (d *EnvironmentDomain) CanDelete(obj client.Object) bool
@@ -72,7 +72,7 @@ func (d *EnvironmentDomain) CanDelete(obj client.Object) bool
 
 
 <a name="EnvironmentDomain.CanUpdate"></a>
-### func \(\*EnvironmentDomain\) CanUpdate
+### func \(\*EnvironmentDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L166>)
 
 ```go
 func (d *EnvironmentDomain) CanUpdate(oldObj, newObj client.Object) bool
@@ -81,7 +81,7 @@ func (d *EnvironmentDomain) CanUpdate(oldObj, newObj client.Object) bool
 
 
 <a name="EnvironmentDomain.GVK"></a>
-### func \(\*EnvironmentDomain\) GVK
+### func \(\*EnvironmentDomain\) [GVK](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L88>)
 
 ```go
 func (d *EnvironmentDomain) GVK() schema.GroupVersionKind
@@ -90,7 +90,7 @@ func (d *EnvironmentDomain) GVK() schema.GroupVersionKind
 GVK tells the engine which CRD this domain handles.
 
 <a name="EnvironmentDomain.Handle"></a>
-### func \(\*EnvironmentDomain\) Handle
+### func \(\*EnvironmentDomain\) [Handle](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L93>)
 
 ```go
 func (d *EnvironmentDomain) Handle(ctx context.Context, cmd command.Command) error
