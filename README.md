@@ -2,7 +2,7 @@
 
 Kubernetes controller for BlanketOps Environments.
 
-- This project wires Kubernetes CRDs to the blanketops-environments engine.
+- This project wires Kubernetes CRDs to the `blanketops/environments` engine.
 - The controller is intentionally thin — all business logic lives in the engine module.
 
 ## Architecture
@@ -39,7 +39,8 @@ The controller reconciles:
 - ServiceUnit
 - GitRepository
 - GitHubEvent
-- Route, Domain (written, not yet registered — deferred to v0.7.0)
+- Route (registered, but errors on every CR — no domain handler is registered for its GVK yet)
+- Domain (registered, but Reconcile is a no-op stub)
 
 CRD schemas for these Kinds live in the external `environments-api` module,
 not in this repo. All behavior is delegated to the engine layer.
@@ -66,7 +67,7 @@ mage run
 Build and push image:
 
 ```bash
-IMG=<registry>/blanketops-environments-controller:<tag> mage dockerbuild dockerpush
+IMG=<registry>/environments-controller:<tag> mage dockerbuild dockerpush
 ```
 
 Run the unit test suite:

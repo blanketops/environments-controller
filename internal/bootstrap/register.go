@@ -67,6 +67,7 @@ import (
 	"github.com/blanketops/environments-controller/internal/controller/observers/deployment"
 	environment "github.com/blanketops/environments-controller/internal/controller/observers/environment"
 	"github.com/blanketops/environments-controller/internal/controller/observers/githubevent"
+	"github.com/blanketops/environments-controller/internal/controller/networks"
 	"github.com/blanketops/environments-controller/internal/controller/observers/gitrepository"
 	"github.com/blanketops/environments-controller/internal/controller/sources"
 	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
@@ -209,10 +210,8 @@ func RegisterObservers(mgr ctrl.Manager) error {
 	return nil
 }
 
-// RegisterControllers wires up the primary CQRS reconcilers for the
-// environments, events, and sources domains: GitRepository, GitHubEvent,
-// Deployment, ServiceUnit, Package, and Environment. Route and Domain
-// (networks) are registered separately once they're ready — see below.
+// RegisterControllers wires up the primary CQRS reconcilers: GitRepository,
+// GitHubEvent, Deployment, ServiceUnit, Package, Environment, Route, Domain.
 func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 	if err := (&sources.GitRepositoryReconciler{
 		Client:  mgr.GetClient(),
@@ -243,23 +242,20 @@ func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 		return err
 	}
 
-	// Route and Domain (networks) are intentionally not registered yet.
-	// DomainMapping ownership migration, FQDN patch-back via SSA, and the
-	// endpoint-vs-exposure charter split are deferred to v0.7.0.
-	// if err := (&networks.RouteReconciler{
-	// 	Client:  mgr.GetClient(),
-	// 	Scheme:  mgr.GetScheme(),
-	// 	Runtime: rt,
-	// }).SetupWithManager(mgr); err != nil {
-	// 	return err
-	// }
-	// if err := (&networks.DomainReconciler{
-	// 	Client:  mgr.GetClient(),
-	// 	Scheme:  mgr.GetScheme(),
-	// 	Runtime: rt,
-	// }).SetupWithManager(mgr); err != nil {
-	// 	return err
-	// }
+	// No domain is registered for Route's GVK yet -- error-loops until one is.
+	if err := (&networks.RouteReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Runtime: rt,
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+	// Domain.Reconcile is a stub -- safe, but inert until it has logic.
+	if err := (&networks.DomainReconciler{
+		Client: mgr.GetClient(),
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
 
 	if err := (&environments.PackageReconciler{
 		Client:  mgr.GetClient(),
