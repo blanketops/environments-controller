@@ -9,7 +9,7 @@ require (
 	github.com/blanketops/environments-api v0.2.7
 	github.com/fluxcd/kustomize-controller/api v1.9.2
 	github.com/fluxcd/source-controller/api v1.9.2
-	github.com/go-logr/logr v1.4.3
+	github.com/go-logr/logr v1.4.4
 	github.com/go-logr/zapr v1.3.0
 	github.com/magefile/mage v1.17.2
 	github.com/shipwright-io/build v0.20.4
