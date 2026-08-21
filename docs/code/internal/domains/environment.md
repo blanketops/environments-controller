@@ -54,31 +54,31 @@ func New(c client.Client, scheme *runtime.Scheme, domainCache *cache.Cache, even
 New returns a new EnvironmentDomain configured with the necessary dependencies.
 
 <a name="EnvironmentDomain.CanCreate"></a>
-### func \(\*EnvironmentDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L161>)
+### func \(\*EnvironmentDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L162>)
 
 ```go
 func (d *EnvironmentDomain) CanCreate(obj client.Object) bool
 ```
 
-
+CanCreate reports whether obj is an Environment.
 
 <a name="EnvironmentDomain.CanDelete"></a>
-### func \(\*EnvironmentDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L175>)
+### func \(\*EnvironmentDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L179>)
 
 ```go
 func (d *EnvironmentDomain) CanDelete(obj client.Object) bool
 ```
 
-
+CanDelete reports whether obj is an Environment.
 
 <a name="EnvironmentDomain.CanUpdate"></a>
-### func \(\*EnvironmentDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L166>)
+### func \(\*EnvironmentDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L169>)
 
 ```go
 func (d *EnvironmentDomain) CanUpdate(oldObj, newObj client.Object) bool
 ```
 
-
+CanUpdate reports whether oldObj and newObj are both Environments whose specs differ.
 
 <a name="EnvironmentDomain.GVK"></a>
 ### func \(\*EnvironmentDomain\) [GVK](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/environment/environment.go#L88>)

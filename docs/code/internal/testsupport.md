@@ -60,7 +60,7 @@ func NoopRecorder() *events.EventRecorder
 NoopRecorder returns an EventRecorder that safely discards every call — NewEventRecorder falls back to a no\-op when given a type it doesn't recognize as either client\-go recorder interface.
 
 <a name="RawContract"></a>
-## func [RawContract](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L213>)
+## func [RawContract](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L214>)
 
 ```go
 func RawContract(m map[string]any) runtime.RawExtension
@@ -80,16 +80,16 @@ type FakeExternalCache struct {
 ```
 
 <a name="NewFakeExternalCache"></a>
-### func [NewFakeExternalCache](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L162>)
+### func [NewFakeExternalCache](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L163>)
 
 ```go
 func NewFakeExternalCache() *FakeExternalCache
 ```
 
-
+NewFakeExternalCache constructs an empty FakeExternalCache.
 
 <a name="FakeExternalCache.Del"></a>
-### func \(\*FakeExternalCache\) [Del](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L190>)
+### func \(\*FakeExternalCache\) [Del](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L191>)
 
 ```go
 func (f *FakeExternalCache) Del(_ context.Context, key string) error
@@ -98,7 +98,7 @@ func (f *FakeExternalCache) Del(_ context.Context, key string) error
 
 
 <a name="FakeExternalCache.DelPrefix"></a>
-### func \(\*FakeExternalCache\) [DelPrefix](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L197>)
+### func \(\*FakeExternalCache\) [DelPrefix](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L198>)
 
 ```go
 func (f *FakeExternalCache) DelPrefix(_ context.Context, prefix string) error
@@ -107,7 +107,7 @@ func (f *FakeExternalCache) DelPrefix(_ context.Context, prefix string) error
 
 
 <a name="FakeExternalCache.Get"></a>
-### func \(\*FakeExternalCache\) [Get](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L177>)
+### func \(\*FakeExternalCache\) [Get](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L178>)
 
 ```go
 func (f *FakeExternalCache) Get(_ context.Context, key string, into any) (bool, error)
@@ -116,7 +116,7 @@ func (f *FakeExternalCache) Get(_ context.Context, key string, into any) (bool, 
 
 
 <a name="FakeExternalCache.Set"></a>
-### func \(\*FakeExternalCache\) [Set](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L166>)
+### func \(\*FakeExternalCache\) [Set](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L167>)
 
 ```go
 func (f *FakeExternalCache) Set(_ context.Context, key string, val any, _ time.Duration) error

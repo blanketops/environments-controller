@@ -139,22 +139,22 @@ type EnvironmentReconciler struct {
 ```
 
 <a name="EnvironmentReconciler.Reconcile"></a>
-### func \(\*EnvironmentReconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/environment.go#L60>)
+### func \(\*EnvironmentReconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/environment.go#L62>)
 
 ```go
 func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
 ```
 
-
+Reconcile fetches the Environment, routes it through the core CQRS engine, and persists the resulting status with conflict retry.
 
 <a name="EnvironmentReconciler.SetupWithManager"></a>
-### func \(\*EnvironmentReconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/environment.go#L122>)
+### func \(\*EnvironmentReconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/environment.go#L127>)
 
 ```go
 func (r *EnvironmentReconciler) SetupWithManager(mgr ctrl.Manager) error
 ```
 
-
+SetupWithManager registers the Environment domain with the core engine and wires the reconciler into the controller manager, watching Environment CRs.
 
 <a name="PackageReconciler"></a>
 ## type [PackageReconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/environments/package.go#L42-L50>)

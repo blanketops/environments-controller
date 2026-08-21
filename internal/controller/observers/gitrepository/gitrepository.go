@@ -29,6 +29,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Reconciler observes the Crossplane Repository resource backing a
+// GitRepository CR and reflects its Ready condition back onto the
+// GitRepository's status.
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
@@ -41,6 +44,9 @@ var repositoryGVK = schema.GroupVersionKind{
 	Kind:    "Repository",
 }
 
+// Reconcile lists the Crossplane Repository objects labeled for this
+// GitRepository, derives a domain.Result from their Ready condition (or
+// StatePending if none exist yet), and writes it to status.
 func (r *Reconciler) Reconcile(
 	ctx context.Context,
 	req ctrl.Request,
@@ -138,6 +144,8 @@ func extractReady(obj unstructured.Unstructured) (bool, string) {
 	return false, "waiting for Ready condition"
 }
 
+// SetupWithManager registers the GitRepository observer with the
+// controller manager, watching GitRepository CRs.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("sources-gitrepository"))
 	r.Status = application.NewStatusWriter()

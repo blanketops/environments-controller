@@ -57,6 +57,8 @@ type EnvironmentReconciler struct {
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
+// Reconcile fetches the Environment, routes it through the core CQRS
+// engine, and persists the resulting status with conflict retry.
 func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues(
 		"controller", "environment",
@@ -119,6 +121,9 @@ func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{}, nil
 }
 
+// SetupWithManager registers the Environment domain with the core engine
+// and wires the reconciler into the controller manager, watching
+// Environment CRs.
 func (r *EnvironmentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// ── Logging & events ──────────────────────────────────────────────────────
 	r.Log = ctrl.Log.WithName("controllers").WithName("Environment")

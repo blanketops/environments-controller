@@ -39,6 +39,7 @@ import (
 	"github.com/blanketops/environments/core/cache"
 )
 
+// New constructs a GitRepository domain cache backed by c.
 func New(c *cache.Cache) *libgitrepository.GitRepositoryCache {
 	return libgitrepository.NewGitRepositoryCache(c)
 }

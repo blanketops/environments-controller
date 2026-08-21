@@ -15,6 +15,8 @@ limitations under the License.
 
 package logging
 
+// Config configures the root logger's output (console/file/Papertrail) and
+// verbosity.
 type Config struct {
 	Development bool
 
@@ -29,6 +31,8 @@ type Config struct {
 	PapertrailTag    string
 }
 
+// DefaultConfig returns a development-mode Config: console output only,
+// info level, no file or Papertrail sink.
 func DefaultConfig() Config {
 	return Config{
 		Development: true,

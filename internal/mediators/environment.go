@@ -27,6 +27,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// EnsureEnvironment fetches the Environment named by obj's
+// environments.blanketops.dev/{name,type} labels, creating it with the
+// given contract if it doesn't exist yet. Returns (nil, nil) if obj carries
+// neither label — it isn't environment-scoped.
 func EnsureEnvironment(
 	ctx context.Context,
 	c client.Client,
@@ -74,6 +78,8 @@ func EnsureEnvironment(
 	return &env, nil
 }
 
+// PatchEnvironmentAggregate resolves env's contract, applies patchFn to the
+// resolved spec, and re-encodes the result back onto env.Spec.Contract.
 func PatchEnvironmentAggregate(
 	ctx context.Context,
 	c client.Client,

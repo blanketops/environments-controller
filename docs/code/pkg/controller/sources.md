@@ -14,9 +14,9 @@ Package sources re\-exports the sources\-group reconciler types as public aliase
 
 
 <a name="GitRepositoryReconciler"></a>
-## type [GitRepositoryReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/sources/reconcilers.go#L27>)
+## type [GitRepositoryReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/sources/reconcilers.go#L28>)
 
-
+GitRepositoryReconciler reconciles a GitRepository object.
 
 ```go
 type GitRepositoryReconciler = internalsources.GitRepositoryReconciler
