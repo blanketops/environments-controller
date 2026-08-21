@@ -41,6 +41,8 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger) *Mediator {
 	}
 }
 
+// EnsurePrerequisites validates resolved and ensures whatever the
+// ServiceUnit needs before its workload can be reconciled.
 func (m *Mediator) EnsurePrerequisites(
 	ctx context.Context,
 	resolved *serviceunitResolution.ResolvedServiceUnit,

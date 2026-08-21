@@ -24,6 +24,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
+// Runtime bundles the shared infrastructure every domain and mediator
+// depends on: the field cache, event recorder, domain registry, and
+// command-dispatch engine.
 type Runtime struct {
 	Cache    *cache.Cache
 	Events   *events.EventRecorder
@@ -32,6 +35,8 @@ type Runtime struct {
 	Log      logr.Logger
 }
 
+// New constructs a Runtime from the controller manager, wiring up a fresh
+// Cache, Registry, Engine, and EventRecorder.
 func New(mgr ctrl.Manager) *Runtime {
 
 	log := ctrl.Log.WithName("environments-runtime")

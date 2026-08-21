@@ -28,6 +28,9 @@ var (
 	once    sync.Once
 )
 
+// Init builds the root zap logger from cfg on first call and returns it
+// (wrapped as logr.Logger) plus the underlying *zap.Logger. Subsequent
+// calls return the same root logger regardless of cfg.
 func Init(cfg Config) (logr.Logger, *zap.Logger, error) {
 	var err error
 

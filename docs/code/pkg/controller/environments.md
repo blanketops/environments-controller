@@ -18,45 +18,45 @@ Package environments re\-exports the environments\-group reconciler types as pub
 
 
 <a name="BuildReconciler"></a>
-## type [BuildReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L28>)
+## type [BuildReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L30>)
 
-
+BuildReconciler reconciles a Build object.
 
 ```go
 type BuildReconciler = internalenv.BuildReconciler
 ```
 
 <a name="DeploymentReconciler"></a>
-## type [DeploymentReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L29>)
+## type [DeploymentReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L32>)
 
-
+DeploymentReconciler reconciles a Deployment object.
 
 ```go
 type DeploymentReconciler = internalenv.DeploymentReconciler
 ```
 
 <a name="EnvironmentReconciler"></a>
-## type [EnvironmentReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L27>)
+## type [EnvironmentReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L28>)
 
-
+EnvironmentReconciler reconciles an Environment object.
 
 ```go
 type EnvironmentReconciler = internalenv.EnvironmentReconciler
 ```
 
 <a name="PackageReconciler"></a>
-## type [PackageReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L30>)
+## type [PackageReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L34>)
 
-
+PackageReconciler reconciles a Package object.
 
 ```go
 type PackageReconciler = internalenv.PackageReconciler
 ```
 
 <a name="ServiceUnitReconciler"></a>
-## type [ServiceUnitReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L31>)
+## type [ServiceUnitReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L36>)
 
-
+ServiceUnitReconciler reconciles a ServiceUnit object.
 
 ```go
 type ServiceUnitReconciler = internalenv.ServiceUnitReconciler

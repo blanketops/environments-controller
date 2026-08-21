@@ -26,6 +26,7 @@ import (
 	"github.com/blanketops/environments/core/cache"
 )
 
+// New constructs a Deployment domain cache backed by c.
 func New(c *cache.Cache) *libdeployment.DeploymentCache {
 	return libdeployment.NewDeploymentCache(c)
 }

@@ -41,12 +41,18 @@ const (
 	conditionGitHubEventReady = "GitHubEventReady"
 )
 
+// Reconciler observes GitHubEvent CRs and the Argo Events Sensor created
+// for each, deriving and writing the event's accepted/triggered/success
+// status and conditions.
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
 	Recorder *events.EventRecorder
 }
 
+// Reconcile resolves the GitHubEvent's contract, checks whether a payload
+// has been received and whether its Sensor reports success, and writes the
+// resulting status via buildContractAndConditions.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	n := req.NamespacedName
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "githubevent-observer", "githubevent", n.String())
@@ -171,6 +177,8 @@ func (r *Reconciler) buildContractAndConditions(
 	return []metav1.Condition{condition}
 }
 
+// SetupWithManager registers the GitHubEvent observer with the controller
+// manager, watching GitHubEvent CRs.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("githubevent-observer"))
 	r.Status = application.NewStatusWriter(mgr.GetClient(), ctrl.Log.WithName("githubevent-status-writer"))

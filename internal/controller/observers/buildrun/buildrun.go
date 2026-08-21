@@ -34,12 +34,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Reconciler observes Shipwright BuildRun resources and feeds their
+// terminal Succeeded condition back to the owning Build CR's contract
+// status and conditions.
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
 	Recorder *events.EventRecorder
 }
 
+// Reconcile exits immediately for non-terminal BuildRuns, resolves the
+// owning Build via the build.blanketops.dev/name label, and writes the
+// outcome to its status.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "buildrun-observer", "buildRun", req.String())
 	log.Info("reconcile start")
@@ -140,6 +146,9 @@ func (r *Reconciler) buildContractAndConditions(
 	return []metav1.Condition{condition}
 }
 
+// SetupWithManager registers the BuildRun observer with the controller
+// manager, watching Shipwright BuildRun resources rather than Build CRs —
+// the BuildRun is what signals whether the build actually succeeded.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("buildrun-observer"))
 	return ctrl.NewControllerManagedBy(mgr).

@@ -159,6 +159,7 @@ type FakeExternalCache struct {
 	data map[string][]byte
 }
 
+// NewFakeExternalCache constructs an empty FakeExternalCache.
 func NewFakeExternalCache() *FakeExternalCache {
 	return &FakeExternalCache{data: make(map[string][]byte)}
 }

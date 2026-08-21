@@ -25,6 +25,7 @@ import (
 	"github.com/blanketops/environments/core/cache"
 )
 
+// New constructs a ServiceUnit domain cache backed by c.
 func New(c *cache.Cache) *libserviceunit.ServiceUnitCache {
 	return libserviceunit.NewServiceUnitCache(c)
 }
