@@ -5,6 +5,17 @@
 #   workflow runs (notably the tag push below, which release.yml listens
 #   for), but an App installation token does, same as a PAT would.
 #
+# Docs regeneration:
+#   code-docs.yml also regenerates docs/code on every push to main, but it
+#   runs as a separate, asynchronously-triggered workflow. This job used to
+#   merge main back into develop immediately after tagging, which raced
+#   ahead of that async commit — develop never actually received it, and
+#   drifted a little further from main's generated docs on every release.
+#   The generate-and-commit steps below make this job self-sufficient: docs
+#   are regenerated and committed to main synchronously, before merging back
+#   into develop, so develop is always caught up regardless of what
+#   code-docs.yml does on its own schedule.
+#
 # Secrets required:
 #   APP_ID, APP_PRIVATE_KEY — GitHub App credentials, exchanged for a
 #   short-lived installation token scoped to this repo
@@ -29,7 +40,7 @@ jobs:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: blanketops
-          repositories: environments-controller
+          repositories: environments-controller,environments,environments-api,environments-contract
 
       - name: Checkout
         uses: actions/checkout@v7
@@ -49,6 +60,40 @@ jobs:
           git merge --no-ff origin/release/${{ github.event.inputs.version }} \
             -m "release: merge release/${{ github.event.inputs.version }} into main"
           git push origin main
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Configure Git for private modules
+        run: |
+          git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+          go env -w GOPRIVATE=github.com/blanketops/*
+          go env -w GONOSUMDB=github.com/blanketops/*
+          go env -w GOPROXY=direct
+
+      - name: Install gomarkdoc
+        run: go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
+
+      - name: Generate code docs
+        run: |
+          mkdir -p docs/code
+          gomarkdoc \
+            --output 'docs/code/{{.Dir}}.md' \
+            ./internal/... \
+            ./pkg/...
+
+      - name: Commit and push code docs
+        run: |
+          git add docs/code/ -f
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "docs: auto-generate code documentation [skip ci]"
+            git push origin main
+          else
+            echo "No documentation changes to commit"
+          fi
 
       - name: Tag release
         run: |
