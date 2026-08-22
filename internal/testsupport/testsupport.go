@@ -34,11 +34,14 @@ import (
 	sourcesv1alpha1 "github.com/blanketops/environments-api/api/sources/v1alpha1"
 	"github.com/blanketops/environments/core/events"
 	gitrepoapi "github.com/blanketops/environments/pkg/apis/gitrepository/api"
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	fluxcdsourcev1 "github.com/fluxcd/source-controller/api/v1"
 	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	knnetworkingv1alpha1 "knative.dev/networking/pkg/apis/networking/v1alpha1"
+	knservingv1beta1 "knative.dev/serving/pkg/apis/serving/v1beta1"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -98,6 +101,9 @@ func NewScheme() *runtime.Scheme {
 	utilruntime.Must(fluxcdsourcev1.AddToScheme(scheme))
 	utilruntime.Must(kustomizev1.AddToScheme(scheme))
 	utilruntime.Must(networksv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(certmanagerv1.AddToScheme(scheme))
+	utilruntime.Must(knservingv1beta1.AddToScheme(scheme))
+	utilruntime.Must(knnetworkingv1alpha1.AddToScheme(scheme))
 
 	scheme.AddKnownTypeWithName(externalSecretGVK, &unstructured.Unstructured{})
 	scheme.AddKnownTypeWithName(externalSecretListGVK, &unstructured.UnstructuredList{})

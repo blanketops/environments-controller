@@ -39,7 +39,9 @@ import (
 	sourcesv1alpha1 "github.com/blanketops/environments-api/api/sources/v1alpha1"
 	buildapi "github.com/blanketops/environments/pkg/apis/build/api"
 	buildapp "github.com/blanketops/environments/pkg/apis/build/application"
+	domainapi "github.com/blanketops/environments/pkg/apis/domain/api"
 	gitrepoapi "github.com/blanketops/environments/pkg/apis/gitrepository/api"
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	kustomizev1 "github.com/fluxcd/kustomize-controller/api/v1"
 	fluxcdsourcev1 "github.com/fluxcd/source-controller/api/v1"
 	"github.com/go-logr/logr"
@@ -59,6 +61,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/events"
+	knnetworkingv1alpha1 "knative.dev/networking/pkg/apis/networking/v1alpha1"
+	knservingv1beta1 "knative.dev/serving/pkg/apis/serving/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/blanketops/environments-controller/internal/controller/environments"
@@ -78,8 +82,17 @@ import (
 // providers need to the runtime scheme: this repo's own environments,
 // events, sources, and networks types from environments-api, plus the
 // external CRDs — Argo Events, Flux (source and kustomize controllers),
-// Kapp Controller, Shipwright, and Tekton Pipelines — that the domains and
-// mediators reconcile against.
+// Kapp Controller, Shipwright, Tekton Pipelines, cert-manager, and Knative
+// serving/networking — that the domains and mediators reconcile against.
+//
+// The Knative and cert-manager registrations were missing entirely until
+// the Domain CR follow-up added them: Route's KnativeProvider (DomainMapping,
+// serving.knative.dev) and Domain's KnativeProvider (ClusterDomainClaim,
+// networking.internal.knative.dev; Issuer/Certificate, cert-manager.io)
+// would otherwise fail the first time either tried to create a resource
+// through this manager's client, with "no kind is registered for the type
+// ... in scheme" — the same class of bug the missing networksv1alpha1
+// registration was before it.
 func RegisterSchemes(scheme *runtime.Scheme) {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(environmentsv1alpha1.AddToScheme(scheme))
@@ -93,6 +106,9 @@ func RegisterSchemes(scheme *runtime.Scheme) {
 	utilruntime.Must(fluxcdsourcev1.AddToScheme(scheme))
 	utilruntime.Must(kustomizev1.AddToScheme(scheme))
 	utilruntime.Must(networksv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(certmanagerv1.AddToScheme(scheme))
+	utilruntime.Must(knservingv1beta1.AddToScheme(scheme))
+	utilruntime.Must(knnetworkingv1alpha1.AddToScheme(scheme))
 }
 
 // EnsureServiceAccount creates the manager's ServiceAccount if it does not
@@ -213,7 +229,9 @@ func RegisterObservers(mgr ctrl.Manager) error {
 }
 
 // RegisterControllers wires up the primary CQRS reconcilers: GitRepository,
-// GitHubEvent, Deployment, ServiceUnit, Package, Environment, Route, Domain.
+// GitHubEvent, Deployment, ServiceUnit, Package, Environment, Route.
+// Domain is registered separately by RegisterDomain — it needs an ACME
+// config the manager doesn't otherwise construct.
 func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 	if err := (&sources.GitRepositoryReconciler{
 		Client:  mgr.GetClient(),
@@ -251,13 +269,6 @@ func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 	}).SetupWithManager(mgr); err != nil {
 		return err
 	}
-	// Domain.Reconcile is a stub -- safe, but inert until it has logic.
-	if err := (&networks.DomainReconciler{
-		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
-		return err
-	}
-
 	if err := (&environments.PackageReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
@@ -312,5 +323,19 @@ func RegisterBuild(
 		Runtime:      rt,
 		BuildClient:  shipClient,
 		BuildService: buildService,
+	}).SetupWithManager(mgr)
+}
+
+// RegisterDomain wires up and registers the DomainReconciler. It's separate
+// from RegisterControllers because Domain needs an ACME config (server,
+// account email, private key secret name) that the manager doesn't
+// otherwise construct — cmd/main.go sources it from flags/env and has no
+// safe hardcoded default for the account email.
+func RegisterDomain(mgr ctrl.Manager, rt *runtimeinfra.Runtime, acmeConfig domainapi.ACMEConfig) error {
+	return (&networks.DomainReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Runtime: rt,
+		ACME:    acmeConfig,
 	}).SetupWithManager(mgr)
 }
