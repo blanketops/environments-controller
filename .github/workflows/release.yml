@@ -26,21 +26,17 @@ jobs:
               rm -rf git-cliff.tar.gz "git-cliff-${GITCLIFF_VERSION}"
               git-cliff --version
 
+        # CHANGELOG.md is generated and committed by finalize-release.yml,
+        # synchronously, before it merges main back into develop -- doing it
+        # there instead of here closes a race where this workflow (triggered
+        # asynchronously by the tag push) used to commit the changelog to
+        # main after finalize-release.yml had already synced develop,
+        # leaving develop permanently missing that commit. Checking out main
+        # here just gets onto the tip finalize-release.yml already updated.
         - name: Checkout main
           run: |
               git checkout main
               git pull origin main
-
-        - name: Generate CHANGELOG.md
-          run: git-cliff --config .cliff.toml --output CHANGELOG.md
-
-        - name: Commit changelog
-          run: |
-              git config user.name "github-actions"
-              git config user.email "actions@github.com"
-              git add CHANGELOG.md
-              git commit -m "chore(release): update changelog for ${{ github.ref_name }}" || echo "No changes"
-              git push origin main
 
         - name: Generate release notes
           run: git-cliff --config .cliff.toml --latest --output RELEASE_NOTES.md
