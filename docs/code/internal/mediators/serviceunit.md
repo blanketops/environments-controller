@@ -6,6 +6,10 @@
 import "github.com/blanketops/environments-controller/internal/mediators/serviceunit"
 ```
 
+Package serviceunit implements the ServiceUnit prerequisite mediator.
+
+Currently a stub relative to its siblings \(build, deployment, packages\): EnsurePrerequisites validates that resolved and its Spec are non\-nil and logs the resolved contract, but provisions nothing — ServiceUnit has no cross\-cutting prerequisites of its own today \(its workload is applied directly by the owning Deployment's reconciliation, not by this mediator\).
+
 ## Index
 
 - [type Mediator](<#Mediator>)
@@ -14,7 +18,7 @@ import "github.com/blanketops/environments-controller/internal/mediators/service
 
 
 <a name="Mediator"></a>
-## type [Mediator](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/serviceunit/serviceunit.go#L29-L33>)
+## type [Mediator](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/serviceunit/serviceunit.go#L38-L42>)
 
 Mediator coordinates the various stages of the application lifecycle.
 
@@ -27,7 +31,7 @@ type Mediator struct {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/serviceunit/serviceunit.go#L36>)
+### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/serviceunit/serviceunit.go#L45>)
 
 ```go
 func New(c client.Client, scheme *runtime.Scheme, log logr.Logger) *Mediator
@@ -36,7 +40,7 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger) *Mediator
 New creates a new Mediator with all the sub\-reconcilers.
 
 <a name="Mediator.EnsurePrerequisites"></a>
-### func \(\*Mediator\) [EnsurePrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/serviceunit/serviceunit.go#L46-L49>)
+### func \(\*Mediator\) [EnsurePrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/serviceunit/serviceunit.go#L55-L58>)
 
 ```go
 func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *serviceunitResolution.ResolvedServiceUnit) error

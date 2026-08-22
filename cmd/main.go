@@ -81,15 +81,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// ---------------------------------------------------
 	// Create Runtime
-	// ---------------------------------------------------
 
 	rt := runtimeinfra.New(mgr)
 
-	// ---------------------------------------------------
 	// Controllers
-	// ---------------------------------------------------
 
 	if err := bootstrap.RegisterControllers(mgr, rt); err != nil {
 		setupLog.Error(err, "failed to register controllers")

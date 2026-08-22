@@ -74,36 +74,28 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder even
 // resolution succeeds. Provisioning is fail-fast — the first failing step
 // returns its error and the domain records BuildPrerequisitesCreateFailed.
 func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *buildResolution.ResolvedBuild) error {
-	// ------------------------------------------------
 	// Step 0: Environment lookup
 	// Environment must pre-exist — it is the root of the delivery chain and
 	// the sole authority for the ClusterSecretStore binding.
-	// ------------------------------------------------
 	envCtx, err := query.Lookup(ctx, m.Client, resolved.Build.Namespace, resolved.Build.Labels)
 	if err != nil {
 		return fmt.Errorf("environment lookup: %w", err)
 	}
 	m.Log.Info("environment context resolved", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
 
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 1: Git SSH secret
-	// ------------------------------------------------------------------------------------------------------------
 	gitSSH := git.NewBuildGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 	if err := gitSSH.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("reconcile git ssh secret: %w", err)
 	}
 
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 2: Registry secret
-	// ------------------------------------------------------------------------------------------------------------
 	reg := registry.NewBuildRegistryExternalSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 	if err := reg.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("reconcile registry secret: %w", err)
 	}
 
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 3: Service account
-	// ------------------------------------------------------------------------------------------------------------
 	if err := m.ServiceAccountReconciler.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("reconcile service account: %w", err)
 	}
@@ -120,11 +112,9 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *buildResol
 // or git secret. Any returned error keeps the finalizer in place for retry
 // on next reconcile.
 func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *buildResolution.ResolvedBuild) error {
-	// ------------------------------------------------
 	// Step 0: Environment lookup
 	// Same store binding used at creation time — needed so the reconcilers
 	// target the correct ClusterSecretStore-scoped resources on teardown.
-	// ------------------------------------------------
 	envCtx, err := query.Lookup(ctx, m.Client, resolved.Build.Namespace, resolved.Build.Labels)
 	if err != nil {
 		return fmt.Errorf("environment lookup: %w", err)
@@ -133,24 +123,18 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *buildReso
 
 	var errs []error
 
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 3: Service account
-	// ------------------------------------------------------------------------------------------------------------
 	if err := m.ServiceAccountReconciler.Delete(ctx, resolved); err != nil {
 		errs = append(errs, fmt.Errorf("delete service account: %w", err))
 	}
 
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 2: Registry secret
-	// ------------------------------------------------------------------------------------------------------------
 	reg := registry.NewBuildRegistryExternalSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 	if err := reg.Delete(ctx, resolved); err != nil {
 		errs = append(errs, fmt.Errorf("delete registry secret: %w", err))
 	}
 
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 3:  Git SSH secret
-	// ------------------------------------------------------------------------------------------------------------
 	gitSSH := git.NewBuildGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 	if err := gitSSH.Delete(ctx, resolved); err != nil {
 		errs = append(errs, fmt.Errorf("delete git ssh secret: %w", err))

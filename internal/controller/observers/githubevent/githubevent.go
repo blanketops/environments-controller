@@ -14,6 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package githubevent observes GitHubEvent CRs and the Argo Events Sensor
+provisioned for each, deriving and writing the event's accepted/triggered/
+success status and conditions.
+
+The GitHubEvent domain's Ensure() can only report that ingress
+infrastructure was provisioned (Triggered=true) — whether a webhook
+payload has actually arrived, and whether the Sensor delivered it
+successfully, can only be known by watching the CR (for a populated
+spec.contract.eventId/eventType) and the Sensor's own Succeeded condition
+directly, which is this observer's job.
+*/
 package githubevent
 
 import (

@@ -6,6 +6,10 @@
 import "github.com/blanketops/environments-controller/internal/domains/deployment"
 ```
 
+Package deployment implements the Deployment resource domain.
+
+The Deployment domain is responsible for managing the lifecycle of Deployment resources. It receives commands from the Engine, resolves resource specifications into validated contracts, delegates processing to the application layer, and records reconciliation outcomes through conditions and events.
+
 ## Index
 
 - [type DeployDomain](<#DeployDomain>)
@@ -18,7 +22,7 @@ import "github.com/blanketops/environments-controller/internal/domains/deploymen
 
 
 <a name="DeployDomain"></a>
-## type [DeployDomain](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L50-L70>)
+## type [DeployDomain](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L49-L69>)
 
 DeployDomain implements the Deployment resource domain.
 
@@ -29,7 +33,7 @@ type DeployDomain struct {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L73>)
+### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L72>)
 
 ```go
 func New(deploymentMediatorIn *deploymentMediator.Mediator, deploymentServiceIn *deployapp.DeploymentService, domainCache *cache.Cache, reader client.Reader, eventRecorder *events.EventRecorder, log logr.Logger) *DeployDomain
@@ -38,7 +42,7 @@ func New(deploymentMediatorIn *deploymentMediator.Mediator, deploymentServiceIn 
 New returns a new DeployDomain instance configured with the necessary dependencies.
 
 <a name="DeployDomain.CanCreate"></a>
-### func \(\*DeployDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L229>)
+### func \(\*DeployDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L236>)
 
 ```go
 func (d *DeployDomain) CanCreate(obj client.Object) bool
@@ -47,7 +51,7 @@ func (d *DeployDomain) CanCreate(obj client.Object) bool
 CanCreate reports whether the supplied object can be processed as a Deploy create operation.
 
 <a name="DeployDomain.CanDelete"></a>
-### func \(\*DeployDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L251>)
+### func \(\*DeployDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L258>)
 
 ```go
 func (d *DeployDomain) CanDelete(obj client.Object) bool
@@ -56,7 +60,7 @@ func (d *DeployDomain) CanDelete(obj client.Object) bool
 CanDelete reports whether the supplied object can be processed as a Deploy delete operation.
 
 <a name="DeployDomain.CanUpdate"></a>
-### func \(\*DeployDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L236>)
+### func \(\*DeployDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L243>)
 
 ```go
 func (d *DeployDomain) CanUpdate(oldObj, newObj client.Object) bool
@@ -65,7 +69,7 @@ func (d *DeployDomain) CanUpdate(oldObj, newObj client.Object) bool
 CanUpdate reports whether the supplied update should trigger Deploy reconciliation by comparing the specifications of the old and new objects.
 
 <a name="DeployDomain.GVK"></a>
-### func \(\*DeployDomain\) [GVK](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L85>)
+### func \(\*DeployDomain\) [GVK](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L84>)
 
 ```go
 func (d *DeployDomain) GVK() schema.GroupVersionKind
@@ -74,7 +78,7 @@ func (d *DeployDomain) GVK() schema.GroupVersionKind
 GVK tells the engine.Engine which CRD type this domain handles.
 
 <a name="DeployDomain.Handle"></a>
-### func \(\*DeployDomain\) [Handle](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L90>)
+### func \(\*DeployDomain\) [Handle](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/deployment/deployment.go#L89>)
 
 ```go
 func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error

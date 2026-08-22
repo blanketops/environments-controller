@@ -52,7 +52,7 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, rec events.Ev
 New returns a new Mediator instance configured with the necessary dependencies.
 
 <a name="Mediator.CleanupPrerequisites"></a>
-### func \(\*Mediator\) [CleanupPrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/githubevent/githubevent.go#L104>)
+### func \(\*Mediator\) [CleanupPrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/githubevent/githubevent.go#L100>)
 
 ```go
 func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *githubeventResolution.ResolvedGitHubEvent) error

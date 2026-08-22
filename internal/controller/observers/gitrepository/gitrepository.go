@@ -13,6 +13,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package gitrepository observes the Crossplane Repository object the
+GitRepository domain's provider creates and reflects its Ready condition
+back onto the owning GitRepository CR's status.
+
+Reconcile lists Crossplane Repository objects labeled for the GitRepository
+CR (rather than looking one up by a fixed name), reports StatePending when
+none exist yet, and otherwise derives readiness from the first match's
+status.conditions — mirroring the same "provider creates infrastructure,
+a separate observer reports on its real-world state" split used by the
+build and githubevent observers.
+*/
 package gitrepository
 
 import (
@@ -52,17 +64,13 @@ func (r *Reconciler) Reconcile(
 	req ctrl.Request,
 ) (ctrl.Result, error) {
 
-	// ------------------------------------------------
 	// 1. Load the source GitRepository CR
-	// ------------------------------------------------
 	var repo sourcesv1alpha1.GitRepository
 	if err := r.Get(ctx, req.NamespacedName, &repo); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ------------------------------------------------
 	// 2. List Crossplane Repository objects by label
-	// ------------------------------------------------
 	var list unstructured.UnstructuredList
 	list.SetGroupVersionKind(repositoryGVK)
 
@@ -76,9 +84,7 @@ func (r *Reconciler) Reconcile(
 		return ctrl.Result{}, err
 	}
 
-	// ------------------------------------------------
 	// 3. Derive domain result from observation
-	// ------------------------------------------------
 	var result domain.Result
 
 	if len(list.Items) == 0 {
@@ -102,9 +108,7 @@ func (r *Reconciler) Reconcile(
 		}
 	}
 
-	// ------------------------------------------------
 	// 4. Write status (conditions-based)
-	// ------------------------------------------------
 	return ctrl.Result{}, r.Status.Write(ctx, &repo, result, nil)
 }
 

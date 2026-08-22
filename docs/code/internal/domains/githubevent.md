@@ -42,7 +42,7 @@ func New(githubEventServiceIn *application.GitHubEventService, githubEventMediat
 New constructs a new GitHubEventDomain instance.
 
 <a name="GitHubEventDomain.CanCreate"></a>
-### func \(\*GitHubEventDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L203>)
+### func \(\*GitHubEventDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L189>)
 
 ```go
 func (d *GitHubEventDomain) CanCreate(obj client.Object) bool
@@ -51,7 +51,7 @@ func (d *GitHubEventDomain) CanCreate(obj client.Object) bool
 CanCreate reports whether the supplied object can be processed as a GitHubEvent create operation.
 
 <a name="GitHubEventDomain.CanDelete"></a>
-### func \(\*GitHubEventDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L225>)
+### func \(\*GitHubEventDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L211>)
 
 ```go
 func (d *GitHubEventDomain) CanDelete(obj client.Object) bool
@@ -60,7 +60,7 @@ func (d *GitHubEventDomain) CanDelete(obj client.Object) bool
 CanDelete reports whether the supplied object can be processed as a GitHubEvent delete operation.
 
 <a name="GitHubEventDomain.CanUpdate"></a>
-### func \(\*GitHubEventDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L210>)
+### func \(\*GitHubEventDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/githubevent/githubevent.go#L196>)
 
 ```go
 func (d *GitHubEventDomain) CanUpdate(oldObj, newObj client.Object) bool

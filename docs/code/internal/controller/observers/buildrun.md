@@ -6,6 +6,10 @@
 import "github.com/blanketops/environments-controller/internal/controller/observers/buildrun"
 ```
 
+Package buildrun observes Shipwright BuildRun objects and reflects their terminal Succeeded condition back onto the owning Build CR's status.
+
+This exists because the Build domain's own Ensure\(\) can only report that build infrastructure was successfully dispatched \(Triggered=true\) — it does not wait for the BuildRun to actually finish. This observer is the other half: it watches BuildRun directly \(not Build\), skips non\-terminal runs, resolves the owner via the build.blanketops.dev/name label, and writes the real success/failure outcome the Build CR's contract status needed all along.
+
 ## Index
 
 - [type Reconciler](<#Reconciler>)
@@ -14,7 +18,7 @@ import "github.com/blanketops/environments-controller/internal/controller/observ
 
 
 <a name="Reconciler"></a>
-## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/buildrun/buildrun.go#L40-L44>)
+## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/buildrun/buildrun.go#L52-L56>)
 
 Reconciler observes Shipwright BuildRun resources and feeds their terminal Succeeded condition back to the owning Build CR's contract status and conditions.
 
@@ -27,7 +31,7 @@ type Reconciler struct {
 ```
 
 <a name="Reconciler.Reconcile"></a>
-### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/buildrun/buildrun.go#L49>)
+### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/buildrun/buildrun.go#L61>)
 
 ```go
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -36,7 +40,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 Reconcile exits immediately for non\-terminal BuildRuns, resolves the owning Build via the build.blanketops.dev/name label, and writes the outcome to its status.
 
 <a name="Reconciler.SetupWithManager"></a>
-### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/buildrun/buildrun.go#L152>)
+### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/buildrun/buildrun.go#L164>)
 
 ```go
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error

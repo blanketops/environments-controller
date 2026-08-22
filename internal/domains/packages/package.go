@@ -99,9 +99,7 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd command.Command) error {
 	switch cmd.Type {
 	case command.CmdCreate, command.CmdUpdate:
 
-		// ------------------------------------------------
 		// Stage 0: Resolve package contract
-		// ------------------------------------------------
 		log.Info("resolving package contract")
 		resolved, err := pkgResolution.ResolvePackage(packageCR)
 		if err != nil {
@@ -111,9 +109,7 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd command.Command) error {
 			return err
 		}
 
-		// ------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		// ------------------------------------------------
 		if cerr := d.packageCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(packageCR, "PackageCacheFailed", cerr)
@@ -128,9 +124,7 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd command.Command) error {
 		d.events.Normal(packageCR, "PackageCached", "Package specification cached successfully")
 		conditions.SetCondition(&packageCR.Status.Conditions, "PackageCached", conditions.ConditionTrue, "PackageSpecCached", "Package specification cached successfully")
 
-		// ------------------------------------------------
 		// 2. Ensure prerequisites (secrets, repos, identity)
-		// ------------------------------------------------
 		log.Info("creating package prerequisites")
 		if err := d.packageMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "package prerequisites failed")
@@ -143,9 +137,7 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd command.Command) error {
 		d.events.Normal(packageCR, "PackagePrerequisitesCreated", "All package prerequisites created successfully")
 		conditions.SetCondition(&packageCR.Status.Conditions, "PackagePrerequisitesCreated", conditions.ConditionTrue, "PackagePrerequisitesReady", "All package prerequisites satisfied")
 
-		// ------------------------------------------------------------------
 		// 3. Build execution intent (INTENT ONLY)
-		// ------------------------------------------------------------------
 		log.Info("build package intent execution")
 		intent, err := pkgIntent.BuildPackageIntent(resolved)
 		if err != nil {
@@ -159,9 +151,7 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd command.Command) error {
 		d.events.Normal(packageCR, "PackageIntentBuildComplete", "Package intent built successfully")
 		conditions.SetCondition(&packageCR.Status.Conditions, "PackageIntentBuilt", conditions.ConditionTrue, "PackageBuildIntentReady", "Package intent build execution completed successfully")
 
-		// ----------------------------------------------------------------
 		// 4. Trigger execution (authoritative service)
-		// ----------------------------------------------------------------
 		log.Info("triggering package execution")
 		if err := d.packageService.Reconcile(ctx, resolved, intent); err != nil {
 			log.Error(err, "package triggering failed")
@@ -170,20 +160,16 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd command.Command) error {
 			return err
 		}
 
-		// -----------------------------------------------------------------
 		// 5. Execution requested (NOT completed)
-		// -----------------------------------------------------------------
 		conditions.SetCondition(&packageCR.Status.Conditions, "PackageTriggered", conditions.ConditionTrue, "ExecutionRequested", "Package execution has been requested")
 		d.events.Normal(packageCR, "PackageTriggered", "Package execution has been requested")
 
 	case command.CmdDelete:
-		// --------------------------------------------------------
 		// Real teardown, gated by finalizer at the controller level.
 		// Handle() must return nil ONLY if it is safe for the
 		// controller to remove the finalizer and let K8s finish
 		// deleting the object. Any error here keeps the finalizer
 		// in place and the controller will retry on next reconcile.
-		// --------------------------------------------------------
 		log.Info("package teardown requested")
 
 		resolved, err := pkgResolution.ResolvePackage(packageCR)
@@ -216,9 +202,7 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd command.Command) error {
 	return nil
 }
 
-// -----------------------------------------------------------------------------
 // Predicate hooks
-// -----------------------------------------------------------------------------
 
 // CanCreate reports whether the supplied object can be processed as a Build create operation.
 func (d *PackageDomain) CanCreate(obj client.Object) bool {

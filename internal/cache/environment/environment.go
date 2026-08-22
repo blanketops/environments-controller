@@ -18,7 +18,6 @@ limitations under the License.
 //
 // The cache itself, and the write path that populates it, live in the
 // external core library; this file owns only the constructor.
-
 package environment
 
 import (

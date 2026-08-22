@@ -54,7 +54,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 Reconcile is invoked by controller\-runtime for every Flux Kustomization event. It exits immediately for non\-terminal states, resolves the owning Deployment, maps the Flux condition to a domain phase, and writes the final status.
 
 <a name="Reconciler.SetupWithManager"></a>
-### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/deployment/deployment.go#L218>)
+### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/deployment/deployment.go#L202>)
 
 ```go
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error

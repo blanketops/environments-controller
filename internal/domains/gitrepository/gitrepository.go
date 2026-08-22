@@ -22,7 +22,6 @@ resource specifications into validated contracts, delegates
 processing to the application layer, and records reconciliation
 outcomes through conditions and events.
 */
-
 package gitrepository
 
 import (
@@ -98,9 +97,7 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd command.Command) e
 	switch cmd.Type {
 	case command.CmdCreate, command.CmdUpdate:
 
-		// --------------------------------------------------------------
 		// 0. Resolve GitRepository contract
-		// --------------------------------------------------------------
 		log.Info("resolving gitrepository contract")
 		resolved, err := gitrepoResolution.ResolveGitRepository(gitrepositoryCR)
 		if err != nil {
@@ -110,9 +107,7 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd command.Command) e
 			return err
 		}
 
-		// ------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		// ------------------------------------------------
 		if cerr := d.gitRepositoryCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(gitrepositoryCR, "GitRepositoryCacheFailed", cerr)
@@ -127,9 +122,7 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd command.Command) e
 		d.events.Normal(gitrepositoryCR, "GitRepositoryCached", "GitRepository specification cached successfully")
 		conditions.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryCached", conditions.ConditionTrue, "GitRepositorySpecCached", "GitRepository specification cached successfully")
 
-		// ------------------------------------------------
 		// 2. Ensure prerequisites (secrets, etc.)
-		// ------------------------------------------------
 		log.Info("creating gitrepository prerequisites")
 		if err := d.gitRepositoryMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "gitrepository prerequisites failed")
@@ -142,9 +135,7 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd command.Command) e
 		d.events.Normal(gitrepositoryCR, "GitRepositoryPrerequisitesReady", "all gitrepository prerequisites created successfully")
 		conditions.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryPrerequisitesReady", conditions.ConditionTrue, "GitRepositoryPrerequisitesReady", "All gitrepository prerequisites satisfied")
 
-		// ---------------------------------------------------------
 		// 3. Reconcile declarative intent (service)
-		// ---------------------------------------------------------
 		log.Info("triggering gitrepository execution")
 		if err := d.gitRepositoryService.Reconcile(ctx, resolved); err != nil {
 			log.Error(err, "gitrepository triggering failed")
@@ -153,22 +144,18 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd command.Command) e
 			return err
 		}
 
-		// ------------------------------------------------
 		// 4. GitRepository Execution
-		// ------------------------------------------------
 		log.Info("gitrepository run started")
 		d.events.Normal(gitrepositoryCR, "GitRepositoryRunStarted", "GitRepository run has started")
 		conditions.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryStart", conditions.ConditionTrue, "GitRepositoryRunStarted", "GitRepository run has started")
 		log.Info("gitrepository domain handling complete")
 
 	case command.CmdDelete:
-		// --------------------------------------------------------
 		// Real teardown, gated by finalizer at the controller level.
 		// Handle() must return nil ONLY if it is safe for the
 		// controller to remove the finalizer and let K8s finish
 		// deleting the object. Any error here keeps the finalizer
 		// in place and the controller will retry on next reconcile.
-		// --------------------------------------------------------
 		log.Info("gitrepository teardown requested")
 
 		resolved, err := gitrepoResolution.ResolveGitRepository(gitrepositoryCR)
@@ -202,9 +189,7 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd command.Command) e
 	return nil
 }
 
-// -----------------------------------------------------------------------------
 // Predicate hooks
-// -----------------------------------------------------------------------------
 
 // CanCreate reports whether the supplied object can be processed as a GitRepository create operation.
 func (d *GitRepositoryDomain) CanCreate(obj client.Object) bool {

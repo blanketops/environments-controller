@@ -73,9 +73,7 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
-	// ------------------------------------------------
 	// Fetch Package
-	// ------------------------------------------------
 	var packages packagev1alpha1.Package
 	if err := r.Get(ctx, req.NamespacedName, &packages); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -89,9 +87,7 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	log.Info("package fetched", "generation", packages.Generation, "resourceVersion", packages.ResourceVersion)
 
-	// ------------------------------------------------
 	// Construct core command
-	// ------------------------------------------------
 	cmd := command.Command{
 		GVK:  packagev1alpha1.GroupVersion.WithKind("Package"),
 		Type: command.CmdUpdate,
@@ -100,9 +96,7 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	log.Info("routing package to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
-	// ------------------------------------------------
 	// Execute domain logic via engine
-	// ------------------------------------------------
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 
 		log.Error(err, "engine execution failed")
@@ -114,9 +108,7 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	log.Info("engine execution completed")
 
-	// ------------------------------------------------
 	// Persist status (retry-on-conflict)
-	// ------------------------------------------------
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest packagev1alpha1.Package
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -137,54 +129,36 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
-// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
-// -----------------------------------------------------------------
 func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// ---------------------------------------------------------------------
 	// Logging & events
-	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("Package")
 	r.Recorder = mgr.GetEventRecorder("package-controller")
 
-	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
 	eventsRecorder := r.Runtime.Events
 	registry := r.Runtime.Registry
 
-	// ---------------------------------------------------------------------
 	// Mediator (prerequisites only)
-	// ---------------------------------------------------------------------
 	r.PackageMediator = pkgMediator.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.package"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// Providers (kapp)
-	// ---------------------------------------------------------------------
 	kappProvider := pkgProvider.NewApplicationProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.kapp"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
-	// ---------------------------------------------------------------------
 	backendSelector := pkgApp.NewBackendSelector(kappProvider)
 
-	// -----------------------------------------------------------------------------------------
 	// Package Service (Mapper and StatiusWriter, domain service for orchestration))
-	// ------------------------------------------------------------------------------------------
 	mapper := pkgApp.NewMapper()
 	statusWriter := pkgApp.NewStatusWriter(r.Client, r.Log.WithName("package-status-writer"))
 	packageService := pkgApp.NewPackageService(mapper, backendSelector, statusWriter)
 
-	// --------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
-	// --------------------------------------------------------------------------------
 	pkgDomainInst := pkgDomain.New(r.PackageMediator, packageService, cache, eventsRecorder, r.Log.WithName("domain.package"))
 	registry.RegisterDomain(packagev1alpha1.GroupVersion.WithKind("Package"), pkgDomainInst)
 
-	// ---------------------------------------------------------------------
 	// Controller registration
-	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&packagev1alpha1.Package{}).
 		Named("environments-package").

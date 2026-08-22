@@ -88,9 +88,7 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd command.Command) err
 
 	log.Info("handling serviceunit command", "type", cmd.Type)
 
-	// ------------------------------------------------
 	// Stage 1: Resolve contract
-	// ------------------------------------------------
 
 	log.Info("resolving serviceunit contract")
 
@@ -108,9 +106,7 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd command.Command) err
 	d.events.Normal(su, "ServiceUnitResolved", "ServiceUnit specification resolved successfully")
 	conditions.SetCondition(&su.Status.Conditions, "ServiceUnitResolved", conditions.ConditionTrue, "Resolved", "ServiceUnit specification resolved successfully")
 
-	// ------------------------------------------------
 	// Stage 2: Ensure prerequisites
-	// ------------------------------------------------
 
 	log.Info("ensuring serviceunit prerequisites")
 
@@ -127,9 +123,7 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd command.Command) err
 	d.events.Normal(su, "ServiceUnitPrerequisitesReady", "All ServiceUnit prerequisites created successfully")
 	conditions.SetCondition(&su.Status.Conditions, "ServiceUnitPrerequisitesReady", conditions.ConditionTrue, "PrerequisitesReady", "All prerequisites created successfully")
 
-	// ------------------------------------------------
 	// Stage 3: Execute intent
-	// ------------------------------------------------
 
 	// log.Info("reconciling serviceunit workload")
 

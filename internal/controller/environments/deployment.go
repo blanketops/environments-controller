@@ -95,9 +95,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
-	// ------------------------------------------------
 	// Fetch Deployment
-	// ------------------------------------------------
 	var deploymentCR environmentsv1alpha1.Deployment
 	if err := r.Get(ctx, req.NamespacedName, &deploymentCR); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -110,9 +108,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	log.Info("deployment fetched", "generation", deploymentCR.Generation, "resourceVersion", deploymentCR.ResourceVersion)
-	// ------------------------------------------------
 	// Finalizer gate — determines cmd.Type
-	// ------------------------------------------------
 	cmdType := command.CmdUpdate
 	if !deploymentCR.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(&deploymentCR, deploymentFinalizer) {
@@ -130,9 +126,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
-	// ------------------------------------------------
 	// Construct core command
-	// ------------------------------------------------
 
 	cmd := command.Command{
 		GVK:  environmentsv1alpha1.GroupVersion.WithKind("Deployment"),
@@ -142,9 +136,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	log.Info("routing deployment to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
-	// ------------------------------------------------
 	// Execute domain logic via engine
-	// ------------------------------------------------
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 		log.Error(err, "engine execution failed")
 		r.Recorder.Eventf(&deploymentCR, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
@@ -154,12 +146,10 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	log.Info("engine execution completed")
 
-	// ------------------------------------------------
 	// Deletion path: remove finalizer now that the engine returned nil.
 	// Status is intentionally NOT written here — the object is about to be
 	// removed, and racing a status update against finalizer removal serves
 	// no purpose.
-	// ------------------------------------------------
 	if cmdType == command.CmdDelete {
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			var latest environmentsv1alpha1.Deployment
@@ -175,9 +165,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		log.Info("finalizer removed, deletion will proceed")
 		return ctrl.Result{}, nil
 	}
-	// ------------------------------------------------
 	// Persist status (retry-on-conflict) — create/update path only
-	// ------------------------------------------------
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest environmentsv1alpha1.Deployment
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -196,31 +184,21 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{}, nil
 }
 
-// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
-// -----------------------------------------------------------------
 func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// ---------------------------------------------------------------------
 	// Logging & events
-	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("Deployment")
 	r.Recorder = mgr.GetEventRecorder("deployment-controller")
 
-	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
 	eventsRecorder := r.Runtime.Events
 	registry := r.Runtime.Registry
 
-	// ---------------------------------------------------------------------
 	// Mediator (infra / prerequisites only)
-	// ---------------------------------------------------------------------
 	r.DeploymentMediator = deployment.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.deployment"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// Providers (runtime backends)
-	// ---------------------------------------------------------------------
 	// kubernetesBackend := api.NewK8SProvider(
 	// 	mgr.GetClient(),
 	// 	mgr.GetScheme(),
@@ -233,37 +211,25 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// ecsBackend := application.NewECSBackend(...)
 	// fluxBackend := application.NewFluxBackend(...)
 
-	// ---------------------------------------------------------------------
 	// Runtime Provider (imperative backends)
-	// ---------------------------------------------------------------------
 	runtimeProvider := strategy.NewRuntimeProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("runtime"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// GitOps Reconciler (Flux integration layer)
-	// ---------------------------------------------------------------------
 	kustomizer := api.NewKustomizeStrategyProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("reconciliation.kustomize"))
 
-	// ---------------------------------------------------------------------
 	// Reconciliation Executor (delivery axis)
-	// ---------------------------------------------------------------------
 	reconciliationExecutor := reconcile.NewReconciliationExecutor(runtimeProvider, kustomizer, r.Log.WithName("reconciliation"))
 
-	// ---------------------------------------------------------------------
 	// Service Layer
-	// ---------------------------------------------------------------------
 	intentBuilder := deploymentintent.NewIntentBuilder()
 	statusWriter := application.NewStatusWriter(mgr.GetClient(), r.Log.WithName("deployment.status-writer"))
 	r.DeploymentService = application.NewDeploymentService(intentBuilder, statusWriter, reconciliationExecutor, ctrl.Log)
 
-	// ---------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
-	// ---------------------------------------------------------------------
 	deployDomain := deploydomain.New(r.DeploymentMediator, r.DeploymentService, cache, r.reader, eventsRecorder, r.Log.WithName("domain.deployment"))
 	registry.RegisterDomain(environmentsv1alpha1.SchemeBuilder.GroupVersion.WithKind("Deployment"), deployDomain)
 
-	// ---------------------------------------------------------------------
 	// Controller registration
-	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&environmentsv1alpha1.Deployment{}).
 		Named("environments-deployment").

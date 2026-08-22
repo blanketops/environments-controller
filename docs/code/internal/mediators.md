@@ -6,6 +6,10 @@
 import "github.com/blanketops/environments-controller/internal/mediators"
 ```
 
+Package environment provides two standalone helpers other mediators use to interact with the Environment CR that roots their delivery chain: EnsureEnvironment \(find\-or\-create the Environment named by an object's environments.blanketops.dev/\{name,type\} labels\) and PatchEnvironmentAggregate \(resolve the Environment's contract, apply a caller\-supplied mutation, and re\-encode it back onto the CR\).
+
+Unlike the per\-CR mediators under this same internal/mediators tree, this package owns no Mediator type of its own — every other mediator's EnsurePrerequisites calls into these functions directly when it needs to read or update the shared Environment the delivery chain hangs off of.
+
 ## Index
 
 - [func EnsureEnvironment\(ctx context.Context, c client.Client, obj client.Object, contract runtime.RawExtension\) \(\*env1alpha1.Environment, error\)](<#EnsureEnvironment>)
@@ -13,7 +17,7 @@ import "github.com/blanketops/environments-controller/internal/mediators"
 
 
 <a name="EnsureEnvironment"></a>
-## func [EnsureEnvironment](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/environment.go#L34-L39>)
+## func [EnsureEnvironment](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/environment.go#L47-L52>)
 
 ```go
 func EnsureEnvironment(ctx context.Context, c client.Client, obj client.Object, contract runtime.RawExtension) (*env1alpha1.Environment, error)
@@ -22,7 +26,7 @@ func EnsureEnvironment(ctx context.Context, c client.Client, obj client.Object, 
 EnsureEnvironment fetches the Environment named by obj's environments.blanketops.dev/\{name,type\} labels, creating it with the given contract if it doesn't exist yet. Returns \(nil, nil\) if obj carries neither label — it isn't environment\-scoped.
 
 <a name="PatchEnvironmentAggregate"></a>
-## func [PatchEnvironmentAggregate](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/environment.go#L83-L88>)
+## func [PatchEnvironmentAggregate](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/environment.go#L96-L101>)
 
 ```go
 func PatchEnvironmentAggregate(ctx context.Context, c client.Client, env *env1alpha1.Environment, patchFn func(*environmentResolution.ResolvedEnvironmentSpec)) error
