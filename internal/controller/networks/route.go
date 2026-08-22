@@ -37,9 +37,11 @@ import (
 
 	networksv1alpha1 "github.com/blanketops/environments-api/api/networks/v1alpha1"
 	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/predicates"
+	routeapi "github.com/blanketops/environments/pkg/apis/route/api"
+	routeapp "github.com/blanketops/environments/pkg/apis/route/application"
 	"github.com/go-logr/logr"
 
-	// routeapp "github.com/blanketops/environments/pkg/apis/route/application"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
@@ -48,7 +50,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	// routedomain "github.com/blanketops/environments-controller/internal/domains/route"
+	routedomain "github.com/blanketops/environments-controller/internal/domains/route"
 	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
@@ -61,11 +63,11 @@ const routeFinalizer = "networks.blanketops.dev/route-finalizer"
 // it to the route application service.
 type RouteReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
-	//	RouteService *routeapp.RouteService
-	Runtime  *runtimeinfra.Runtime
-	Recorder events.EventRecorder
+	Log          logr.Logger
+	Scheme       *runtime.Scheme
+	RouteService *routeapp.RouteService
+	Runtime      *runtimeinfra.Runtime
+	Recorder     events.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=networks.blanketops.dev,resources=routes,verbs=get;list;watch;create;update;patch;delete
@@ -184,20 +186,28 @@ func (r *RouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = mgr.GetEventRecorder("route-controller")
 
 	// Runtime Infrastructure
-	// cache := r.Runtime.Cache
-	// eventsRecorder := r.Runtime.Events
-	// registry := r.Runtime.Registry
+	cache := r.Runtime.Cache
+	eventsRecorder := r.Runtime.Events
+	registry := r.Runtime.Registry
 
-	// Build Service (Mapper and StatiusWriter, domain service for orchestration))
-	// mapper := routeapp.NewMapper()
-	// statusWriter := routeapp.NewStatusWriter(r.Client, r.Log.WithName("route-status-writer"))
-	// r.RouteService = routeapp.NewRouteService(mapper, statusWriter, backendSelector)
+	// Providers (runtime backends). Route has no cross-cutting prerequisites
+	// (no mediator) — RouteService dispatches to these directly.
+	knativeBackend := routeapi.NewKnativeProvider(mgr.GetClient(), r.Log.WithName("backend.knative"))
+	ingressBackend := routeapi.NewIngressProvider(mgr.GetClient(), r.Log.WithName("backend.ingress"))
+	backendSelector := routeapp.NewBackendSelector(knativeBackend, ingressBackend)
 
-	// Registry ( Domain Registration, domain orchestrates mediator + service)
-	// routeDomain := routedomain.New(r.BuildMediator, r.BuildService, cache, eventsRecorder, r.Log.WithName("domain.route"))
-	// registry.RegisterDomain(networksv1alpha1.GroupVersion.WithKind("Route"), routeDomain)
+	// Service Layer (Mapper and StatusWriter, domain service for orchestration)
+	mapper := routeapp.NewMapper()
+	statusWriter := routeapp.NewStatusWriter(mgr.GetClient(), r.Log.WithName("route-status-writer"))
+	r.RouteService = routeapp.NewRouteService(mapper, statusWriter, backendSelector)
+
+	// Registry (Domain Registration, domain orchestrates service + cache)
+	routeDomain := routedomain.New(r.RouteService, cache, eventsRecorder, r.Log.WithName("domain.route"))
+	registry.RegisterDomain(networksv1alpha1.GroupVersion.WithKind("Route"), routeDomain)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&networksv1alpha1.Route{}).
+		Named("networks-route").
+		WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Complete(r)
 }
