@@ -1,3 +1,30 @@
+## [0.5.0] - 2026-08-22
+
+### 🚀 Features
+
+- Wire Route CR through the CQRS engine
+
+### 🐛 Bug Fixes
+
+- Call DeploymentService.Teardown on Deployment CmdDelete
+- Goconst lint failure -- extract su-sample to a constant
+
+### 💼 Other
+
+- Merge release/v0.5.0 into main
+
+### 📚 Documentation
+
+- Auto-generate code documentation [skip ci]
+- Fill in missing GoDoc comments, regenerate docs/code
+- Fix code-docs gaps and strip banner-style comment dividers
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.4.3
+- Sync develop with main after release/v0.4.3
+- Bump environments to v0.7.9
+- Bump environments to v0.8.0
 ## [0.4.3] - 2026-08-20
 
 ### 🐛 Bug Fixes
