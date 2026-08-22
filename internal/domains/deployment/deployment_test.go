@@ -20,7 +20,14 @@ import (
 	environmentv1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	corecache "github.com/blanketops/environments/core/cache"
 	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/pkg/apis/deployment/api"
+	deployapp "github.com/blanketops/environments/pkg/apis/deployment/application"
+	"github.com/blanketops/environments/pkg/apis/deployment/reconcile"
+	"github.com/blanketops/environments/pkg/apis/deployment/strategy"
+	intent "github.com/blanketops/environments/pkg/intent/deployment"
 	"github.com/go-logr/logr"
+	appsv1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -291,5 +298,68 @@ func TestDeployDomain_Handle_Delete_Succeeds(t *testing.T) {
 	}
 	if status, ok := conditionStatus(depl.Status.Conditions, "DeploymentDeleted"); !ok || status != metav1.ConditionTrue {
 		t.Errorf("DeploymentDeleted condition = (%v, found=%v), want (True, true)", status, ok)
+	}
+}
+
+// newTestDomainWithDeployService wires a real deployService (unlike
+// newTestDomain, which deliberately omits it) so CmdDelete's
+// deployService.Teardown call actually runs, not just its nil-guard.
+func newTestDomainWithDeployService(t *testing.T, objs ...client.Object) *DeployDomain {
+	t.Helper()
+	c := testsupport.NewFakeClient(objs...)
+	scheme := testsupport.NewScheme()
+	log := logr.Discard()
+
+	med := deploymentmediator.New(c, scheme, log, testsupport.NoopRawRecorder())
+	cache := &corecache.Cache{External: corecache.NoopExternalCache{}}
+
+	svc := deployapp.NewDeploymentService(
+		intent.NewIntentBuilder(),
+		deployapp.NewStatusWriter(c, log),
+		reconcile.NewReconciliationExecutor(
+			strategy.NewRuntimeProvider(c, scheme, log, nil),
+			api.NewKustomizeStrategyProvider(c, scheme, log),
+			log,
+		),
+		log,
+	)
+
+	return New(med, svc, cache, c, testsupport.NoopRecorder(), log)
+}
+
+// TestDeployDomain_Handle_Delete_TeardownRemovesReconciledObjects is a
+// regression test for deployService.Teardown never being called on
+// CmdDelete at all (environments PR #309) -- with deployService nil (this
+// file's other tests), the gap was invisible since the nil-guard skipped it
+// silently. Reconciles first with a real deployService wired (imperative
+// runtime, since validDeploymentContract's fixture has no manifestsRepo),
+// confirms the Deployment/Service objects exist, then deletes and verifies
+// Teardown actually removed them.
+func TestDeployDomain_Handle_Delete_TeardownRemovesReconciledObjects(t *testing.T) {
+	env := newEnvironment()
+	su := newServiceUnit("su-sample")
+	depl := newDeploymentCR(validDeploymentContract("su-sample"))
+	d := newTestDomainWithDeployService(t, env, su, depl)
+	ctx := context.Background()
+
+	if err := d.Handle(ctx, command.Command{Type: command.CmdCreate, Obj: depl}); err != nil {
+		t.Fatalf("Handle() create = %v, want nil", err)
+	}
+
+	var gotDeploy appsv1.Deployment
+	if err := d.reader.Get(ctx, client.ObjectKey{Name: "su-sample", Namespace: testNamespace}, &gotDeploy); err != nil {
+		t.Fatalf("expected the setup create to have applied a Deployment: %v", err)
+	}
+
+	if err := d.Handle(ctx, command.Command{Type: command.CmdDelete, Obj: depl}); err != nil {
+		t.Fatalf("Handle() delete = %v, want nil", err)
+	}
+	if status, ok := conditionStatus(depl.Status.Conditions, "DeploymentDeleted"); !ok || status != metav1.ConditionTrue {
+		t.Errorf("DeploymentDeleted condition = (%v, found=%v), want (True, true)", status, ok)
+	}
+
+	err := d.reader.Get(ctx, client.ObjectKey{Name: "su-sample", Namespace: testNamespace}, &appsv1.Deployment{})
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected Teardown to have deleted the Deployment su-sample created, got err = %v", err)
 	}
 }
