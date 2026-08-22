@@ -41,6 +41,7 @@ const testAppName = "app-sample"
 const (
 	testNamespace        = "default"
 	labelEnvironmentName = "environments.blanketops.dev/name"
+	testServiceUnitName  = "su-sample"
 )
 
 func newEnvironment() *environmentv1.Environment {
@@ -83,7 +84,7 @@ func newDeploymentCR(contract map[string]any) *environmentv1.Deployment {
 
 func validDeploymentContract(serviceUnits ...string) map[string]any {
 	if len(serviceUnits) == 0 {
-		serviceUnits = []string{"su-sample"}
+		serviceUnits = []string{testServiceUnitName}
 	}
 	units := make([]any, 0, len(serviceUnits))
 	for _, s := range serviceUnits {
@@ -259,8 +260,8 @@ func TestDeployDomain_Handle_Create_ServiceUnitMissing(t *testing.T) {
 
 func TestDeployDomain_Handle_Create_Succeeds(t *testing.T) {
 	env := newEnvironment()
-	su := newServiceUnit("su-sample")
-	depl := newDeploymentCR(validDeploymentContract("su-sample"))
+	su := newServiceUnit(testServiceUnitName)
+	depl := newDeploymentCR(validDeploymentContract(testServiceUnitName))
 	d := newTestDomain(t, env, su, depl)
 
 	if err := d.Handle(context.Background(), command.Command{Type: command.CmdCreate, Obj: depl}); err != nil {
@@ -337,8 +338,8 @@ func newTestDomainWithDeployService(t *testing.T, objs ...client.Object) *Deploy
 // Teardown actually removed them.
 func TestDeployDomain_Handle_Delete_TeardownRemovesReconciledObjects(t *testing.T) {
 	env := newEnvironment()
-	su := newServiceUnit("su-sample")
-	depl := newDeploymentCR(validDeploymentContract("su-sample"))
+	su := newServiceUnit(testServiceUnitName)
+	depl := newDeploymentCR(validDeploymentContract(testServiceUnitName))
 	d := newTestDomainWithDeployService(t, env, su, depl)
 	ctx := context.Background()
 
@@ -347,7 +348,7 @@ func TestDeployDomain_Handle_Delete_TeardownRemovesReconciledObjects(t *testing.
 	}
 
 	var gotDeploy appsv1.Deployment
-	if err := d.reader.Get(ctx, client.ObjectKey{Name: "su-sample", Namespace: testNamespace}, &gotDeploy); err != nil {
+	if err := d.reader.Get(ctx, client.ObjectKey{Name: testServiceUnitName, Namespace: testNamespace}, &gotDeploy); err != nil {
 		t.Fatalf("expected the setup create to have applied a Deployment: %v", err)
 	}
 
@@ -358,7 +359,7 @@ func TestDeployDomain_Handle_Delete_TeardownRemovesReconciledObjects(t *testing.
 		t.Errorf("DeploymentDeleted condition = (%v, found=%v), want (True, true)", status, ok)
 	}
 
-	err := d.reader.Get(ctx, client.ObjectKey{Name: "su-sample", Namespace: testNamespace}, &appsv1.Deployment{})
+	err := d.reader.Get(ctx, client.ObjectKey{Name: testServiceUnitName, Namespace: testNamespace}, &appsv1.Deployment{})
 	if !apierrors.IsNotFound(err) {
 		t.Fatalf("expected Teardown to have deleted the Deployment su-sample created, got err = %v", err)
 	}
