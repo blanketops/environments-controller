@@ -1,3 +1,23 @@
+## [0.6.0] - 2026-08-22
+
+### 🚀 Features
+
+- Wire Domain CR through the CQRS engine
+
+### 🐛 Bug Fixes
+
+- Regenerate docs synchronously in Finalize Release
+
+### 💼 Other
+
+- Merge release/v0.6.0 into main
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.5.0
+- *(release)* Update changelog for v0.5.0
+- Sync develop with main after v0.5.0 changelog update
+- Bump environments to v0.8.1
 ## [0.5.0] - 2026-08-22
 
 ### 🚀 Features
