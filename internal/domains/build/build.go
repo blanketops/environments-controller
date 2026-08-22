@@ -22,7 +22,6 @@ resource specifications into validated contracts, delegates
 processing to the application layer, and records reconciliation
 outcomes through conditions and events.
 */
-
 package build
 
 import (
@@ -98,9 +97,7 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd command.Command) error {
 	switch cmd.Type {
 	case command.CmdCreate, command.CmdUpdate:
 
-		// ------------------------------------------------
 		// Stage 0: Resolve Build contract
-		// ------------------------------------------------
 		log.Info("resolving build contract")
 		resolved, err := buildResolution.ResolveBuild(buildCR)
 		if err != nil {
@@ -110,9 +107,7 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd command.Command) error {
 			return err
 		}
 
-		// ------------------------------------------------------------------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		// ------------------------------------------------------------------------------------------------------------
 		if cerr := d.buildCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(buildCR, "BuildCacheFailed", cerr)
@@ -127,9 +122,7 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd command.Command) error {
 		d.events.Normal(buildCR, "BuildCache", "Build specification cached successfully")
 		conditions.SetCondition(&buildCR.Status.Conditions, "BuildCached", conditions.ConditionTrue, "BuildSpecCached", "Build specification cached successfully")
 
-		// ------------------------------------------------
 		// Stage 2: Ensure prerequisites
-		// ------------------------------------------------
 		log.Info("creating build prerequisites")
 		if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "build prerequisites failed")
@@ -142,9 +135,7 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd command.Command) error {
 		d.events.Normal(buildCR, "BuildPrerequisitesCreate", "All build prerequisites created successfully")
 		conditions.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreated", conditions.ConditionTrue, "BuildPrerequisitesReady", "All build prerequisites satisfied")
 
-		// ------------------------------------------------
 		// Stage 3: Start build (intent only)
-		// ------------------------------------------------
 		log.Info("starting build run")
 		if err := d.buildService.Reconcile(ctx, resolved); err != nil {
 			log.Error(err, "build run failed")
@@ -153,22 +144,18 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd command.Command) error {
 			return err
 		}
 
-		// ------------------------------------------------
 		// 4. Build Execution started
-		// ------------------------------------------------
 		log.Info("build run started")
 		d.events.Normal(buildCR, "BuildRunStarted", "Build run has started")
 		conditions.SetCondition(&buildCR.Status.Conditions, "BuildStart", conditions.ConditionTrue, "BuildRunStarted", "Build run has started")
 		log.Info("build domain handling complete")
 
 	case command.CmdDelete:
-		// --------------------------------------------------------
 		// Real teardown, gated by finalizer at the controller level.
 		// Handle() must return nil ONLY if it is safe for the
 		// controller to remove the finalizer and let K8s finish
 		// deleting the object. Any error here keeps the finalizer
 		// in place and the controller will retry on next reconcile.
-		// --------------------------------------------------------
 		log.Info("build teardown requested")
 
 		resolved, err := buildResolution.ResolveBuild(buildCR)
@@ -201,9 +188,7 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd command.Command) error {
 	return nil
 }
 
-// -----------------------------------------------------------------------------
 // Predicate hooks
-// -----------------------------------------------------------------------------
 
 // CanCreate reports whether the supplied object can be processed as a Build create operation.
 func (d *BuildDomain) CanCreate(obj client.Object) bool {

@@ -55,16 +55,12 @@ func (m *Mediator) ensureManifestsRepo(
 	localPath := filepath.Join(os.TempDir(), repo)
 	branch := "main"
 	fmt.Printf("[bootstrap] starting manifests bootstrap for %s/%s\n", owner, repo)
-	// ------------------------------------------------
 	// 1. Ensure remote private repo exists
-	// ------------------------------------------------
 	if err := ensureGitHubRepoPrivate(owner, repo, token); err != nil {
 		return fmt.Errorf("ensure remote repo: %w", err)
 	}
-	// ------------------------------------------------
 	// 2. Ensure deploy key is registered on GitHub
 	//    MUST happen before any git operation
-	// ------------------------------------------------
 	publicKey, err := m.extractPublicKey(ctx, resolved)
 	if err != nil {
 		return fmt.Errorf("extract public key: %w", err)
@@ -72,9 +68,7 @@ func (m *Mediator) ensureManifestsRepo(
 	if err := ensureDeployKey(owner, repo, publicKey, token); err != nil {
 		return fmt.Errorf("ensure deploy key: %w", err)
 	}
-	// ------------------------------------------------
 	// 3. Write ephemeral SSH key to disk for git ops
-	// ------------------------------------------------
 	sshKeyPath, cleanup, err := m.writeSSHKeyToDisk(ctx, resolved)
 	if err != nil {
 		return fmt.Errorf("write ssh key: %w", err)
@@ -84,9 +78,7 @@ func (m *Mediator) ensureManifestsRepo(
 		`ssh -i %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null`,
 		sshKeyPath,
 	)
-	// ------------------------------------------------
 	// 4. Clone or initialize local repo
-	// ------------------------------------------------
 	gitDir := filepath.Join(localPath, ".git")
 	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
 		fmt.Printf("[bootstrap] cloning remote repo %s -> %s\n", sshURL, localPath)
@@ -132,9 +124,7 @@ func (m *Mediator) ensureManifestsRepo(
 			return err
 		}
 	}
-	// ------------------------------------------------
 	// 5. README
-	// ------------------------------------------------
 	readme := filepath.Join(localPath, "README.md")
 	if _, err := os.Stat(readme); os.IsNotExist(err) {
 		readmeContent := fmt.Sprintf("# %s\n\nManaged by BlanketOps.\n", repo)
@@ -142,9 +132,7 @@ func (m *Mediator) ensureManifestsRepo(
 			return fmt.Errorf("write README.md: %w", err)
 		}
 	}
-	// ------------------------------------------------
 	// 6. Ensure base + overlays
-	// ------------------------------------------------
 	basePath := filepath.Join(localPath, "base", "manifests")
 	if err := os.MkdirAll(basePath, 0755); err != nil {
 		return fmt.Errorf("mkdir base failed: %w", err)
@@ -180,9 +168,7 @@ func (m *Mediator) ensureManifestsRepo(
 			}
 		}
 	}
-	// ------------------------------------------------
 	// 7. Commit & push
-	// ------------------------------------------------
 	_, err = utils.RunGit(localPath, "add", ".")
 	if err != nil {
 		return err
@@ -234,15 +220,11 @@ func (m *Mediator) teardownManifestsRepo(resolved *deploymentResolution.Resolved
 	repo := fmt.Sprintf("%s-manifests", deploy.Name)
 	localPath := filepath.Join(os.TempDir(), repo)
 	fmt.Printf("[teardown] removing manifests repo %s/%s\n", owner, repo)
-	// ------------------------------------------------
 	// 1. Delete remote repository
-	// ------------------------------------------------
 	if err := deleteGitHubRepo(owner, repo, token); err != nil {
 		return fmt.Errorf("delete remote repo: %w", err)
 	}
-	// ------------------------------------------------
 	// 2. Remove local working clone
-	// ------------------------------------------------
 	if err := os.RemoveAll(localPath); err != nil {
 		return fmt.Errorf("remove local clone: %w", err)
 	}

@@ -42,7 +42,7 @@ func New(packageMediator *pkgMediator.Mediator, packageService *pkgApplication.P
 New returns a new PackageDomain instance configured with the necessary dependencies.
 
 <a name="PackageDomain.CanCreate"></a>
-### func \(\*PackageDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L224>)
+### func \(\*PackageDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L208>)
 
 ```go
 func (d *PackageDomain) CanCreate(obj client.Object) bool
@@ -51,7 +51,7 @@ func (d *PackageDomain) CanCreate(obj client.Object) bool
 CanCreate reports whether the supplied object can be processed as a Build create operation.
 
 <a name="PackageDomain.CanDelete"></a>
-### func \(\*PackageDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L246>)
+### func \(\*PackageDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L230>)
 
 ```go
 func (d *PackageDomain) CanDelete(obj client.Object) bool
@@ -60,7 +60,7 @@ func (d *PackageDomain) CanDelete(obj client.Object) bool
 CanDelete reports whether the supplied object can be processed as a Package delete operation.
 
 <a name="PackageDomain.CanUpdate"></a>
-### func \(\*PackageDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L231>)
+### func \(\*PackageDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/packages/package.go#L215>)
 
 ```go
 func (d *PackageDomain) CanUpdate(oldObj, newObj client.Object) bool

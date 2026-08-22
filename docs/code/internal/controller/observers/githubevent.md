@@ -6,6 +6,10 @@
 import "github.com/blanketops/environments-controller/internal/controller/observers/githubevent"
 ```
 
+Package githubevent observes GitHubEvent CRs and the Argo Events Sensor provisioned for each, deriving and writing the event's accepted/triggered/ success status and conditions.
+
+The GitHubEvent domain's Ensure\(\) can only report that ingress infrastructure was provisioned \(Triggered=true\) — whether a webhook payload has actually arrived, and whether the Sensor delivered it successfully, can only be known by watching the CR \(for a populated spec.contract.eventId/eventType\) and the Sensor's own Succeeded condition directly, which is this observer's job.
+
 ## Index
 
 - [type Reconciler](<#Reconciler>)
@@ -14,7 +18,7 @@ import "github.com/blanketops/environments-controller/internal/controller/observ
 
 
 <a name="Reconciler"></a>
-## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/githubevent/githubevent.go#L47-L51>)
+## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/githubevent/githubevent.go#L59-L63>)
 
 Reconciler observes GitHubEvent CRs and the Argo Events Sensor created for each, deriving and writing the event's accepted/triggered/success status and conditions.
 
@@ -27,7 +31,7 @@ type Reconciler struct {
 ```
 
 <a name="Reconciler.Reconcile"></a>
-### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/githubevent/githubevent.go#L56>)
+### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/githubevent/githubevent.go#L68>)
 
 ```go
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -36,7 +40,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 Reconcile resolves the GitHubEvent's contract, checks whether a payload has been received and whether its Sensor reports success, and writes the resulting status via buildContractAndConditions.
 
 <a name="Reconciler.SetupWithManager"></a>
-### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/githubevent/githubevent.go#L182>)
+### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/githubevent/githubevent.go#L194>)
 
 ```go
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error

@@ -91,9 +91,7 @@ func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	log.Info("reconcile start")
 
-	// ------------------------------------------------
 	// Fetch Route
-	// ------------------------------------------------
 	var routeCR networksv1alpha1.Route
 	if err := r.Get(ctx, req.NamespacedName, &routeCR); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -105,9 +103,7 @@ func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 	log.Info("route fetched", "generation", routeCR.Generation, "resourceVersion", routeCR.ResourceVersion)
 
-	// ------------------------------------------------
 	// Finalizer gate — determines cmd.Type
-	// ------------------------------------------------
 	cmdType := command.CmdUpdate
 	if !routeCR.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(&routeCR, routeFinalizer) {
@@ -125,9 +121,7 @@ func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
-	// -------------------------------------------------
 	// Construct core command
-	// -------------------------------------------------
 	cmd := command.Command{
 		GVK:  networksv1alpha1.GroupVersion.WithKind("Route"),
 		Type: cmdType,
@@ -136,9 +130,7 @@ func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	log.Info("routing route to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
-	// ------------------------------------------------
 	// Execute domain logic via engine
-	// ------------------------------------------------
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 		log.Error(err, "engine execution failed")
 		r.Recorder.Eventf(&routeCR, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
@@ -147,12 +139,10 @@ func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	log.Info("engine execution completed")
-	// ------------------------------------------------
 	// Deletion path: remove finalizer now that the engine returned nil.
 	// Status is intentionally NOT written here — the object is about to be
 	// removed, and racing a status update against finalizer removal serves
 	// no purpose.
-	// ------------------------------------------------
 	if cmdType == command.CmdDelete {
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			var latest networksv1alpha1.Route
@@ -168,9 +158,7 @@ func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		log.Info("finalizer removed, deletion will proceed")
 		return ctrl.Result{}, nil
 	}
-	// ------------------------------------------------
 	// Persist status (retry-on-conflict) — create/update path only
-	// ------------------------------------------------
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest networksv1alpha1.Route
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -189,33 +177,23 @@ func (r *RouteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	return ctrl.Result{}, nil
 }
 
-// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
-// -----------------------------------------------------------------
 func (r *RouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// ---------------------------------------------------------------------
 	// Logging & events
-	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("Route")
 	r.Recorder = mgr.GetEventRecorder("route-controller")
 
-	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	// ---------------------------------------------------------------------
 	// cache := r.Runtime.Cache
 	// eventsRecorder := r.Runtime.Events
 	// registry := r.Runtime.Registry
 
-	// -----------------------------------------------------------------------------------------
 	// Build Service (Mapper and StatiusWriter, domain service for orchestration))
-	// ------------------------------------------------------------------------------------------
 	// mapper := routeapp.NewMapper()
 	// statusWriter := routeapp.NewStatusWriter(r.Client, r.Log.WithName("route-status-writer"))
 	// r.RouteService = routeapp.NewRouteService(mapper, statusWriter, backendSelector)
 
-	// --------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
-	// --------------------------------------------------------------------------------
 	// routeDomain := routedomain.New(r.BuildMediator, r.BuildService, cache, eventsRecorder, r.Log.WithName("domain.route"))
 	// registry.RegisterDomain(networksv1alpha1.GroupVersion.WithKind("Route"), routeDomain)
 

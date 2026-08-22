@@ -91,9 +91,7 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	log.Info("reconcile start")
 
-	// ------------------------------------------------
 	// Fetch Build
-	// ------------------------------------------------
 	var buildCR environmentsv1alpha1.Build
 	if err := r.Get(ctx, req.NamespacedName, &buildCR); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -106,9 +104,7 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	log.Info("build fetched", "generation", buildCR.Generation, "resourceVersion", buildCR.ResourceVersion)
 
-	// ------------------------------------------------
 	// Finalizer gate — determines cmd.Type
-	// ------------------------------------------------
 	cmdType := command.CmdUpdate
 	if !buildCR.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(&buildCR, buildFinalizer) {
@@ -126,9 +122,7 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
-	// -------------------------------------------------
 	// Construct core command
-	// -------------------------------------------------
 	cmd := command.Command{
 		GVK:  environmentsv1alpha1.GroupVersion.WithKind("Build"),
 		Type: cmdType,
@@ -137,9 +131,7 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	log.Info("routing build to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
-	// ------------------------------------------------
 	// Execute domain logic via engine
-	// ------------------------------------------------
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 		log.Error(err, "engine execution failed")
 		r.Recorder.Eventf(&buildCR, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
@@ -149,12 +141,10 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	log.Info("engine execution completed")
 
-	// ------------------------------------------------
 	// Deletion path: remove finalizer now that the engine returned nil.
 	// Status is intentionally NOT written here — the object is about to be
 	// removed, and racing a status update against finalizer removal serves
 	// no purpose.
-	// ------------------------------------------------
 	if cmdType == command.CmdDelete {
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			var latest environmentsv1alpha1.Build
@@ -171,9 +161,7 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, nil
 	}
 
-	// ------------------------------------------------
 	// Persist status (retry-on-conflict) — create/update path only
-	// ------------------------------------------------
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest environmentsv1alpha1.Build
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -192,68 +180,44 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	return ctrl.Result{}, nil
 }
 
-// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
-// -----------------------------------------------------------------
 func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// ---------------------------------------------------------------------
 	// Logging & events
-	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("Build")
 	r.Recorder = mgr.GetEventRecorder("build-controller")
 
-	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
 	eventsRecorder := r.Runtime.Events
 	registry := r.Runtime.Registry
 
-	// ---------------------------------------------------------------------
 	// Mediator (prerequisites only)
-	// ---------------------------------------------------------------------
 	r.BuildMediator = build.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.build"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// Providers (strategy handlers)
-	// ---------------------------------------------------------------------
 
-	// ---------------------------------------------------------------------
 	// Providers (buildah)
-	// ---------------------------------------------------------------------
 	buildahProvider := buildapi.NewBuildahProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.buildah"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// Providers (kaniko)
-	// ---------------------------------------------------------------------
 	kanikoProvider := buildapi.NewKanikoProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.kaniko"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// Providers (buildpacks)
-	// ---------------------------------------------------------------------
 	buildpacksProvider := buildapi.NewBuildpacksProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.buildpacks"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
-	// ---------------------------------------------------------------------
 	backendSelector := buildapp.NewBackendSelector(buildahProvider, kanikoProvider, buildpacksProvider)
 
-	// -----------------------------------------------------------------------------------------
 	// Build Service (Mapper and StatiusWriter, domain service for orchestration))
-	// ------------------------------------------------------------------------------------------
 	mapper := buildapp.NewMapper()
 	statusWriter := buildapp.NewStatusWriter(r.Client, r.Log.WithName("build-status-writer"))
 	r.BuildService = buildapp.NewBuildService(mapper, statusWriter, backendSelector)
 
-	// --------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
-	// --------------------------------------------------------------------------------
 	buildDomain := builddomain.New(r.BuildMediator, r.BuildService, cache, eventsRecorder, r.Log.WithName("domain.build"))
 	registry.RegisterDomain(environmentsv1alpha1.GroupVersion.WithKind("Build"), buildDomain)
 
-	// ---------------------------------------------------------------------
 	// Controller registration
-	// ---------------------------------------------------------------------
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&environmentsv1alpha1.Build{}).

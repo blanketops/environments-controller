@@ -6,6 +6,8 @@
 import "github.com/blanketops/environments-controller/internal/runtime"
 ```
 
+Package runtime bundles the shared CQRS infrastructure every domain and mediator in this controller depends on: the field cache, event recorder, Domain registry, and command\-dispatch Engine \(all from github.com/blanketops/environments/core\). New constructs exactly one Runtime per controller manager at startup; domains register themselves against its Registry, and controllers route observed events through its Engine rather than handling reconciliation logic directly.
+
 ## Index
 
 - [type Runtime](<#Runtime>)
@@ -13,7 +15,7 @@ import "github.com/blanketops/environments-controller/internal/runtime"
 
 
 <a name="Runtime"></a>
-## type [Runtime](<https://github.com/blanketops/environments-controller/blob/main/internal/runtime/runtime.go#L30-L36>)
+## type [Runtime](<https://github.com/blanketops/environments-controller/blob/main/internal/runtime/runtime.go#L39-L45>)
 
 Runtime bundles the shared infrastructure every domain and mediator depends on: the field cache, event recorder, domain registry, and command\-dispatch engine.
 
@@ -28,7 +30,7 @@ type Runtime struct {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/runtime/runtime.go#L40>)
+### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/runtime/runtime.go#L49>)
 
 ```go
 func New(mgr ctrl.Manager) *Runtime

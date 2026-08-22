@@ -55,7 +55,7 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder even
 New returns a new Mediator instance configured with the necessary dependencies.
 
 <a name="Mediator.CleanupPrerequisites"></a>
-### func \(\*Mediator\) [CleanupPrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/packages/package.go#L131>)
+### func \(\*Mediator\) [CleanupPrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/packages/package.go#L125>)
 
 ```go
 func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageResolution.ResolvedPackage) error

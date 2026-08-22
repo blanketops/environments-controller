@@ -13,6 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package runtime bundles the shared CQRS infrastructure every domain and
+mediator in this controller depends on: the field cache, event recorder,
+Domain registry, and command-dispatch Engine (all from
+github.com/blanketops/environments/core). New constructs exactly one
+Runtime per controller manager at startup; domains register themselves
+against its Registry, and controllers route observed events through its
+Engine rather than handling reconciliation logic directly.
+*/
 package runtime
 
 import (

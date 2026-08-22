@@ -93,9 +93,7 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd command.Command) err
 	switch cmd.Type {
 	case command.CmdCreate, command.CmdUpdate:
 
-		// ---------------------------------------------------------
 		// 0. Resolve GitHubEvent contract ONCE
-		// ---------------------------------------------------------
 		log.Info("resolving githubevent contract")
 		resolved, err := githubEventResolution.ResolveGitHubEvent(githubeventCR)
 		if err != nil {
@@ -105,9 +103,7 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd command.Command) err
 			return err
 		}
 
-		// ------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		// ------------------------------------------------
 		if cerr := d.githubEventCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(githubeventCR, "GitHubEventCacheFailed", cerr)
@@ -122,9 +118,7 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd command.Command) err
 		d.events.Normal(githubeventCR, "GitHubEventCache", "GitHubEvent specification cached successfully")
 		conditions.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventCached", conditions.ConditionTrue, "GitHubEventSpecCached", "GitHubEvent specification cached successfully")
 
-		// -----------------------------------------------------------
 		// 2. Ensure prerequisites (secrets, webhooks, etc.)
-		// -----------------------------------------------------------
 		log.Info("create githubevent prerequisites")
 		if err := d.githubEventMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "githubevent prerequisites failed")
@@ -137,9 +131,7 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd command.Command) err
 		d.events.Normal(githubeventCR, "GitHubEventPrerequisitesCreate", "All githubevent prerequisites created successfully")
 		conditions.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventPrerequisitesCreated", conditions.ConditionTrue, "GitHubEventPrerequisitesReady", "All prerequisites created successfully")
 
-		// ---------------------------------------------------------
 		// 3. Domain application logic
-		// ---------------------------------------------------------
 		log.Info("triggering githubevent execution")
 		if err := d.githubEventService.Reconcile(ctx, resolved); err != nil {
 			log.Error(err, "triggering githubevent failed")
@@ -148,22 +140,18 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd command.Command) err
 			return err
 		}
 
-		// --------------------------------------------------------
 		// 4. Execution requested
-		// --------------------------------------------------------
 		log.Info("githubevent execution requested")
 		d.events.Normal(githubeventCR, "GitHubEventOrganized", "GitHubEvent organization process  has started")
 		conditions.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventOrganized", conditions.ConditionTrue, "GitHubEventOrganized", "GitHubEvent organization has started")
 		log.Info("githubevent domain handling complete")
 
 	case command.CmdDelete:
-		// --------------------------------------------------------
 		// Real teardown, gated by finalizer at the controller level.
 		// Handle() must return nil ONLY if it is safe for the
 		// controller to remove the finalizer and let K8s finish
 		// deleting the object. Any error here keeps the finalizer
 		// in place and the controller will retry on next reconcile.
-		// --------------------------------------------------------
 		log.Info("githubevent teardown requested")
 		resolved, err := githubEventResolution.ResolveGitHubEvent(githubeventCR)
 		if err != nil {
@@ -195,9 +183,7 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd command.Command) err
 	return nil
 }
 
-// -----------------------------------------------------------------------------
 // Predicate hooks
-// -----------------------------------------------------------------------------
 
 // CanCreate reports whether the supplied object can be processed as a GitHubEvent create operation.
 func (d *GitHubEventDomain) CanCreate(obj client.Object) bool {

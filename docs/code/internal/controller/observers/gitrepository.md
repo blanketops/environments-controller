@@ -6,6 +6,10 @@
 import "github.com/blanketops/environments-controller/internal/controller/observers/gitrepository"
 ```
 
+Package gitrepository observes the Crossplane Repository object the GitRepository domain's provider creates and reflects its Ready condition back onto the owning GitRepository CR's status.
+
+Reconcile lists Crossplane Repository objects labeled for the GitRepository CR \(rather than looking one up by a fixed name\), reports StatePending when none exist yet, and otherwise derives readiness from the first match's status.conditions — mirroring the same "provider creates infrastructure, a separate observer reports on its real\-world state" split used by the build and githubevent observers.
+
 ## Index
 
 - [type Reconciler](<#Reconciler>)
@@ -14,7 +18,7 @@ import "github.com/blanketops/environments-controller/internal/controller/observ
 
 
 <a name="Reconciler"></a>
-## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/gitrepository/gitrepository.go#L35-L39>)
+## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/gitrepository/gitrepository.go#L47-L51>)
 
 Reconciler observes the Crossplane Repository resource backing a GitRepository CR and reflects its Ready condition back onto the GitRepository's status.
 
@@ -27,7 +31,7 @@ type Reconciler struct {
 ```
 
 <a name="Reconciler.Reconcile"></a>
-### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/gitrepository/gitrepository.go#L50-L53>)
+### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/gitrepository/gitrepository.go#L62-L65>)
 
 ```go
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -36,7 +40,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 Reconcile lists the Crossplane Repository objects labeled for this GitRepository, derives a domain.Result from their Ready condition \(or StatePending if none exist yet\), and writes it to status.
 
 <a name="Reconciler.SetupWithManager"></a>
-### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/gitrepository/gitrepository.go#L149>)
+### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/gitrepository/gitrepository.go#L153>)
 
 ```go
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error

@@ -86,9 +86,7 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "gitrepository", "namespace", req.Namespace, "name", req.Name)
 	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
-	// ------------------------------------------------
 	// Fetch GitRepository
-	// ------------------------------------------------
 	var gitRepositoryCR sourcesv1alpha1.GitRepository
 	if err := r.Get(ctx, req.NamespacedName, &gitRepositoryCR); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -99,9 +97,7 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 	log.Info("gitrepository fetched", "generation", gitRepositoryCR.Generation, "resourceVersion", gitRepositoryCR.ResourceVersion)
-	// ------------------------------------------------
 	// Deletion: route CmdDelete, then release finalizer
-	// ------------------------------------------------
 	if !gitRepositoryCR.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(&gitRepositoryCR, GitRepositoryFinalizer) {
 			// Nothing gating deletion — let Kubernetes finish.
@@ -138,9 +134,7 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.Info("reconcile done: gitrepository released for deletion")
 		return ctrl.Result{}, nil
 	}
-	// ------------------------------------------------
 	// Live object: ensure finalizer before any domain work
-	// ------------------------------------------------
 	if !controllerutil.ContainsFinalizer(&gitRepositoryCR, GitRepositoryFinalizer) {
 		log.Info("adding finalizer")
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -163,18 +157,14 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.Info("reconcile done: finalizer added, requeue via watch")
 		return ctrl.Result{}, nil
 	}
-	// ------------------------------------------------
 	// Construct core command
-	// ------------------------------------------------
 	cmd := command.Command{
 		GVK:  sourcesv1alpha1.GroupVersion.WithKind("GitRepository"),
 		Type: command.CmdUpdate,
 		Obj:  &gitRepositoryCR,
 	}
 	log.Info("routing gitrepository to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
-	// ------------------------------------------------
 	// Execute domain logic via engine
-	// ------------------------------------------------
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 		log.Error(err, "engine execution failed")
 		r.Recorder.Eventf(&gitRepositoryCR, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
@@ -182,9 +172,7 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 	log.Info("engine execution completed")
-	// ------------------------------------------------
 	// Persist status (retry-on-conflict)
-	// ------------------------------------------------
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest sourcesv1alpha1.GitRepository
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -201,47 +189,29 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, nil
 }
 
-// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
-// -----------------------------------------------------------------
 func (r *GitRepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// ---------------------------------------------------------------------
 	// Logging & events
-	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("GitRepository")
 	r.Recorder = mgr.GetEventRecorder("gitrepository-controller")
-	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
 	eventsRecorder := r.Runtime.Events
 	registry := r.Runtime.Registry
-	// ---------------------------------------------------------------------
 	// Mediator (prerequisites only)
-	// ---------------------------------------------------------------------
 	r.GitRepositoryMediator = gitrepository.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.gitrepository"), r.Recorder)
-	// ---------------------------------------------------------------------
 	// Providers (github)
-	// ---------------------------------------------------------------------
 	githubProvider := gitrepoapi.NewGitHubProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.github"), r.Recorder)
-	// ---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
-	// ---------------------------------------------------------------------
 	backendSelector := application.NewBackendSelector(githubProvider)
-	// -----------------------------------------------------------------------------------------
 	// GitRepository Service (Mapper and StatusWriter, domain service for orchestration)
-	// ------------------------------------------------------------------------------------------
 	mapper := application.NewMapper()
 	statusWriter := application.NewStatusWriter()
 	r.GitRepositoryService = application.NewGitRepositoryService(mapper, statusWriter, backendSelector)
-	// --------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
-	// --------------------------------------------------------------------------------
 	gitRepoDomainInst := gitrepositorydomain.New(r.GitRepositoryMediator, r.GitRepositoryService, cache, eventsRecorder, r.Log.WithName("domain.gitrepository"))
 	registry.RegisterDomain(sourcesv1alpha1.GroupVersion.WithKind("GitRepository"), gitRepoDomainInst)
-	// ---------------------------------------------------------------------
 	// Controller registration
-	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&sourcesv1alpha1.GitRepository{}).
 		Named("sources-gitrepository").

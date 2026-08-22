@@ -14,6 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package buildrun observes Shipwright BuildRun objects and reflects their
+terminal Succeeded condition back onto the owning Build CR's status.
+
+This exists because the Build domain's own Ensure() can only report that
+build infrastructure was successfully dispatched (Triggered=true) — it
+does not wait for the BuildRun to actually finish. This observer is the
+other half: it watches BuildRun directly (not Build), skips non-terminal
+runs, resolves the owner via the build.blanketops.dev/name label, and
+writes the real success/failure outcome the Build CR's contract status
+needed all along.
+*/
 package buildrun
 
 import (

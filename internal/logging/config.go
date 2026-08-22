@@ -13,6 +13,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package logging owns the controller's root logger construction: a single
+zap.Logger (Init, guarded by sync.Once so repeated calls are safe and
+always return the same instance) wrapped as a logr.Logger (AsLogr) for
+controller-runtime's consumption.
+
+Config selects which sinks feed that logger — console, a rotated local
+file, and/or Papertrail/SolarWinds over syslog — and buildZap (zap.go)
+wires them together as a zapcore.Tee. Papertrail connection failure is
+deliberately non-fatal (buildPapertrailCore logs to stderr and returns
+nil rather than erroring): losing a remote log sink shouldn't crash the
+controller.
+*/
 package logging
 
 // Config configures the root logger's output (console/file/Papertrail) and

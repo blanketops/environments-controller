@@ -42,7 +42,7 @@ func New(mediator *serviceunit.Mediator, domainCache *cache.Cache, eventRecorder
 New constructs a ServiceUnitDomain.
 
 <a name="ServiceUnitDomain.CanCreate"></a>
-### func \(\*ServiceUnitDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L165>)
+### func \(\*ServiceUnitDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L159>)
 
 ```go
 func (d *ServiceUnitDomain) CanCreate(obj client.Object) bool
@@ -51,7 +51,7 @@ func (d *ServiceUnitDomain) CanCreate(obj client.Object) bool
 CanCreate reports whether obj is a ServiceUnit.
 
 <a name="ServiceUnitDomain.CanDelete"></a>
-### func \(\*ServiceUnitDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L183>)
+### func \(\*ServiceUnitDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L177>)
 
 ```go
 func (d *ServiceUnitDomain) CanDelete(obj client.Object) bool
@@ -60,7 +60,7 @@ func (d *ServiceUnitDomain) CanDelete(obj client.Object) bool
 CanDelete reports whether obj is a ServiceUnit.
 
 <a name="ServiceUnitDomain.CanUpdate"></a>
-### func \(\*ServiceUnitDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L172>)
+### func \(\*ServiceUnitDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L166>)
 
 ```go
 func (d *ServiceUnitDomain) CanUpdate(oldObj, newObj client.Object) bool

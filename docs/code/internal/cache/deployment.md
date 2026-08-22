@@ -6,13 +6,17 @@
 import "github.com/blanketops/environments-controller/internal/cache/deployment"
 ```
 
+deployment.go constructs this controller's Deployment domain cache: a thin wrapper around blanketops\-environments\-core's cache/deployment package.
+
+The cache itself, and the write path that populates it, live in the external core library; this file owns only the constructor.
+
 ## Index
 
 - [func New\(c \*cache.Cache\) \*libdeployment.DeploymentCache](<#New>)
 
 
 <a name="New"></a>
-## func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/cache/deployment/deployment.go#L30>)
+## func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/cache/deployment/deployment.go#L29>)
 
 ```go
 func New(c *cache.Cache) *libdeployment.DeploymentCache
