@@ -24,5 +24,6 @@ import (
 )
 
 type (
+	// GitRepositoryReconciler reconciles a GitRepository object.
 	GitRepositoryReconciler = internalsources.GitRepositoryReconciler
 )

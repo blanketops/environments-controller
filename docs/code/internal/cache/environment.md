@@ -6,6 +6,10 @@
 import "github.com/blanketops/environments-controller/internal/cache/environment"
 ```
 
+environment.go constructs this controller's Environment domain cache: a thin wrapper around blanketops\-environments\-core's cache/environment package.
+
+The cache itself, and the write path that populates it, live in the external core library; this file owns only the constructor.
+
 ## Index
 
 - [func New\(c \*cache.Cache\) \*libbuild.EnvironmentCache](<#New>)

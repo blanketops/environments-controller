@@ -23,4 +23,7 @@ import (
 	internalruntime "github.com/blanketops/environments-controller/internal/runtime"
 )
 
+// Runtime bundles the shared infrastructure every domain and mediator
+// depends on: the field cache, event recorder, domain registry, and
+// command-dispatch engine.
 type Runtime = internalruntime.Runtime

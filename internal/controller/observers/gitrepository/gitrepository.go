@@ -13,6 +13,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package gitrepository observes the Crossplane Repository object the
+GitRepository domain's provider creates and reflects its Ready condition
+back onto the owning GitRepository CR's status.
+
+Reconcile lists Crossplane Repository objects labeled for the GitRepository
+CR (rather than looking one up by a fixed name), reports StatePending when
+none exist yet, and otherwise derives readiness from the first match's
+status.conditions — mirroring the same "provider creates infrastructure,
+a separate observer reports on its real-world state" split used by the
+build and githubevent observers.
+*/
 package gitrepository
 
 import (
@@ -29,6 +41,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Reconciler observes the Crossplane Repository resource backing a
+// GitRepository CR and reflects its Ready condition back onto the
+// GitRepository's status.
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
@@ -41,22 +56,21 @@ var repositoryGVK = schema.GroupVersionKind{
 	Kind:    "Repository",
 }
 
+// Reconcile lists the Crossplane Repository objects labeled for this
+// GitRepository, derives a domain.Result from their Ready condition (or
+// StatePending if none exist yet), and writes it to status.
 func (r *Reconciler) Reconcile(
 	ctx context.Context,
 	req ctrl.Request,
 ) (ctrl.Result, error) {
 
-	// ------------------------------------------------
 	// 1. Load the source GitRepository CR
-	// ------------------------------------------------
 	var repo sourcesv1alpha1.GitRepository
 	if err := r.Get(ctx, req.NamespacedName, &repo); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ------------------------------------------------
 	// 2. List Crossplane Repository objects by label
-	// ------------------------------------------------
 	var list unstructured.UnstructuredList
 	list.SetGroupVersionKind(repositoryGVK)
 
@@ -70,9 +84,7 @@ func (r *Reconciler) Reconcile(
 		return ctrl.Result{}, err
 	}
 
-	// ------------------------------------------------
 	// 3. Derive domain result from observation
-	// ------------------------------------------------
 	var result domain.Result
 
 	if len(list.Items) == 0 {
@@ -96,9 +108,7 @@ func (r *Reconciler) Reconcile(
 		}
 	}
 
-	// ------------------------------------------------
 	// 4. Write status (conditions-based)
-	// ------------------------------------------------
 	return ctrl.Result{}, r.Status.Write(ctx, &repo, result, nil)
 }
 
@@ -138,6 +148,8 @@ func extractReady(obj unstructured.Unstructured) (bool, string) {
 	return false, "waiting for Ready condition"
 }
 
+// SetupWithManager registers the GitRepository observer with the
+// controller manager, watching GitRepository CRs.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("sources-gitrepository"))
 	r.Status = application.NewStatusWriter()

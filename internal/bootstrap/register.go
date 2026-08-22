@@ -35,6 +35,7 @@ import (
 	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	eventsv1alpha1 "github.com/blanketops/environments-api/api/events/v1alpha1"
+	networksv1alpha1 "github.com/blanketops/environments-api/api/networks/v1alpha1"
 	sourcesv1alpha1 "github.com/blanketops/environments-api/api/sources/v1alpha1"
 	buildapi "github.com/blanketops/environments/pkg/apis/build/api"
 	buildapp "github.com/blanketops/environments/pkg/apis/build/application"
@@ -75,9 +76,9 @@ import (
 
 // RegisterSchemes adds every API group the controller and its dependent
 // providers need to the runtime scheme: this repo's own environments,
-// events, and sources types from environments-api, plus the external
-// CRDs — Argo Events, Flux (source and kustomize controllers), Kapp
-// Controller, Shipwright, and Tekton Pipelines — that the domains and
+// events, sources, and networks types from environments-api, plus the
+// external CRDs — Argo Events, Flux (source and kustomize controllers),
+// Kapp Controller, Shipwright, and Tekton Pipelines — that the domains and
 // mediators reconcile against.
 func RegisterSchemes(scheme *runtime.Scheme) {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -91,6 +92,7 @@ func RegisterSchemes(scheme *runtime.Scheme) {
 	utilruntime.Must(gitrepoapi.AddToScheme(scheme))
 	utilruntime.Must(fluxcdsourcev1.AddToScheme(scheme))
 	utilruntime.Must(kustomizev1.AddToScheme(scheme))
+	utilruntime.Must(networksv1alpha1.AddToScheme(scheme))
 }
 
 // EnsureServiceAccount creates the manager's ServiceAccount if it does not
@@ -242,7 +244,6 @@ func RegisterControllers(mgr ctrl.Manager, rt *runtimeinfra.Runtime) error {
 		return err
 	}
 
-	// No domain is registered for Route's GVK yet -- error-loops until one is.
 	if err := (&networks.RouteReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),

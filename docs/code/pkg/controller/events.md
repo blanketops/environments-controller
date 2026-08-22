@@ -16,7 +16,7 @@ Package events re\-exports the events\-group reconciler types as public aliases.
 <a name="GitHubEventReconciler"></a>
 ## type GitHubEventReconciler
 
-
+GitHubEventReconciler reconciles a GitHubEvent object.
 
 ```go
 type GitHubEventReconciler = internalevents.GitHubEventReconciler

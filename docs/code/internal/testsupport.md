@@ -86,7 +86,7 @@ type FakeExternalCache struct {
 func NewFakeExternalCache() *FakeExternalCache
 ```
 
-
+NewFakeExternalCache constructs an empty FakeExternalCache.
 
 <a name="FakeExternalCache.Del"></a>
 ### func \(\*FakeExternalCache\) Del

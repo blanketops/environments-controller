@@ -16,7 +16,7 @@ Package runtime re\-exports the Runtime type as a public alias. It stays defined
 <a name="Runtime"></a>
 ## type Runtime
 
-
+Runtime bundles the shared infrastructure every domain and mediator depends on: the field cache, event recorder, domain registry, and command\-dispatch engine.
 
 ```go
 type Runtime = internalruntime.Runtime

@@ -17,7 +17,7 @@ Package networks re\-exports the networks\-group reconciler types as public alia
 <a name="DomainReconciler"></a>
 ## type DomainReconciler
 
-
+DomainReconciler reconciles a Domain CR by resolving its contract and handing it to the Domain application service.
 
 ```go
 type DomainReconciler = internalnetworks.DomainReconciler
@@ -26,7 +26,7 @@ type DomainReconciler = internalnetworks.DomainReconciler
 <a name="RouteReconciler"></a>
 ## type RouteReconciler
 
-
+RouteReconciler reconciles a Route CR by resolving its contract and handing it to the route application service.
 
 ```go
 type RouteReconciler = internalnetworks.RouteReconciler

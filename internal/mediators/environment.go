@@ -13,6 +13,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package environment provides two standalone helpers other mediators use to
+interact with the Environment CR that roots their delivery chain:
+EnsureEnvironment (find-or-create the Environment named by an object's
+environments.blanketops.dev/{name,type} labels) and
+PatchEnvironmentAggregate (resolve the Environment's contract, apply a
+caller-supplied mutation, and re-encode it back onto the CR).
+
+Unlike the per-CR mediators under this same internal/mediators tree, this
+package owns no Mediator type of its own — every other mediator's
+EnsurePrerequisites calls into these functions directly when it needs to
+read or update the shared Environment the delivery chain hangs off of.
+*/
 package environment
 
 import (
@@ -27,6 +40,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// EnsureEnvironment fetches the Environment named by obj's
+// environments.blanketops.dev/{name,type} labels, creating it with the
+// given contract if it doesn't exist yet. Returns (nil, nil) if obj carries
+// neither label — it isn't environment-scoped.
 func EnsureEnvironment(
 	ctx context.Context,
 	c client.Client,
@@ -74,6 +91,8 @@ func EnsureEnvironment(
 	return &env, nil
 }
 
+// PatchEnvironmentAggregate resolves env's contract, applies patchFn to the
+// resolved spec, and re-encodes the result back onto env.Spec.Contract.
 func PatchEnvironmentAggregate(
 	ctx context.Context,
 	c client.Client,

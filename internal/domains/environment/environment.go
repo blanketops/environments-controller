@@ -158,11 +158,14 @@ func (d *EnvironmentDomain) Handle(ctx context.Context, cmd command.Command) err
 
 // ── Predicate hooks ───────────────────────────────────────────────────────────
 
+// CanCreate reports whether obj is an Environment.
 func (d *EnvironmentDomain) CanCreate(obj client.Object) bool {
 	_, ok := obj.(*environmentsv1alpha1.Environment)
 	return ok
 }
 
+// CanUpdate reports whether oldObj and newObj are both Environments whose
+// specs differ.
 func (d *EnvironmentDomain) CanUpdate(oldObj, newObj client.Object) bool {
 	oldE, okOld := oldObj.(*environmentsv1alpha1.Environment)
 	newE, okNew := newObj.(*environmentsv1alpha1.Environment)
@@ -172,6 +175,7 @@ func (d *EnvironmentDomain) CanUpdate(oldObj, newObj client.Object) bool {
 	return !reflect.DeepEqual(oldE.Spec, newE.Spec)
 }
 
+// CanDelete reports whether obj is an Environment.
 func (d *EnvironmentDomain) CanDelete(obj client.Object) bool {
 	_, ok := obj.(*environmentsv1alpha1.Environment)
 	return ok

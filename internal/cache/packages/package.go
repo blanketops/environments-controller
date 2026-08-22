@@ -25,6 +25,7 @@ import (
 	"github.com/blanketops/environments/core/cache"
 )
 
+// New constructs a Package domain cache backed by c.
 func New(c *cache.Cache) *libpackages.PackageCache {
 	return libpackages.NewPackageCache(c)
 }

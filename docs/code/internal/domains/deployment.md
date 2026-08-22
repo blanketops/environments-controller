@@ -6,6 +6,10 @@
 import "github.com/blanketops/environments-controller/internal/domains/deployment"
 ```
 
+Package deployment implements the Deployment resource domain.
+
+The Deployment domain is responsible for managing the lifecycle of Deployment resources. It receives commands from the Engine, resolves resource specifications into validated contracts, delegates processing to the application layer, and records reconciliation outcomes through conditions and events.
+
 ## Index
 
 - [type DeployDomain](<#DeployDomain>)

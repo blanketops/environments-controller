@@ -13,6 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package runtime bundles the shared CQRS infrastructure every domain and
+mediator in this controller depends on: the field cache, event recorder,
+Domain registry, and command-dispatch Engine (all from
+github.com/blanketops/environments/core). New constructs exactly one
+Runtime per controller manager at startup; domains register themselves
+against its Registry, and controllers route observed events through its
+Engine rather than handling reconciliation logic directly.
+*/
 package runtime
 
 import (
@@ -24,6 +33,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
+// Runtime bundles the shared infrastructure every domain and mediator
+// depends on: the field cache, event recorder, domain registry, and
+// command-dispatch engine.
 type Runtime struct {
 	Cache    *cache.Cache
 	Events   *events.EventRecorder
@@ -32,6 +44,8 @@ type Runtime struct {
 	Log      logr.Logger
 }
 
+// New constructs a Runtime from the controller manager, wiring up a fresh
+// Cache, Registry, Engine, and EventRecorder.
 func New(mgr ctrl.Manager) *Runtime {
 
 	log := ctrl.Log.WithName("environments-runtime")

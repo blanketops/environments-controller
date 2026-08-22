@@ -6,6 +6,10 @@
 import "github.com/blanketops/environments-controller/internal/domains/gitrepository"
 ```
 
+Package gitrepository implements the GitRepository resource domain.
+
+The GitRepository domain is responsible for managing the lifecycle of GitRepository resources. It receives commands from the Engine, resolves resource specifications into validated contracts, delegates processing to the application layer, and records reconciliation outcomes through conditions and events.
+
 ## Index
 
 - [type GitRepositoryDomain](<#GitRepositoryDomain>)

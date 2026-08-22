@@ -6,6 +6,10 @@
 import "github.com/blanketops/environments-controller/internal/domains/build"
 ```
 
+Package build implements the Build resource domain.
+
+The Build domain is responsible for managing the lifecycle of Build resources. It receives commands from the Engine, resolves resource specifications into validated contracts, delegates processing to the application layer, and records reconciliation outcomes through conditions and events.
+
 ## Index
 
 - [type BuildDomain](<#BuildDomain>)

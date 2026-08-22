@@ -18,7 +18,6 @@ limitations under the License.
 //
 // The cache itself, and the write path that populates it, live in the
 // external core library; this file owns only the constructor.
-
 package deployment
 
 import (
@@ -26,6 +25,7 @@ import (
 	"github.com/blanketops/environments/core/cache"
 )
 
+// New constructs a Deployment domain cache backed by c.
 func New(c *cache.Cache) *libdeployment.DeploymentCache {
 	return libdeployment.NewDeploymentCache(c)
 }

@@ -22,7 +22,6 @@ resource specifications into validated contracts, delegates
 processing to the application layer, and records reconciliation
 outcomes through conditions and events.
 */
-
 package deployment
 
 import (
@@ -103,9 +102,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 	switch cmd.Type {
 	case command.CmdCreate, command.CmdUpdate:
 
-		// ------------------------------------------------
 		// Stage 0: Resolve deployment contract
-		// ------------------------------------------------
 		log.Info("resolving deployment contract")
 		resolved, err := deploymentResolution.ResolveDeployment(deploymentCR)
 		if err != nil {
@@ -115,9 +112,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 			return err
 		}
 
-		// ------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		// ------------------------------------------------
 		if cerr := d.deploymentCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(deploymentCR, "DeploymentCacheFailed", cerr)
@@ -132,9 +127,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 		d.events.Normal(deploymentCR, "DeploymentCache", "Deployment specification cached successfully")
 		conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentCached", conditions.ConditionTrue, "DeploymentSpecCached", "Deployment specification cached successfully")
 
-		// ------------------------------------------------
 		// Stage 2: Ensure prerequisites
-		// ------------------------------------------------
 		log.Info("creating deployment prerequisites")
 		if err := d.deploymentMediator.EnsurePrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "deployment prerequisites failed")
@@ -147,9 +140,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 		d.events.Normal(deploymentCR, "DeploymentPrerequisitesCreated", "All deployment prerequisites created successfully")
 		conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentPrerequisitesCreated", conditions.ConditionTrue, "DeploymentPrerequisitesCreated", "All deployment prerequisites satisfied")
 
-		// ------------------------------------------------
 		// 3. RESOLVE SERVICE UNITS (AUTHORITATIVE)
-		// ------------------------------------------------
 		log.Info("triggering resolve serviceunits")
 		serviceUnits, err := d.resolveServiceUnits(ctx, resolved)
 		if err != nil {
@@ -163,9 +154,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 		d.events.Normal(deploymentCR, "ServiceUnitResolved", "ServiceUnit specification resolved successfully")
 		conditions.SetCondition(&deploymentCR.Status.Conditions, "ServiceUnitResolved", conditions.ConditionTrue, "Resolved", "ServiceUnit specification resolved successfully")
 
-		// ------------------------------------------------
 		// 4. EXECUTE DEPLOYMENT (OPTIONAL)
-		// ------------------------------------------------
 		log.Info("triggering deployment of serviceunit(s)")
 		if d.deployService != nil {
 			if err := d.deployService.Reconcile(ctx, resolved, serviceUnits, d.log); err != nil {
@@ -181,13 +170,11 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 		conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentSucceeded", conditions.ConditionTrue, "DeploymentSucceeded", "Deployment trigger completed successfully")
 
 	case command.CmdDelete:
-		// --------------------------------------------------------
 		// Real teardown, gated by finalizer at the controller level.
 		// Handle() must return nil ONLY if it is safe for the
 		// controller to remove the finalizer and let K8s finish
 		// deleting the object. Any error here keeps the finalizer
 		// in place and the controller will retry on next reconcile.
-		// --------------------------------------------------------
 		log.Info("build teardown requested")
 
 		resolved, err := deploymentResolution.ResolveDeployment(deploymentCR)
@@ -198,7 +185,29 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 			return err
 		}
 
-		// Tear down prerequisites the mediator created (secrets, SAs, RBAC).
+		// Tear down whatever Reconcile applied: the imperative Deployment/
+		// Service objects, or (GitOps) the Flux GitRepository/Kustomization
+		// CRs. The manifests repo itself is not touched here -- that's the
+		// mediator's job below, which deletes the whole per-Deployment repo
+		// via the Git host's API; nothing here needs to touch its contents.
+		if d.deployService != nil {
+			serviceUnits, err := d.resolveServiceUnits(ctx, resolved)
+			if err != nil {
+				log.Error(err, "resolve serviceunits failed during teardown")
+				d.events.FromError(deploymentCR, "ServiceUnitResolutionFailed", err)
+				conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", conditions.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
+				return err
+			}
+			if err := d.deployService.Teardown(ctx, resolved, serviceUnits, d.log); err != nil {
+				log.Error(err, "deployment teardown failed")
+				d.events.FromError(deploymentCR, "DeploymentTeardownFailed", err)
+				conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", conditions.ConditionFalse, "DeploymentTeardownFailed", err.Error())
+				return err
+			}
+		}
+
+		// Tear down prerequisites the mediator created (secrets, SAs, RBAC,
+		// and -- for GitOps -- the per-Deployment manifests repo itself).
 		if err := d.deploymentMediator.CleanupPrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "prerequisites cleanup failed")
 			d.events.FromError(deploymentCR, "DeploymentPrerequisitesCleanupFailed", err)
@@ -221,9 +230,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 	return nil
 }
 
-// -----------------------------------------------------------------------------
 // Predicate hooks
-// -----------------------------------------------------------------------------
 
 // CanCreate reports whether the supplied object can be processed as a Deploy create operation.
 func (d *DeployDomain) CanCreate(obj client.Object) bool {
@@ -253,9 +260,7 @@ func (d *DeployDomain) CanDelete(obj client.Object) bool {
 	return ok
 }
 
-// -----------------------------------------------------------------------------
 // Helpers
-// -----------------------------------------------------------------------------
 
 func (d *DeployDomain) resolveServiceUnits(
 	ctx context.Context,

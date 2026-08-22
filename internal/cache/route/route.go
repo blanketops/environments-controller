@@ -13,17 +13,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package events re-exports the events-group reconciler types as public
-// aliases. The reconcilers themselves stay in internal/controller,
-// unchanged; this package exists only so that external test modules have a
-// valid, non-internal import path to construct them against.
-package events
+// route.go constructs this controller's Route domain cache: a thin
+// wrapper around blanketops-environments-core's cache/route package.
+//
+// The cache itself, and the write path that populates it, live in the
+// external core library; this file owns only the constructor.
+package route
 
 import (
-	internalevents "github.com/blanketops/environments-controller/internal/controller/events"
+	libroute "github.com/blanketops/environments/cache/route"
+	"github.com/blanketops/environments/core/cache"
 )
 
-type (
-	// GitHubEventReconciler reconciles a GitHubEvent object.
-	GitHubEventReconciler = internalevents.GitHubEventReconciler
-)
+// New constructs a Route domain cache backed by c.
+func New(c *cache.Cache) *libroute.RouteCache {
+	return libroute.NewRouteCache(c)
+}

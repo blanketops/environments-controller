@@ -30,6 +30,7 @@ import (
 	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	eventsv1alpha1 "github.com/blanketops/environments-api/api/events/v1alpha1"
+	networksv1alpha1 "github.com/blanketops/environments-api/api/networks/v1alpha1"
 	sourcesv1alpha1 "github.com/blanketops/environments-api/api/sources/v1alpha1"
 	"github.com/blanketops/environments/core/events"
 	gitrepoapi "github.com/blanketops/environments/pkg/apis/gitrepository/api"
@@ -96,6 +97,7 @@ func NewScheme() *runtime.Scheme {
 	utilruntime.Must(gitrepoapi.AddToScheme(scheme))
 	utilruntime.Must(fluxcdsourcev1.AddToScheme(scheme))
 	utilruntime.Must(kustomizev1.AddToScheme(scheme))
+	utilruntime.Must(networksv1alpha1.AddToScheme(scheme))
 
 	scheme.AddKnownTypeWithName(externalSecretGVK, &unstructured.Unstructured{})
 	scheme.AddKnownTypeWithName(externalSecretListGVK, &unstructured.UnstructuredList{})
@@ -120,6 +122,8 @@ func NewFakeClient(objs ...client.Object) client.Client {
 			&environmentsv1alpha1.ServiceUnit{},
 			&eventsv1alpha1.GitHubEvent{},
 			&sourcesv1alpha1.GitRepository{},
+			&networksv1alpha1.Route{},
+			&networksv1alpha1.Domain{},
 		).
 		WithObjects(objs...).
 		Build()
@@ -159,6 +163,7 @@ type FakeExternalCache struct {
 	data map[string][]byte
 }
 
+// NewFakeExternalCache constructs an empty FakeExternalCache.
 func NewFakeExternalCache() *FakeExternalCache {
 	return &FakeExternalCache{data: make(map[string][]byte)}
 }

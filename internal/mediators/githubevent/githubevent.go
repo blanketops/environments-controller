@@ -75,19 +75,15 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *githubeven
 		return fmt.Errorf("nil ResolvedGitHubEvent provided to mediator")
 	}
 	event := resolved.Event
-	// ------------------------------------------------
 	// Step 0: Environment lookup
 	// Environment must pre-exist — it is the root of the delivery chain and
 	// the sole authority for the ClusterSecretStore binding.
-	// ------------------------------------------------
 	envCtx, err := query.Lookup(ctx, m.Client, event.Namespace, event.Labels)
 	if err != nil {
 		return fmt.Errorf("environment lookup: %w", err)
 	}
 	m.Log.Info("environment context resolved", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 1: GitHub webhook secret
-	// ------------------------------------------------------------------------------------------------------------
 	webhookSecret := github.NewGitHubWebhookSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 	if err := webhookSecret.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("github webhook secret: %w", err)
@@ -106,20 +102,16 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *githubeve
 		return fmt.Errorf("nil ResolvedGitHubEvent provided to mediator")
 	}
 	event := resolved.Event
-	// ------------------------------------------------
 	// Step 0: Environment lookup
 	// Same store binding used at creation time — needed so the reconcilers
 	// target the correct ClusterSecretStore-scoped resources on teardown.
-	// ------------------------------------------------
 	envCtx, err := query.Lookup(ctx, m.Client, event.Namespace, event.Labels)
 	if err != nil {
 		return fmt.Errorf("environment lookup: %w", err)
 	}
 	m.Log.Info("environment context resolved for teardown", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
 	var errs []error
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 1: GitHub webhook secret
-	// ------------------------------------------------------------------------------------------------------------
 	webhookSecret := github.NewGitHubWebhookSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 	if err := webhookSecret.Delete(ctx, resolved); err != nil {
 		errs = append(errs, fmt.Errorf("delete github webhook secret: %w", err))

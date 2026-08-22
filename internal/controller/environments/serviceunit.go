@@ -65,9 +65,7 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
-	// ------------------------------------------------
 	// Fetch ServiceUnit
-	// ------------------------------------------------
 	var serviceunit serviceunitv1alpha1.ServiceUnit
 	if err := r.Get(ctx, req.NamespacedName, &serviceunit); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -81,9 +79,7 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	log.Info("serviceunit fetched", "generation", serviceunit.Generation, "resourceVersion", serviceunit.ResourceVersion)
 
-	// ------------------------------------------------
 	// Construct core command
-	// ------------------------------------------------
 	cmd := command.Command{
 		GVK:  serviceunitv1alpha1.GroupVersion.WithKind("ServiceUnit"),
 		Type: command.CmdUpdate,
@@ -92,9 +88,7 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	log.Info("routing serviceunit to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
-	// ------------------------------------------------
 	// Execute domain logic via engine
-	// ------------------------------------------------
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 
 		log.Error(err, "engine execution failed")
@@ -106,9 +100,7 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	log.Info("engine execution completed")
 
-	// ------------------------------------------------
 	// Persist status (retry-on-conflict)
-	// ------------------------------------------------
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest serviceunitv1alpha1.ServiceUnit
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -129,26 +121,18 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{}, nil
 }
 
-// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
-// -----------------------------------------------------------------
 func (r *ServiceUnitReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// ---------------------------------------------------------------------
 	// Logging & events
-	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("ServiceUnit")
 	r.Recorder = mgr.GetEventRecorder("serviceunit-controller")
 
-	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	// ---------------------------------------------------------------------
 	// cache := r.Runtime.Cache
 	// events := r.Runtime.Events
 	// registry := r.Runtime.Registry
 
-	// ---------------------------------------------------------------------
 	// Controller registration
-	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&serviceunitv1alpha1.ServiceUnit{}).
 		Named("environments-serviceunit").

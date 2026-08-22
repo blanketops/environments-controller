@@ -20,7 +20,7 @@ Package environments re\-exports the environments\-group reconciler types as pub
 <a name="BuildReconciler"></a>
 ## type BuildReconciler
 
-
+BuildReconciler reconciles a Build object.
 
 ```go
 type BuildReconciler = internalenv.BuildReconciler
@@ -29,7 +29,7 @@ type BuildReconciler = internalenv.BuildReconciler
 <a name="DeploymentReconciler"></a>
 ## type DeploymentReconciler
 
-
+DeploymentReconciler reconciles a Deployment object.
 
 ```go
 type DeploymentReconciler = internalenv.DeploymentReconciler
@@ -38,7 +38,7 @@ type DeploymentReconciler = internalenv.DeploymentReconciler
 <a name="EnvironmentReconciler"></a>
 ## type EnvironmentReconciler
 
-
+EnvironmentReconciler reconciles an Environment object.
 
 ```go
 type EnvironmentReconciler = internalenv.EnvironmentReconciler
@@ -47,7 +47,7 @@ type EnvironmentReconciler = internalenv.EnvironmentReconciler
 <a name="PackageReconciler"></a>
 ## type PackageReconciler
 
-
+PackageReconciler reconciles a Package object.
 
 ```go
 type PackageReconciler = internalenv.PackageReconciler
@@ -56,7 +56,7 @@ type PackageReconciler = internalenv.PackageReconciler
 <a name="ServiceUnitReconciler"></a>
 ## type ServiceUnitReconciler
 
-
+ServiceUnitReconciler reconciles a ServiceUnit object.
 
 ```go
 type ServiceUnitReconciler = internalenv.ServiceUnitReconciler

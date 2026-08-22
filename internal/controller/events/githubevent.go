@@ -86,9 +86,7 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	log := r.Log.WithValues("controller", "githubevent", "namespace", req.Namespace, "name", req.Name)
 	log.Info("reconcile start")
 
-	// ------------------------------------------------
 	// Fetch GitHubEvent
-	// ------------------------------------------------
 	var gitHubEventCR eventsv1alpha1.GitHubEvent
 	if err := r.Get(ctx, req.NamespacedName, &gitHubEventCR); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -102,9 +100,7 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	log.Info("githubevent fetched", "generation", gitHubEventCR.Generation, "resourceVersion", gitHubEventCR.ResourceVersion)
 
-	// ------------------------------------------------
 	// Finalizer gate — determines cmd.Type
-	// ------------------------------------------------
 	cmdType := command.CmdUpdate
 	if !gitHubEventCR.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(&gitHubEventCR, githuEventFinalizer) {
@@ -122,9 +118,7 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
-	// ------------------------------------------------
 	// Construct core command
-	// ------------------------------------------------
 	cmd := command.Command{
 		GVK:  eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"),
 		Type: command.CmdUpdate,
@@ -133,9 +127,7 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	log.Info("routing githubevent to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
-	// ------------------------------------------------
 	// Execute domain logic via engine
-	// ------------------------------------------------
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 
 		log.Error(err, "engine execution failed")
@@ -146,12 +138,10 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	log.Info("engine execution completed")
-	// ------------------------------------------------
 	// Deletion path: remove finalizer now that the engine returned nil.
 	// Status is intentionally NOT written here — the object is about to be
 	// removed, and racing a status update against finalizer removal serves
 	// no purpose.
-	// ------------------------------------------------
 	if cmdType == command.CmdDelete {
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			var latest eventsv1alpha1.GitHubEvent
@@ -167,9 +157,7 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		log.Info("finalizer removed, deletion will proceed")
 		return ctrl.Result{}, nil
 	}
-	// ------------------------------------------------
 	// Persist status (retry-on-conflict)
-	// ------------------------------------------------
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest eventsv1alpha1.GitHubEvent
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -190,57 +178,37 @@ func (r *GitHubEventReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{}, nil
 }
 
-// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
-// -----------------------------------------------------------------
 func (r *GitHubEventReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// ---------------------------------------------------------------------
 	// Logging & events
-	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("GitHubEvent")
 	r.Recorder = mgr.GetEventRecorder("githubevent-controller")
 
-	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
 	registry := r.Runtime.Registry
 
-	// ---------------------------------------------------------------------
 	// Mediator (prerequisites only)
-	// ---------------------------------------------------------------------
 	r.GitHubEventMediator = githubevent.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.githubevent"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// Providers (strategy handlers)
-	// ---------------------------------------------------------------------
 
-	// ---------------------------------------------------------------------
 	// Providers (github)
-	// ---------------------------------------------------------------------
 	githubProvider := githubeventapi.NewGitHubProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.github"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
-	// ---------------------------------------------------------------------
 	backendSelector := githubeventapp.NewBackendSelector(githubProvider)
 
-	// -----------------------------------------------------------------------------------------
 	// GitHubEvent Service (Mapper and StatiusWriter, domain service for orchestration))
-	// -----------------------------------------------------------------------
 	mapper := githubeventapp.NewMapper()
 	statusWriter := githubeventapp.NewStatusWriter(r.Client, r.Log.WithName("githubevent-status-writer"))
 	r.GitHubEventService = githubeventapp.NewGitHubEventService(mapper, statusWriter, backendSelector)
 
-	// --------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
-	// --------------------------------------------------------------------------------
 	eventsDomain := githubeventdomain.New(r.GitHubEventService, r.GitHubEventMediator, r.Runtime.Events, cache, r.Log.WithName("domain.githubevent"))
 	registry.RegisterDomain(eventsv1alpha1.GroupVersion.WithKind("GitHubEvent"), eventsDomain)
 
-	// ---------------------------------------------------------------------
 	// Controller registration
-	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&eventsv1alpha1.GitHubEvent{}).Watches(
 		&argoeventsv1alpha1.Sensor{},

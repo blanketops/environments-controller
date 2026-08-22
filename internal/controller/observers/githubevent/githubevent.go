@@ -14,6 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package githubevent observes GitHubEvent CRs and the Argo Events Sensor
+provisioned for each, deriving and writing the event's accepted/triggered/
+success status and conditions.
+
+The GitHubEvent domain's Ensure() can only report that ingress
+infrastructure was provisioned (Triggered=true) — whether a webhook
+payload has actually arrived, and whether the Sensor delivered it
+successfully, can only be known by watching the CR (for a populated
+spec.contract.eventId/eventType) and the Sensor's own Succeeded condition
+directly, which is this observer's job.
+*/
 package githubevent
 
 import (
@@ -41,12 +53,18 @@ const (
 	conditionGitHubEventReady = "GitHubEventReady"
 )
 
+// Reconciler observes GitHubEvent CRs and the Argo Events Sensor created
+// for each, deriving and writing the event's accepted/triggered/success
+// status and conditions.
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
 	Recorder *events.EventRecorder
 }
 
+// Reconcile resolves the GitHubEvent's contract, checks whether a payload
+// has been received and whether its Sensor reports success, and writes the
+// resulting status via buildContractAndConditions.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	n := req.NamespacedName
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "githubevent-observer", "githubevent", n.String())
@@ -171,6 +189,8 @@ func (r *Reconciler) buildContractAndConditions(
 	return []metav1.Condition{condition}
 }
 
+// SetupWithManager registers the GitHubEvent observer with the controller
+// manager, watching GitHubEvent CRs.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("githubevent-observer"))
 	r.Status = application.NewStatusWriter(mgr.GetClient(), ctrl.Log.WithName("githubevent-status-writer"))

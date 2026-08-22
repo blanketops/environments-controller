@@ -71,12 +71,17 @@ const (
 	retryAttemptAnnotation  = "build.blanketops.dev/retry-attempt"
 )
 
+// Reconciler mirrors trigger metadata and retry bookkeeping onto Build CRs.
+// See the package doc for its two responsibilities (applyTriggers,
+// applyRetry) and the cross-namespace/race caveats.
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
 	Recorder *events.EventRecorder
 }
 
+// Reconcile fetches the Build, resolves its contract, then applies trigger
+// metadata and retry bookkeeping via applyTriggers/applyRetry.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "build-observer", "build", req.String())
 	log.Info("reconcile start")
@@ -295,6 +300,9 @@ func triggerMatches(triggers []buildresolution.ResolvedBuildPolicy, eventType st
 	return false
 }
 
+// SetupWithManager registers the Build observer with the controller
+// manager, watching Build CRs directly and GitHubEvent CRs indirectly via
+// mapGitHubEventToBuilds so a matching trigger event re-enqueues its Build.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("build-observer"))
 

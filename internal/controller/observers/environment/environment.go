@@ -67,11 +67,16 @@ const (
 	contractKeyName = "name"
 )
 
+// Reconciler is the status rollup reconciler for Environment CRs. See the
+// package doc for its fan-in/aggregation responsibility and CQRS boundary.
 type Reconciler struct {
 	client.Client
 	Recorder *events.EventRecorder
 }
 
+// Reconcile discovers this Environment's composed CRs by label, patches any
+// missing refs into spec.contract, aggregates their readiness conditions,
+// and writes the resulting phase and conditions to status.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues(
 		"controller", "environment-observer",
@@ -328,6 +333,11 @@ func (r *Reconciler) mapToEnvironment(ctx context.Context, obj client.Object) []
 	return reqs
 }
 
+// SetupWithManager registers the Environment observer with the controller
+// manager, watching Environment CRs directly and every composed CR type
+// (Build, GitRepository, Deployment, Package, ServiceUnit) indirectly via
+// mapToEnvironment so a change on any of them re-enqueues the owning
+// Environment.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("environment-observer"))
 

@@ -25,6 +25,7 @@ import (
 	"github.com/blanketops/environments/core/cache"
 )
 
+// New constructs a GitHubEvent domain cache backed by c.
 func New(c *cache.Cache) *libgithubevent.GitHubEventCache {
 	return libgithubevent.NewGitHubEventCache(c)
 }

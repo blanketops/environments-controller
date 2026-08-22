@@ -60,7 +60,7 @@ New returns a new EnvironmentDomain configured with the necessary dependencies.
 func (d *EnvironmentDomain) CanCreate(obj client.Object) bool
 ```
 
-
+CanCreate reports whether obj is an Environment.
 
 <a name="EnvironmentDomain.CanDelete"></a>
 ### func \(\*EnvironmentDomain\) CanDelete
@@ -69,7 +69,7 @@ func (d *EnvironmentDomain) CanCreate(obj client.Object) bool
 func (d *EnvironmentDomain) CanDelete(obj client.Object) bool
 ```
 
-
+CanDelete reports whether obj is an Environment.
 
 <a name="EnvironmentDomain.CanUpdate"></a>
 ### func \(\*EnvironmentDomain\) CanUpdate
@@ -78,7 +78,7 @@ func (d *EnvironmentDomain) CanDelete(obj client.Object) bool
 func (d *EnvironmentDomain) CanUpdate(oldObj, newObj client.Object) bool
 ```
 
-
+CanUpdate reports whether oldObj and newObj are both Environments whose specs differ.
 
 <a name="EnvironmentDomain.GVK"></a>
 ### func \(\*EnvironmentDomain\) GVK

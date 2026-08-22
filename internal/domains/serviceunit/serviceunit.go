@@ -55,6 +55,7 @@ type ServiceUnitDomain struct {
 	log              logr.Logger
 }
 
+// New constructs a ServiceUnitDomain.
 func New(mediator *serviceunit.Mediator, domainCache *cache.Cache, eventRecorder *events.EventRecorder, log logr.Logger) *ServiceUnitDomain {
 	return &ServiceUnitDomain{
 		serviceUnitMediator: mediator,
@@ -64,10 +65,14 @@ func New(mediator *serviceunit.Mediator, domainCache *cache.Cache, eventRecorder
 	}
 }
 
+// GVK reports the GroupVersionKind this domain handles: ServiceUnit.
 func (d *ServiceUnitDomain) GVK() schema.GroupVersionKind {
 	return serviceunitv1alpha1.GroupVersion.WithKind("ServiceUnit")
 }
 
+// Handle resolves cmd's ServiceUnit contract and ensures its prerequisites,
+// recording conditions and events at each stage. Reconciliation of the
+// workload itself (Stage 3) is not yet wired up.
 func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd command.Command) error {
 
 	su, ok := cmd.Obj.(*serviceunitv1alpha1.ServiceUnit)
@@ -83,9 +88,7 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd command.Command) err
 
 	log.Info("handling serviceunit command", "type", cmd.Type)
 
-	// ------------------------------------------------
 	// Stage 1: Resolve contract
-	// ------------------------------------------------
 
 	log.Info("resolving serviceunit contract")
 
@@ -103,9 +106,7 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd command.Command) err
 	d.events.Normal(su, "ServiceUnitResolved", "ServiceUnit specification resolved successfully")
 	conditions.SetCondition(&su.Status.Conditions, "ServiceUnitResolved", conditions.ConditionTrue, "Resolved", "ServiceUnit specification resolved successfully")
 
-	// ------------------------------------------------
 	// Stage 2: Ensure prerequisites
-	// ------------------------------------------------
 
 	log.Info("ensuring serviceunit prerequisites")
 
@@ -122,9 +123,7 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd command.Command) err
 	d.events.Normal(su, "ServiceUnitPrerequisitesReady", "All ServiceUnit prerequisites created successfully")
 	conditions.SetCondition(&su.Status.Conditions, "ServiceUnitPrerequisitesReady", conditions.ConditionTrue, "PrerequisitesReady", "All prerequisites created successfully")
 
-	// ------------------------------------------------
 	// Stage 3: Execute intent
-	// ------------------------------------------------
 
 	// log.Info("reconciling serviceunit workload")
 
@@ -156,11 +155,14 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd command.Command) err
 	return nil
 }
 
+// CanCreate reports whether obj is a ServiceUnit.
 func (d *ServiceUnitDomain) CanCreate(obj client.Object) bool {
 	_, ok := obj.(*serviceunitv1alpha1.ServiceUnit)
 	return ok
 }
 
+// CanUpdate reports whether oldObj and newObj are both ServiceUnits whose
+// specs differ.
 func (d *ServiceUnitDomain) CanUpdate(oldObj, newObj client.Object) bool {
 	oldSU, okOld := oldObj.(*serviceunitv1alpha1.ServiceUnit)
 	newSU, okNew := newObj.(*serviceunitv1alpha1.ServiceUnit)
@@ -171,6 +173,7 @@ func (d *ServiceUnitDomain) CanUpdate(oldObj, newObj client.Object) bool {
 	return !reflect.DeepEqual(oldSU.Spec, newSU.Spec)
 }
 
+// CanDelete reports whether obj is a ServiceUnit.
 func (d *ServiceUnitDomain) CanDelete(obj client.Object) bool {
 	_, ok := obj.(*serviceunitv1alpha1.ServiceUnit)
 	return ok

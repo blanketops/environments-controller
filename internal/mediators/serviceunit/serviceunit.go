@@ -13,6 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package serviceunit implements the ServiceUnit prerequisite mediator.
+
+Currently a stub relative to its siblings (build, deployment, packages):
+EnsurePrerequisites validates that resolved and its Spec are non-nil and
+logs the resolved contract, but provisions nothing — ServiceUnit has no
+cross-cutting prerequisites of its own today (its workload is applied
+directly by the owning Deployment's reconciliation, not by this mediator).
+*/
 package serviceunit
 
 import (
@@ -41,6 +50,8 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger) *Mediator {
 	}
 }
 
+// EnsurePrerequisites validates resolved and ensures whatever the
+// ServiceUnit needs before its workload can be reconciled.
 func (m *Mediator) EnsurePrerequisites(
 	ctx context.Context,
 	resolved *serviceunitResolution.ResolvedServiceUnit,
