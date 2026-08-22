@@ -18,7 +18,7 @@ The GitHubEvent domain's Ensure\(\) can only report that ingress infrastructure 
 
 
 <a name="Reconciler"></a>
-## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/githubevent/githubevent.go#L59-L63>)
+## type Reconciler
 
 Reconciler observes GitHubEvent CRs and the Argo Events Sensor created for each, deriving and writing the event's accepted/triggered/success status and conditions.
 
@@ -31,7 +31,7 @@ type Reconciler struct {
 ```
 
 <a name="Reconciler.Reconcile"></a>
-### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/githubevent/githubevent.go#L68>)
+### func \(\*Reconciler\) Reconcile
 
 ```go
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -40,7 +40,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 Reconcile resolves the GitHubEvent's contract, checks whether a payload has been received and whether its Sensor reports success, and writes the resulting status via buildContractAndConditions.
 
 <a name="Reconciler.SetupWithManager"></a>
-### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/githubevent/githubevent.go#L194>)
+### func \(\*Reconciler\) SetupWithManager
 
 ```go
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error

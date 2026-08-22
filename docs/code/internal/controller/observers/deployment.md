@@ -29,7 +29,7 @@ Architecture note: The Deployment CR owns the Flux Kustomization as a child reso
 
 
 <a name="Reconciler"></a>
-## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/deployment/deployment.go#L61-L68>)
+## type Reconciler
 
 Reconciler observes Flux Kustomization resources on behalf of the Deployment domain. It translates Flux reconciliation outcomes into Deployment status updates via the application StatusWriter.
 
@@ -45,7 +45,7 @@ type Reconciler struct {
 ```
 
 <a name="Reconciler.Reconcile"></a>
-### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/deployment/deployment.go#L73-L76>)
+### func \(\*Reconciler\) Reconcile
 
 ```go
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -54,7 +54,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 Reconcile is invoked by controller\-runtime for every Flux Kustomization event. It exits immediately for non\-terminal states, resolves the owning Deployment, maps the Flux condition to a domain phase, and writes the final status.
 
 <a name="Reconciler.SetupWithManager"></a>
-### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/deployment/deployment.go#L202>)
+### func \(\*Reconciler\) SetupWithManager
 
 ```go
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error

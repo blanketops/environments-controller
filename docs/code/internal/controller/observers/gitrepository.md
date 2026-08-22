@@ -18,7 +18,7 @@ Reconcile lists Crossplane Repository objects labeled for the GitRepository CR \
 
 
 <a name="Reconciler"></a>
-## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/gitrepository/gitrepository.go#L47-L51>)
+## type Reconciler
 
 Reconciler observes the Crossplane Repository resource backing a GitRepository CR and reflects its Ready condition back onto the GitRepository's status.
 
@@ -31,7 +31,7 @@ type Reconciler struct {
 ```
 
 <a name="Reconciler.Reconcile"></a>
-### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/gitrepository/gitrepository.go#L62-L65>)
+### func \(\*Reconciler\) Reconcile
 
 ```go
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -40,7 +40,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 Reconcile lists the Crossplane Repository objects labeled for this GitRepository, derives a domain.Result from their Ready condition \(or StatePending if none exist yet\), and writes it to status.
 
 <a name="Reconciler.SetupWithManager"></a>
-### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/gitrepository/gitrepository.go#L153>)
+### func \(\*Reconciler\) SetupWithManager
 
 ```go
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error

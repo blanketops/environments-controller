@@ -18,7 +18,7 @@ Package environments re\-exports the environments\-group reconciler types as pub
 
 
 <a name="BuildReconciler"></a>
-## type [BuildReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L30>)
+## type BuildReconciler
 
 BuildReconciler reconciles a Build object.
 
@@ -27,7 +27,7 @@ type BuildReconciler = internalenv.BuildReconciler
 ```
 
 <a name="DeploymentReconciler"></a>
-## type [DeploymentReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L32>)
+## type DeploymentReconciler
 
 DeploymentReconciler reconciles a Deployment object.
 
@@ -36,7 +36,7 @@ type DeploymentReconciler = internalenv.DeploymentReconciler
 ```
 
 <a name="EnvironmentReconciler"></a>
-## type [EnvironmentReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L28>)
+## type EnvironmentReconciler
 
 EnvironmentReconciler reconciles an Environment object.
 
@@ -45,7 +45,7 @@ type EnvironmentReconciler = internalenv.EnvironmentReconciler
 ```
 
 <a name="PackageReconciler"></a>
-## type [PackageReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L34>)
+## type PackageReconciler
 
 PackageReconciler reconciles a Package object.
 
@@ -54,7 +54,7 @@ type PackageReconciler = internalenv.PackageReconciler
 ```
 
 <a name="ServiceUnitReconciler"></a>
-## type [ServiceUnitReconciler](<https://github.com/blanketops/environments-controller/blob/main/pkg/controller/environments/reconcilers.go#L36>)
+## type ServiceUnitReconciler
 
 ServiceUnitReconciler reconciles a ServiceUnit object.
 

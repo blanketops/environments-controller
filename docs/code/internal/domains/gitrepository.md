@@ -22,7 +22,7 @@ The GitRepository domain is responsible for managing the lifecycle of GitReposit
 
 
 <a name="GitRepositoryDomain"></a>
-## type [GitRepositoryDomain](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/gitrepository/gitrepository.go#L48-L65>)
+## type GitRepositoryDomain
 
 GitRepositoryDomain implements the GitRepository resource domain logic.
 
@@ -33,7 +33,7 @@ type GitRepositoryDomain struct {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/gitrepository/gitrepository.go#L68>)
+### func New
 
 ```go
 func New(gitRepositoryMediator *gitrepository.Mediator, gitRepositoryService *application.GitRepositoryService, domainCache *cache.Cache, eventRecorder *events.EventRecorder, log logr.Logger) *GitRepositoryDomain
@@ -42,7 +42,7 @@ func New(gitRepositoryMediator *gitrepository.Mediator, gitRepositoryService *ap
 New returns a new GitRepositoryDomain instance configured with the necessary dependencies.
 
 <a name="GitRepositoryDomain.CanCreate"></a>
-### func \(\*GitRepositoryDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/gitrepository/gitrepository.go#L195>)
+### func \(\*GitRepositoryDomain\) CanCreate
 
 ```go
 func (d *GitRepositoryDomain) CanCreate(obj client.Object) bool
@@ -51,7 +51,7 @@ func (d *GitRepositoryDomain) CanCreate(obj client.Object) bool
 CanCreate reports whether the supplied object can be processed as a GitRepository create operation.
 
 <a name="GitRepositoryDomain.CanDelete"></a>
-### func \(\*GitRepositoryDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/gitrepository/gitrepository.go#L217>)
+### func \(\*GitRepositoryDomain\) CanDelete
 
 ```go
 func (d *GitRepositoryDomain) CanDelete(obj client.Object) bool
@@ -60,7 +60,7 @@ func (d *GitRepositoryDomain) CanDelete(obj client.Object) bool
 CanDelete reports whether the supplied object can be processed as a GitRepository delete operation.
 
 <a name="GitRepositoryDomain.CanUpdate"></a>
-### func \(\*GitRepositoryDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/gitrepository/gitrepository.go#L202>)
+### func \(\*GitRepositoryDomain\) CanUpdate
 
 ```go
 func (d *GitRepositoryDomain) CanUpdate(oldObj, newObj client.Object) bool
@@ -69,7 +69,7 @@ func (d *GitRepositoryDomain) CanUpdate(oldObj, newObj client.Object) bool
 CanUpdate reports whether the supplied update should trigger GitRepository reconciliation by comparing the specifications of the old and new objects.
 
 <a name="GitRepositoryDomain.GVK"></a>
-### func \(\*GitRepositoryDomain\) [GVK](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/gitrepository/gitrepository.go#L79>)
+### func \(\*GitRepositoryDomain\) GVK
 
 ```go
 func (d *GitRepositoryDomain) GVK() schema.GroupVersionKind
@@ -78,7 +78,7 @@ func (d *GitRepositoryDomain) GVK() schema.GroupVersionKind
 GVK tells the engine which CRD this domain handles.
 
 <a name="GitRepositoryDomain.Handle"></a>
-### func \(\*GitRepositoryDomain\) [Handle](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/gitrepository/gitrepository.go#L84>)
+### func \(\*GitRepositoryDomain\) Handle
 
 ```go
 func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd command.Command) error

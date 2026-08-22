@@ -24,7 +24,7 @@ Package testsupport provides shared fixtures for the domain, mediator, and cache
 
 
 <a name="NewFakeClient"></a>
-## func [NewFakeClient](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L112>)
+## func NewFakeClient
 
 ```go
 func NewFakeClient(objs ...client.Object) client.Client
@@ -33,7 +33,7 @@ func NewFakeClient(objs ...client.Object) client.Client
 NewFakeClient builds a fake controller\-runtime client seeded with objs, with status\-subresource tracking enabled for every BlanketOps CR type — required for r.Status\(\).Update\(\)/Patch\(\) to behave like a real API server \(otherwise status writes silently apply to the main object and status assertions pass for the wrong reason\).
 
 <a name="NewScheme"></a>
-## func [NewScheme](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L86>)
+## func NewScheme
 
 ```go
 func NewScheme() *runtime.Scheme
@@ -42,7 +42,7 @@ func NewScheme() *runtime.Scheme
 NewScheme mirrors internal/bootstrap/register.go's RegisterSchemes, plus the ExternalSecret and ProviderConfig GVKs the build/deployment/ githubevent/gitrepository/packages mediators create via unstructured.Unstructured.
 
 <a name="NoopRawRecorder"></a>
-## func [NoopRawRecorder](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L146>)
+## func NoopRawRecorder
 
 ```go
 func NoopRawRecorder() rawevents.EventRecorder
@@ -51,7 +51,7 @@ func NoopRawRecorder() rawevents.EventRecorder
 NoopRawRecorder returns a raw client\-go events.EventRecorder that discards every call, for constructing mediators and build providers in tests.
 
 <a name="NoopRecorder"></a>
-## func [NoopRecorder](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L131>)
+## func NoopRecorder
 
 ```go
 func NoopRecorder() *events.EventRecorder
@@ -60,7 +60,7 @@ func NoopRecorder() *events.EventRecorder
 NoopRecorder returns an EventRecorder that safely discards every call — NewEventRecorder falls back to a no\-op when given a type it doesn't recognize as either client\-go recorder interface.
 
 <a name="RawContract"></a>
-## func [RawContract](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L214>)
+## func RawContract
 
 ```go
 func RawContract(m map[string]any) runtime.RawExtension
@@ -69,7 +69,7 @@ func RawContract(m map[string]any) runtime.RawExtension
 RawContract JSON\-encodes m into a runtime.RawExtension, matching the spec.contract / status.contract field every BlanketOps CR uses instead of typed Kubernetes fields. Panics on marshal failure — the input is always a test\-authored literal map, so a failure here is a test bug, not a runtime condition to handle gracefully.
 
 <a name="FakeExternalCache"></a>
-## type [FakeExternalCache](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L157-L160>)
+## type FakeExternalCache
 
 FakeExternalCache is an in\-memory, JSON\-serializing implementation of blanketops/environments' core/cache.ExternalCache, for testing this repo's internal/cache/\* constructor wrappers. Values are marshaled on Set and unmarshaled on Get, matching how the real Redis/Memcached backends behave — a naive map\[string\]any passthrough would hide \(de\)serialization bugs. Mirrors the external library's own cache/internal/testutil fake, reimplemented here since that package is unexported outside its module.
 
@@ -80,7 +80,7 @@ type FakeExternalCache struct {
 ```
 
 <a name="NewFakeExternalCache"></a>
-### func [NewFakeExternalCache](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L163>)
+### func NewFakeExternalCache
 
 ```go
 func NewFakeExternalCache() *FakeExternalCache
@@ -89,7 +89,7 @@ func NewFakeExternalCache() *FakeExternalCache
 NewFakeExternalCache constructs an empty FakeExternalCache.
 
 <a name="FakeExternalCache.Del"></a>
-### func \(\*FakeExternalCache\) [Del](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L191>)
+### func \(\*FakeExternalCache\) Del
 
 ```go
 func (f *FakeExternalCache) Del(_ context.Context, key string) error
@@ -98,7 +98,7 @@ func (f *FakeExternalCache) Del(_ context.Context, key string) error
 
 
 <a name="FakeExternalCache.DelPrefix"></a>
-### func \(\*FakeExternalCache\) [DelPrefix](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L198>)
+### func \(\*FakeExternalCache\) DelPrefix
 
 ```go
 func (f *FakeExternalCache) DelPrefix(_ context.Context, prefix string) error
@@ -107,7 +107,7 @@ func (f *FakeExternalCache) DelPrefix(_ context.Context, prefix string) error
 
 
 <a name="FakeExternalCache.Get"></a>
-### func \(\*FakeExternalCache\) [Get](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L178>)
+### func \(\*FakeExternalCache\) Get
 
 ```go
 func (f *FakeExternalCache) Get(_ context.Context, key string, into any) (bool, error)
@@ -116,7 +116,7 @@ func (f *FakeExternalCache) Get(_ context.Context, key string, into any) (bool, 
 
 
 <a name="FakeExternalCache.Set"></a>
-### func \(\*FakeExternalCache\) [Set](<https://github.com/blanketops/environments-controller/blob/main/internal/testsupport/testsupport.go#L167>)
+### func \(\*FakeExternalCache\) Set
 
 ```go
 func (f *FakeExternalCache) Set(_ context.Context, key string, val any, _ time.Duration) error

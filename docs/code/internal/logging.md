@@ -20,7 +20,7 @@ Config selects which sinks feed that logger — console, a rotated local file, a
 
 
 <a name="AsLogr"></a>
-## func [AsLogr](<https://github.com/blanketops/environments-controller/blob/main/internal/logging/logr.go#L25>)
+## func AsLogr
 
 ```go
 func AsLogr(z *zap.Logger) logr.Logger
@@ -29,7 +29,7 @@ func AsLogr(z *zap.Logger) logr.Logger
 AsLogr wraps a zap.Logger as a logr.Logger.
 
 <a name="Init"></a>
-## func [Init](<https://github.com/blanketops/environments-controller/blob/main/internal/logging/init.go#L34>)
+## func Init
 
 ```go
 func Init(cfg Config) (logr.Logger, *zap.Logger, error)
@@ -38,7 +38,7 @@ func Init(cfg Config) (logr.Logger, *zap.Logger, error)
 Init builds the root zap logger from cfg on first call and returns it \(wrapped as logr.Logger\) plus the underlying \*zap.Logger. Subsequent calls return the same root logger regardless of cfg.
 
 <a name="SetupPapertrailJSONIngest"></a>
-## func [SetupPapertrailJSONIngest](<https://github.com/blanketops/environments-controller/blob/main/internal/logging/papertrail.go#L72>)
+## func SetupPapertrailJSONIngest
 
 ```go
 func SetupPapertrailJSONIngest(token string) func(msg string) error
@@ -49,7 +49,7 @@ SetupPapertrailJSONIngest returns a function that sends JSON logs directly to Pa
 This is intentionally decoupled from zap: \- no global logger \- no side effects \- safe to use from controllers, jobs, or goroutines
 
 <a name="Config"></a>
-## type [Config](<https://github.com/blanketops/environments-controller/blob/main/internal/logging/config.go#L33-L45>)
+## type Config
 
 Config configures the root logger's output \(console/file/Papertrail\) and verbosity.
 
@@ -70,7 +70,7 @@ type Config struct {
 ```
 
 <a name="DefaultConfig"></a>
-### func [DefaultConfig](<https://github.com/blanketops/environments-controller/blob/main/internal/logging/config.go#L49>)
+### func DefaultConfig
 
 ```go
 func DefaultConfig() Config

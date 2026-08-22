@@ -37,7 +37,7 @@ Phase computation:
 
 
 <a name="Reconciler"></a>
-## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/environment/environment.go#L72-L75>)
+## type Reconciler
 
 Reconciler is the status rollup reconciler for Environment CRs. See the package doc for its fan\-in/aggregation responsibility and CQRS boundary.
 
@@ -49,7 +49,7 @@ type Reconciler struct {
 ```
 
 <a name="Reconciler.Reconcile"></a>
-### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/environment/environment.go#L80>)
+### func \(\*Reconciler\) Reconcile
 
 ```go
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -58,7 +58,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 Reconcile discovers this Environment's composed CRs by label, patches any missing refs into spec.contract, aggregates their readiness conditions, and writes the resulting phase and conditions to status.
 
 <a name="Reconciler.SetupWithManager"></a>
-### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/environment/environment.go#L341>)
+### func \(\*Reconciler\) SetupWithManager
 
 ```go
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error

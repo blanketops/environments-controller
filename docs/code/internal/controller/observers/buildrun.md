@@ -18,7 +18,7 @@ This exists because the Build domain's own Ensure\(\) can only report that build
 
 
 <a name="Reconciler"></a>
-## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/buildrun/buildrun.go#L52-L56>)
+## type Reconciler
 
 Reconciler observes Shipwright BuildRun resources and feeds their terminal Succeeded condition back to the owning Build CR's contract status and conditions.
 
@@ -31,7 +31,7 @@ type Reconciler struct {
 ```
 
 <a name="Reconciler.Reconcile"></a>
-### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/buildrun/buildrun.go#L61>)
+### func \(\*Reconciler\) Reconcile
 
 ```go
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -40,7 +40,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 Reconcile exits immediately for non\-terminal BuildRuns, resolves the owning Build via the build.blanketops.dev/name label, and writes the outcome to its status.
 
 <a name="Reconciler.SetupWithManager"></a>
-### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/buildrun/buildrun.go#L164>)
+### func \(\*Reconciler\) SetupWithManager
 
 ```go
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error

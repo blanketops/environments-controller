@@ -22,7 +22,7 @@ The ServiceUnit domain is responsible for managing the lifecycle of ServiceUnit 
 
 
 <a name="ServiceUnitDomain"></a>
-## type [ServiceUnitDomain](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L47-L56>)
+## type ServiceUnitDomain
 
 ServiceUnitDomain implements the ServiceUnit resource domain.
 
@@ -33,7 +33,7 @@ type ServiceUnitDomain struct {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L59>)
+### func New
 
 ```go
 func New(mediator *serviceunit.Mediator, domainCache *cache.Cache, eventRecorder *events.EventRecorder, log logr.Logger) *ServiceUnitDomain
@@ -42,7 +42,7 @@ func New(mediator *serviceunit.Mediator, domainCache *cache.Cache, eventRecorder
 New constructs a ServiceUnitDomain.
 
 <a name="ServiceUnitDomain.CanCreate"></a>
-### func \(\*ServiceUnitDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L159>)
+### func \(\*ServiceUnitDomain\) CanCreate
 
 ```go
 func (d *ServiceUnitDomain) CanCreate(obj client.Object) bool
@@ -51,7 +51,7 @@ func (d *ServiceUnitDomain) CanCreate(obj client.Object) bool
 CanCreate reports whether obj is a ServiceUnit.
 
 <a name="ServiceUnitDomain.CanDelete"></a>
-### func \(\*ServiceUnitDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L177>)
+### func \(\*ServiceUnitDomain\) CanDelete
 
 ```go
 func (d *ServiceUnitDomain) CanDelete(obj client.Object) bool
@@ -60,7 +60,7 @@ func (d *ServiceUnitDomain) CanDelete(obj client.Object) bool
 CanDelete reports whether obj is a ServiceUnit.
 
 <a name="ServiceUnitDomain.CanUpdate"></a>
-### func \(\*ServiceUnitDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L166>)
+### func \(\*ServiceUnitDomain\) CanUpdate
 
 ```go
 func (d *ServiceUnitDomain) CanUpdate(oldObj, newObj client.Object) bool
@@ -69,7 +69,7 @@ func (d *ServiceUnitDomain) CanUpdate(oldObj, newObj client.Object) bool
 CanUpdate reports whether oldObj and newObj are both ServiceUnits whose specs differ.
 
 <a name="ServiceUnitDomain.GVK"></a>
-### func \(\*ServiceUnitDomain\) [GVK](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L69>)
+### func \(\*ServiceUnitDomain\) GVK
 
 ```go
 func (d *ServiceUnitDomain) GVK() schema.GroupVersionKind
@@ -78,7 +78,7 @@ func (d *ServiceUnitDomain) GVK() schema.GroupVersionKind
 GVK reports the GroupVersionKind this domain handles: ServiceUnit.
 
 <a name="ServiceUnitDomain.Handle"></a>
-### func \(\*ServiceUnitDomain\) [Handle](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/serviceunit/serviceunit.go#L76>)
+### func \(\*ServiceUnitDomain\) Handle
 
 ```go
 func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd command.Command) error

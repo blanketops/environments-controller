@@ -22,7 +22,7 @@ The Build domain is responsible for managing the lifecycle of Build resources. I
 
 
 <a name="BuildDomain"></a>
-## type [BuildDomain](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/build/build.go#L48-L65>)
+## type BuildDomain
 
 BuildDomain implements the Build resource domain logic.
 
@@ -33,7 +33,7 @@ type BuildDomain struct {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/build/build.go#L68>)
+### func New
 
 ```go
 func New(buildMediator *build.Mediator, buildService *application.BuildService, domainCache *cache.Cache, eventRecorder *events.EventRecorder, log logr.Logger) *BuildDomain
@@ -42,7 +42,7 @@ func New(buildMediator *build.Mediator, buildService *application.BuildService, 
 New returns a new BuildDomain instance configured with the necessary dependencies.
 
 <a name="BuildDomain.CanCreate"></a>
-### func \(\*BuildDomain\) [CanCreate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/build/build.go#L194>)
+### func \(\*BuildDomain\) CanCreate
 
 ```go
 func (d *BuildDomain) CanCreate(obj client.Object) bool
@@ -51,7 +51,7 @@ func (d *BuildDomain) CanCreate(obj client.Object) bool
 CanCreate reports whether the supplied object can be processed as a Build create operation.
 
 <a name="BuildDomain.CanDelete"></a>
-### func \(\*BuildDomain\) [CanDelete](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/build/build.go#L216>)
+### func \(\*BuildDomain\) CanDelete
 
 ```go
 func (d *BuildDomain) CanDelete(obj client.Object) bool
@@ -60,7 +60,7 @@ func (d *BuildDomain) CanDelete(obj client.Object) bool
 CanDelete reports whether the supplied object can be processed as a Build delete operation.
 
 <a name="BuildDomain.CanUpdate"></a>
-### func \(\*BuildDomain\) [CanUpdate](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/build/build.go#L201>)
+### func \(\*BuildDomain\) CanUpdate
 
 ```go
 func (d *BuildDomain) CanUpdate(oldObj, newObj client.Object) bool
@@ -69,7 +69,7 @@ func (d *BuildDomain) CanUpdate(oldObj, newObj client.Object) bool
 CanUpdate reports whether the supplied update should trigger Build reconciliation by comparing the specifications of the old and new objects.
 
 <a name="BuildDomain.GVK"></a>
-### func \(\*BuildDomain\) [GVK](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/build/build.go#L79>)
+### func \(\*BuildDomain\) GVK
 
 ```go
 func (d *BuildDomain) GVK() schema.GroupVersionKind
@@ -78,7 +78,7 @@ func (d *BuildDomain) GVK() schema.GroupVersionKind
 GVK tells the engine which CRD this domain handles.
 
 <a name="BuildDomain.Handle"></a>
-### func \(\*BuildDomain\) [Handle](<https://github.com/blanketops/environments-controller/blob/main/internal/domains/build/build.go#L84>)
+### func \(\*BuildDomain\) Handle
 
 ```go
 func (d *BuildDomain) Handle(ctx context.Context, cmd command.Command) error

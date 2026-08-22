@@ -25,7 +25,7 @@ Package packages implements the Package prerequisite mediator. The mediator owns
 
 
 <a name="Mediator"></a>
-## type [Mediator](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/packages/package.go#L45-L57>)
+## type Mediator
 
 Mediator manages the prerequisite resources a Package depends on.
 
@@ -46,7 +46,7 @@ type Mediator struct {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/packages/package.go#L60-L65>)
+### func New
 
 ```go
 func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder events.EventRecorder) *Mediator
@@ -55,7 +55,7 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, recorder even
 New returns a new Mediator instance configured with the necessary dependencies.
 
 <a name="Mediator.CleanupPrerequisites"></a>
-### func \(\*Mediator\) [CleanupPrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/packages/package.go#L125>)
+### func \(\*Mediator\) CleanupPrerequisites
 
 ```go
 func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageResolution.ResolvedPackage) error
@@ -64,7 +64,7 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageRe
 CleanupPrerequisites reverses EnsurePrerequisites — deletes the registry credentials and state repository git credentials this mediator provisioned, each skipped when its secret reference is absent from the contract. Called from the domain's CmdDelete branch, gated by the finalizer at the controller level. Teardown runs in reverse provisioning order. All teardown steps are attempted regardless of individual failures, and errors are aggregated — a stuck registry secret shouldn't block cleanup of the state repository credentials. Any returned error keeps the finalizer in place for retry on next reconcile.
 
 <a name="Mediator.EnsurePrerequisites"></a>
-### func \(\*Mediator\) [EnsurePrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/packages/package.go#L81>)
+### func \(\*Mediator\) EnsurePrerequisites
 
 ```go
 func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageResolution.ResolvedPackage) error

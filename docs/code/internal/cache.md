@@ -17,7 +17,7 @@ Each field wraps the matching blanketops\-environments\-core cache/\<domain\> pa
 
 
 <a name="Caches"></a>
-## type [Caches](<https://github.com/blanketops/environments-controller/blob/main/internal/cache/setup.go#L36-L43>)
+## type Caches
 
 Caches aggregates all domain caches, constructed once in main and injected into reconcilers.
 
@@ -33,7 +33,7 @@ type Caches struct {
 ```
 
 <a name="NewCaches"></a>
-### func [NewCaches](<https://github.com/blanketops/environments-controller/blob/main/internal/cache/setup.go#L47>)
+### func NewCaches
 
 ```go
 func NewCaches(c *cache.Cache) *Caches

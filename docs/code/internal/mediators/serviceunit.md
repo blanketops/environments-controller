@@ -18,7 +18,7 @@ Currently a stub relative to its siblings \(build, deployment, packages\): Ensur
 
 
 <a name="Mediator"></a>
-## type [Mediator](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/serviceunit/serviceunit.go#L38-L42>)
+## type Mediator
 
 Mediator coordinates the various stages of the application lifecycle.
 
@@ -31,7 +31,7 @@ type Mediator struct {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/serviceunit/serviceunit.go#L45>)
+### func New
 
 ```go
 func New(c client.Client, scheme *runtime.Scheme, log logr.Logger) *Mediator
@@ -40,7 +40,7 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger) *Mediator
 New creates a new Mediator with all the sub\-reconcilers.
 
 <a name="Mediator.EnsurePrerequisites"></a>
-### func \(\*Mediator\) [EnsurePrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/serviceunit/serviceunit.go#L55-L58>)
+### func \(\*Mediator\) EnsurePrerequisites
 
 ```go
 func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *serviceunitResolution.ResolvedServiceUnit) error

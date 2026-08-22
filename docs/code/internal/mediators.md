@@ -17,7 +17,7 @@ Unlike the per\-CR mediators under this same internal/mediators tree, this packa
 
 
 <a name="EnsureEnvironment"></a>
-## func [EnsureEnvironment](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/environment.go#L47-L52>)
+## func EnsureEnvironment
 
 ```go
 func EnsureEnvironment(ctx context.Context, c client.Client, obj client.Object, contract runtime.RawExtension) (*env1alpha1.Environment, error)
@@ -26,7 +26,7 @@ func EnsureEnvironment(ctx context.Context, c client.Client, obj client.Object, 
 EnsureEnvironment fetches the Environment named by obj's environments.blanketops.dev/\{name,type\} labels, creating it with the given contract if it doesn't exist yet. Returns \(nil, nil\) if obj carries neither label — it isn't environment\-scoped.
 
 <a name="PatchEnvironmentAggregate"></a>
-## func [PatchEnvironmentAggregate](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/environment.go#L96-L101>)
+## func PatchEnvironmentAggregate
 
 ```go
 func PatchEnvironmentAggregate(ctx context.Context, c client.Client, env *env1alpha1.Environment, patchFn func(*environmentResolution.ResolvedEnvironmentSpec)) error

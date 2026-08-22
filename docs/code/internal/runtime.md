@@ -15,7 +15,7 @@ Package runtime bundles the shared CQRS infrastructure every domain and mediator
 
 
 <a name="Runtime"></a>
-## type [Runtime](<https://github.com/blanketops/environments-controller/blob/main/internal/runtime/runtime.go#L39-L45>)
+## type Runtime
 
 Runtime bundles the shared infrastructure every domain and mediator depends on: the field cache, event recorder, domain registry, and command\-dispatch engine.
 
@@ -30,7 +30,7 @@ type Runtime struct {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/runtime/runtime.go#L49>)
+### func New
 
 ```go
 func New(mgr ctrl.Manager) *Runtime

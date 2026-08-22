@@ -25,7 +25,7 @@ Package gitrepository implements the GitRepository prerequisite mediator. The me
 
 
 <a name="Mediator"></a>
-## type [Mediator](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/gitrepository/gitrepository.go#L48-L59>)
+## type Mediator
 
 Mediator manages the prerequisite resources a GitRepository depends on.
 
@@ -45,7 +45,7 @@ type Mediator struct {
 ```
 
 <a name="New"></a>
-### func [New](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/gitrepository/gitrepository.go#L62-L67>)
+### func New
 
 ```go
 func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, rec events.EventRecorder) *Mediator
@@ -54,7 +54,7 @@ func New(c client.Client, scheme *runtime.Scheme, log logr.Logger, rec events.Ev
 New returns a new Mediator instance configured with the necessary dependencies.
 
 <a name="Mediator.CleanupPrerequisites"></a>
-### func \(\*Mediator\) [CleanupPrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/gitrepository/gitrepository.go#L126>)
+### func \(\*Mediator\) CleanupPrerequisites
 
 ```go
 func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *gitrepoResolution.ResolvedGitRepository) error
@@ -65,7 +65,7 @@ CleanupPrerequisites reverses the per\-CR portion of EnsurePrerequisites — del
 The GitHub provider credentials \(Stage 1\) and ProviderConfig \(Stage 2\) are deliberately NOT torn down here: they are shared, cluster\-level prerequisites serving every GitRepository. Deleting them when one CR is torn down would sever provider access for all others. Their removal belongs to platform\-level uninstall paths only.
 
 <a name="Mediator.EnsurePrerequisites"></a>
-### func \(\*Mediator\) [EnsurePrerequisites](<https://github.com/blanketops/environments-controller/blob/main/internal/mediators/gitrepository/gitrepository.go#L83>)
+### func \(\*Mediator\) EnsurePrerequisites
 
 ```go
 func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *gitrepoResolution.ResolvedGitRepository) error

@@ -23,7 +23,7 @@ Race note: applyRetry only acts when build.Status.Contract.ExecutionRef matches 
 
 
 <a name="Reconciler"></a>
-## type [Reconciler](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/build/build.go#L77-L81>)
+## type Reconciler
 
 Reconciler mirrors trigger metadata and retry bookkeeping onto Build CRs. See the package doc for its two responsibilities \(applyTriggers, applyRetry\) and the cross\-namespace/race caveats.
 
@@ -36,7 +36,7 @@ type Reconciler struct {
 ```
 
 <a name="Reconciler.Reconcile"></a>
-### func \(\*Reconciler\) [Reconcile](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/build/build.go#L85>)
+### func \(\*Reconciler\) Reconcile
 
 ```go
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -45,7 +45,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 Reconcile fetches the Build, resolves its contract, then applies trigger metadata and retry bookkeeping via applyTriggers/applyRetry.
 
 <a name="Reconciler.SetupWithManager"></a>
-### func \(\*Reconciler\) [SetupWithManager](<https://github.com/blanketops/environments-controller/blob/main/internal/controller/observers/build/build.go#L306>)
+### func \(\*Reconciler\) SetupWithManager
 
 ```go
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error
