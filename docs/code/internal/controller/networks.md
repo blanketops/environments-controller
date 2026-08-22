@@ -14,7 +14,9 @@ The reconciler is deliberately thin. It owns three responsibilities only:
 2. Resolve the raw contract into a ResolvedDomain \(resolution layer\).
 3. Hand the ResolvedDomain to DomainService, which maps, selects, dispatches, and writes status.
 
-All business logic lives in pkg/Domains/application. The reconciler does not build conditions, select providers, or touch the runtime resource directly. A resolution failure is terminal for this generation — it is logged and the request is dropped \(no requeue\) because re\-running the same bad contract will fail identically. Service errors are returned for controller\-runtime to requeue with backoff.
+All business logic lives in pkg/apis/domain/application. The reconciler does not build conditions, select providers, or touch the runtime resource directly. A resolution failure is terminal for this generation — it is logged and the request is dropped \(no requeue\) because re\-running the same bad contract will fail identically. Service errors are returned for controller\-runtime to requeue with backoff.
+
+ACME is set by RegisterDomain \(internal/bootstrap\) before SetupWithManager runs — it configures the cert\-manager Issuer the Knative provider creates for custom\-strategy domains, and has no safe hardcoded default.
 
 This file owns RouteReconciler — the controller\-runtime reconciler for the Route CR.
 
@@ -39,12 +41,20 @@ All business logic lives in pkg/routes/application. The reconciler does not buil
 <a name="DomainReconciler"></a>
 ## type DomainReconciler
 
-DomainReconciler reconciles a Domain CR by resolving its contract and handing it to the Domain application service.
+DomainReconciler reconciles a Domain CR by resolving its contract and handing it to the domain application service.
 
 ```go
 type DomainReconciler struct {
-    Client client.Client
-    Log    logr.Logger
+    client.Client
+    Log           logr.Logger
+    Scheme        *runtime.Scheme
+    DomainService *domainapp.DomainService
+    Runtime       *runtimeinfra.Runtime
+    Recorder      events.EventRecorder
+
+    // ACME configures the cert-manager Issuer the Knative provider creates
+    // for custom-strategy domains. Must be set before SetupWithManager runs.
+    ACME domainapi.ACMEConfig
 }
 ```
 
@@ -55,7 +65,7 @@ type DomainReconciler struct {
 func (r *DomainReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
 ```
 
-Reconcile fetches the Domain, resolves its contract, and delegates to the application service. See file header for the responsibility split.
+Reconcile is part of the main kubernetes reconciliation loop which aims to move the current state of the cluster closer to the desired state.
 
 <a name="DomainReconciler.SetupWithManager"></a>
 ### func \(\*DomainReconciler\) SetupWithManager
@@ -64,7 +74,7 @@ Reconcile fetches the Domain, resolves its contract, and delegates to the applic
 func (r *DomainReconciler) SetupWithManager(mgr ctrl.Manager) error
 ```
 
-SetupWithManager registers the reconciler with the controller manager and declares the Domain CR as the primary watched resource.
+SetupWithManager sets up the controller with the Manager.
 
 <a name="RouteReconciler"></a>
 ## type RouteReconciler
