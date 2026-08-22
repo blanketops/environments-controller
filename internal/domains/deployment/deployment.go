@@ -198,7 +198,29 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 			return err
 		}
 
-		// Tear down prerequisites the mediator created (secrets, SAs, RBAC).
+		// Tear down whatever Reconcile applied: the imperative Deployment/
+		// Service objects, or (GitOps) the Flux GitRepository/Kustomization
+		// CRs. The manifests repo itself is not touched here -- that's the
+		// mediator's job below, which deletes the whole per-Deployment repo
+		// via the Git host's API; nothing here needs to touch its contents.
+		if d.deployService != nil {
+			serviceUnits, err := d.resolveServiceUnits(ctx, resolved)
+			if err != nil {
+				log.Error(err, "resolve serviceunits failed during teardown")
+				d.events.FromError(deploymentCR, "ServiceUnitResolutionFailed", err)
+				conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", conditions.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
+				return err
+			}
+			if err := d.deployService.Teardown(ctx, resolved, serviceUnits, d.log); err != nil {
+				log.Error(err, "deployment teardown failed")
+				d.events.FromError(deploymentCR, "DeploymentTeardownFailed", err)
+				conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", conditions.ConditionFalse, "DeploymentTeardownFailed", err.Error())
+				return err
+			}
+		}
+
+		// Tear down prerequisites the mediator created (secrets, SAs, RBAC,
+		// and -- for GitOps -- the per-Deployment manifests repo itself).
 		if err := d.deploymentMediator.CleanupPrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "prerequisites cleanup failed")
 			d.events.FromError(deploymentCR, "DeploymentPrerequisitesCleanupFailed", err)
