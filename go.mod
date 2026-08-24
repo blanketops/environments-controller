@@ -13,7 +13,7 @@ require (
 	github.com/go-logr/logr v1.4.4
 	github.com/go-logr/zapr v1.3.0
 	github.com/magefile/mage v1.17.2
-	github.com/shipwright-io/build v0.20.11
+	github.com/shipwright-io/build v0.20.13
 	github.com/tektoncd/pipeline v1.14.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.55.0
@@ -61,7 +61,7 @@ require (
 	github.com/go-openapi/swag/typeutils v0.26.1 // indirect
 	github.com/go-openapi/swag/yamlutils v0.26.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/google/cel-go v0.29.0 // indirect
+	github.com/google/cel-go v0.30.0 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-containerregistry v0.21.7 // indirect
