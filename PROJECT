@@ -55,6 +55,5 @@ resources:
   domain: blanketops.dev
   group: events
   kind: GitHubEvent
-  path: k8s.io/api/events/v1alpha1
   version: v1alpha1
 version: "3"
