@@ -132,7 +132,7 @@ func TestReconcile_SuccessRecordsImageWithDigest(t *testing.T) {
 	if !st.Success || !st.Triggered || st.ExecutionRef != testRunName || st.BuildHash != testRunName {
 		t.Errorf("unexpected contract: %+v", st)
 	}
-	if !hasCondition(conds, "BuildSuccess") {
+	if !hasCondition(conds, conditionBuildSuccess) {
 		t.Errorf("BuildSuccess condition missing: %+v", conds)
 	}
 }
@@ -164,7 +164,7 @@ func TestReconcile_FailureKeepsLastPushedImage(t *testing.T) {
 	if st.Success || st.ExecutionRef != testRunName {
 		t.Errorf("unexpected contract: %+v", st)
 	}
-	if !hasCondition(conds, "BuildFailed") {
+	if !hasCondition(conds, conditionBuildFailed) {
 		t.Errorf("BuildFailed condition missing: %+v", conds)
 	}
 }
@@ -203,7 +203,7 @@ func TestReconcile_OlderRunDoesNotOverwriteNewer(t *testing.T) {
 	if st.ExecutionRef != "run-new" || !st.Success || st.Image != newer {
 		t.Errorf("contract was overwritten by the older run: %+v", st)
 	}
-	if hasCondition(conds, "BuildFailed") {
+	if hasCondition(conds, conditionBuildFailed) {
 		t.Errorf("older run wrote BuildFailed: %+v", conds)
 	}
 }
@@ -243,5 +243,63 @@ func TestPushedImage(t *testing.T) {
 				t.Errorf("pushedImage() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func outcomeConditions(conds []metav1.Condition) []string {
+	var got []string
+	for _, c := range conds {
+		if c.Type == conditionBuildSuccess || c.Type == conditionBuildFailed {
+			got = append(got, c.Type)
+		}
+	}
+	return got
+}
+
+// TestReconcile_LatestOutcomeReplacesThePrevious follows a Build through a
+// failed run, a successful retry and a later failure. Only the outcome of the
+// newest run may remain, and conditions the observer does not own stay.
+func TestReconcile_LatestOutcomeReplacesThePrevious(t *testing.T) {
+	build := newBuild(nil)
+	build.Status.Conditions = []metav1.Condition{{
+		Type: "BuildReady", Status: metav1.ConditionTrue, Reason: "BuildReady", Message: "Build dispatched",
+	}}
+	c := testsupport.NewFakeClient(build, newBuildRun("run-a", 0, new(false), testImage, ""))
+
+	steps := []struct {
+		run       string
+		age       time.Duration
+		succeeded bool
+		want      string
+	}{
+		{run: "run-a", succeeded: false, want: conditionBuildFailed},
+		{run: "run-b", age: time.Minute, succeeded: true, want: conditionBuildSuccess},
+		{run: "run-c", age: 2 * time.Minute, succeeded: false, want: conditionBuildFailed},
+	}
+
+	for i, step := range steps {
+		if i > 0 {
+			br := newBuildRun(step.run, step.age, new(step.succeeded), testImage, testDigest)
+			if err := c.Create(context.Background(), br); err != nil {
+				t.Fatalf("create %s: %v", step.run, err)
+			}
+		}
+		reconcileRun(t, c, step.run)
+
+		_, conds, _ := readStatus(t, c)
+		got := outcomeConditions(conds)
+		if len(got) != 1 || got[0] != step.want {
+			t.Fatalf("after %s: outcome conditions = %v, want only %s", step.run, got, step.want)
+		}
+		if !hasCondition(conds, "BuildReady") {
+			t.Fatalf("after %s: BuildReady was removed: %+v", step.run, conds)
+		}
+	}
+
+	// The image of the last successful run is still recorded after the
+	// later failure.
+	st, _, _ := readStatus(t, c)
+	if want := testImage + "@" + testDigest; st.Image != want {
+		t.Errorf("Image = %q, want %q", st.Image, want)
 	}
 }
