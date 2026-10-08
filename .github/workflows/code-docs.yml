@@ -34,7 +34,8 @@ permissions:
 jobs:
   godoc:
     name: Generate Code Docs
-    runs-on: ubuntu-latest
+    # Zenith self-hosted pool.
+    runs-on: self-hosted
     steps:
       - name: Generate GitHub App token
         id: app-token

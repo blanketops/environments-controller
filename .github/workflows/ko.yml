@@ -61,7 +61,8 @@ env:
 
 jobs:
   build-and-publish:
-    runs-on: ubuntu-latest
+    # Zenith self-hosted pool.
+    runs-on: self-hosted
     steps:
       - name: Generate GitHub App token
         id: app-token

@@ -40,7 +40,8 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Zenith self-hosted pool.
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v7
