@@ -67,9 +67,10 @@ type GitHubEventReconciler struct {
 // +kubebuilder:rbac:groups=events.blanketops.dev,resources=githubevents/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=events.blanketops.dev,resources=githubevents/finalizers,verbs=update
 
-// +kubebuilder:rbac:groups=argoproj.io,resources=sensors;eventsources,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=argoproj.io,resources=sensors;eventsources;eventbus,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=argoproj.io,resources=sensors/status;eventsources/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=argoproj.io,resources=sensors/finalizers;eventsources/finalizers,verbs=update
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to

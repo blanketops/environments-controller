@@ -27,6 +27,7 @@ rules:
 - apiGroups:
   - argoproj.io
   resources:
+  - eventbus
   - eventsources
   - sensors
   verbs:
@@ -281,6 +282,19 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - repo.github.upbound.io
   resources:
