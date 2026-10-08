@@ -6,7 +6,7 @@ require (
 	carvel.dev/kapp-controller v0.60.4
 	github.com/argoproj/argo-events v1.9.11
 	github.com/blanketops/environments v0.8.1
-	github.com/blanketops/environments-api v0.2.7
+	github.com/blanketops/environments-api v0.2.9
 	github.com/cert-manager/cert-manager v1.21.1
 	github.com/fluxcd/kustomize-controller/api v1.9.4
 	github.com/fluxcd/source-controller/api v1.9.4
@@ -18,7 +18,7 @@ require (
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.55.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
-	k8s.io/api v0.36.3
+	k8s.io/api v0.36.4
 	k8s.io/apimachinery v0.36.4
 	k8s.io/client-go v0.36.3
 	knative.dev/networking v0.0.0-20260727162500-c7a7b772cac9
