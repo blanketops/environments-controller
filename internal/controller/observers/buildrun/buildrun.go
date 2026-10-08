@@ -90,6 +90,21 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	log = log.WithValues("build", build.Name, "namespace", build.Namespace)
+
+	// Only the most recent BuildRun speaks for the Build. Every terminal
+	// BuildRun is reconciled again when the controller restarts, in no
+	// particular order; without this an older run would overwrite the
+	// outcome and the image of a newer one.
+	superseded, err := r.superseded(ctx, &br, buildName)
+	if err != nil {
+		log.Error(err, "failed to list buildruns for the build")
+		return ctrl.Result{}, err
+	}
+	if superseded {
+		log.Info("skipping: a newer buildrun exists for this build")
+		return ctrl.Result{}, nil
+	}
+
 	log.Info("buildrun completed")
 
 	if r.Recorder != nil {
@@ -121,12 +136,25 @@ func (r *Reconciler) buildContractAndConditions(
 
 	buildHash := br.Labels["build-hash"]
 
+	// The image is the last one this Build pushed. A successful run replaces
+	// it; a failed run leaves the previous image in place, because that
+	// artifact still exists and is what consumers can deploy.
+	image := currentStatus.Image
+	if success {
+		if pushed := pushedImage(br); pushed != "" {
+			image = pushed
+		} else {
+			log.Info("buildrun succeeded without reporting an output image")
+		}
+	}
+
 	contractStatus := domain.BuildStatus{
 		Success:      success,
 		Message:      message,
 		ExecutionRef: br.Name,
 		BuildHash:    buildHash,
 		Triggered:    true,
+		Image:        image,
 	}
 
 	raw, err := json.Marshal(contractStatus)
@@ -156,6 +184,40 @@ func (r *Reconciler) buildContractAndConditions(
 	}
 
 	return []metav1.Condition{condition}
+}
+
+// pushedImage returns the reference of the image a BuildRun pushed, pinned
+// to the digest the registry reported. The image name comes from the
+// BuildRun's own snapshot of the build spec, not from the Shipwright Build,
+// which may already describe a newer commit. Returns "" when the BuildRun
+// carries no snapshot.
+func pushedImage(br *shipwrightv1alpha1.BuildRun) string {
+	if br.Status.BuildSpec == nil {
+		return ""
+	}
+	digest := ""
+	if br.Status.Output != nil {
+		digest = br.Status.Output.Digest
+	}
+	return domain.ImageWithDigest(br.Status.BuildSpec.Output.Image, digest)
+}
+
+// superseded reports whether a BuildRun created after br exists for the
+// same Build.
+func (r *Reconciler) superseded(ctx context.Context, br *shipwrightv1alpha1.BuildRun, buildName string) (bool, error) {
+	var runs shipwrightv1alpha1.BuildRunList
+	if err := r.List(ctx, &runs,
+		client.InNamespace(br.Namespace),
+		client.MatchingLabels{"build.blanketops.dev/name": buildName},
+	); err != nil {
+		return false, err
+	}
+	for i := range runs.Items {
+		if runs.Items[i].CreationTimestamp.After(br.CreationTimestamp.Time) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // SetupWithManager registers the BuildRun observer with the controller
