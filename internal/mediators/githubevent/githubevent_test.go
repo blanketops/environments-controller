@@ -19,6 +19,7 @@ package githubevents
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
@@ -26,6 +27,7 @@ import (
 	githubeventResolution "github.com/blanketops/environments/resolution/githubevent/resolve"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/blanketops/environments-controller/internal/testsupport"
 )
@@ -134,5 +136,101 @@ func TestMediator_CleanupPrerequisites_AfterEnsure(t *testing.T) {
 	}
 	if err := m.CleanupPrerequisites(context.Background(), resolved); err != nil {
 		t.Fatalf("CleanupPrerequisites() = %v, want nil", err)
+	}
+}
+
+// appsNamespace is a namespace other than the one GitHubEvents are delivered to.
+const appsNamespace = "apps"
+
+// newEnvironmentIn returns the test Environment in the given namespace.
+func newEnvironmentIn(namespace string) *environmentsv1alpha1.Environment {
+	env := newEnvironment()
+	env.Namespace = namespace
+	return env
+}
+
+// newResolvedGitHubEventIn returns the test GitHubEvent in the given
+// namespace, as a webhook delivery lands in argo-events.
+func newResolvedGitHubEventIn(namespace string) *githubeventResolution.ResolvedGitHubEvent {
+	resolved := newResolvedGitHubEvent()
+	resolved.Event.Namespace = namespace
+	return resolved
+}
+
+func TestMediator_EnsurePrerequisites_EnvironmentInAnotherNamespace(t *testing.T) {
+	resolved := newResolvedGitHubEventIn("argo-events")
+	c := testsupport.NewFakeClient(newEnvironmentIn(appsNamespace), resolved.Event)
+	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
+
+	if err := m.EnsurePrerequisites(context.Background(), resolved); err != nil {
+		t.Fatalf("EnsurePrerequisites() = %v, want nil", err)
+	}
+	if err := m.CleanupPrerequisites(context.Background(), resolved); err != nil {
+		t.Fatalf("CleanupPrerequisites() = %v, want nil", err)
+	}
+}
+
+func TestMediator_lookupEnvironment(t *testing.T) {
+	tests := []struct {
+		name          string
+		envNamespaces []string
+		eventLabels   map[string]string
+		wantErr       string
+	}{
+		{
+			name:          "environment in the event namespace",
+			envNamespaces: []string{"argo-events"},
+		},
+		{
+			name:          "environment in another namespace",
+			envNamespaces: []string{appsNamespace},
+		},
+		{
+			name:          "event namespace wins over others",
+			envNamespaces: []string{appsNamespace, "argo-events", "staging"},
+		},
+		{
+			name:          "several other namespaces is ambiguous",
+			envNamespaces: []string{"staging", appsNamespace},
+			wantErr:       `environment "app-sample" is ambiguous: found in namespaces apps, staging`,
+		},
+		{
+			name:    "no environment anywhere",
+			wantErr: "not found",
+		},
+		{
+			name:          "event without the environment label",
+			envNamespaces: []string{appsNamespace},
+			eventLabels:   map[string]string{},
+			wantErr:       "is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolved := newResolvedGitHubEventIn("argo-events")
+			if tt.eventLabels != nil {
+				resolved.Event.Labels = tt.eventLabels
+			}
+			objs := []client.Object{resolved.Event}
+			for _, ns := range tt.envNamespaces {
+				objs = append(objs, newEnvironmentIn(ns))
+			}
+			m := New(testsupport.NewFakeClient(objs...), testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
+
+			envCtx, err := m.lookupEnvironment(context.Background(), resolved.Event)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("lookupEnvironment() error = %v, want it to contain %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("lookupEnvironment() = %v, want nil", err)
+			}
+			if envCtx.Name != testAppName {
+				t.Errorf("environment name = %q, want %q", envCtx.Name, testAppName)
+			}
+		})
 	}
 }
