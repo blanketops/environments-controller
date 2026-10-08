@@ -16,8 +16,8 @@ github.com/argoproj/argo-events v1.9.11 h1:lDRu5E8ReFN1RJxGIibNOHuNEIPwzGleEkP3D
 github.com/argoproj/argo-events v1.9.11/go.mod h1:x5sq01KlghEBJlzDSN61KYnsap6THAugoI9Cpynq+DY=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
-github.com/blanketops/environments v0.8.3 h1:IZndrDxvnf/VayS3jezAaz2zv/0jE/sfHpav8GsWihM=
-github.com/blanketops/environments v0.8.3/go.mod h1:uHA9klagSyy3kpig7dSGH5n8RBJmcvKrI2g27rgfmGA=
+github.com/blanketops/environments v0.8.4 h1:R3bidSsjq39L6x/f4BWVEyj2V6HweBsXy6CJ04JjC5o=
+github.com/blanketops/environments v0.8.4/go.mod h1:uHA9klagSyy3kpig7dSGH5n8RBJmcvKrI2g27rgfmGA=
 github.com/blanketops/environments-api v0.2.9 h1:7ADPw+Ym1DlRRWnZhC+oFweEtx/7ZuQJqFy8N5BGDp0=
 github.com/blanketops/environments-api v0.2.9/go.mod h1:v++aawBIBU3z+dEkEYMPHaws96qIcYB9ru2hJB9jijg=
 github.com/blanketops/environments-contract v0.5.5 h1:zp3BmayWlSFA6vkn8P5C2r6ILTZqmYo4Dj4jb8Wc1X8=
