@@ -32,6 +32,8 @@ import (
 	"github.com/go-logr/logr"
 	buildclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/events"
@@ -131,6 +133,14 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	log.Info("routing build to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
+	// The reconciler only ever produces conditions. The contract status is
+	// owned by the buildrun observer, so drop the copy read above: the
+	// build service's StatusWriter persists whatever contract the object it
+	// is handed carries, and would otherwise write this stale copy back
+	// over an outcome the observer recorded in the meantime.
+	buildCR.Status.Contract = runtime.RawExtension{}
+	before := append([]metav1.Condition(nil), buildCR.Status.Conditions...)
+
 	// Execute domain logic via engine
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 		log.Error(err, "engine execution failed")
@@ -167,7 +177,12 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
 			return err
 		}
-		latest.Status = buildCR.Status
+		// Merge only the conditions this pass set. Replacing the whole
+		// status would discard the contract and conditions written by the
+		// build service and the observers since the object was read.
+		for _, cond := range changedConditions(before, buildCR.Status.Conditions) {
+			apimeta.SetStatusCondition(&latest.Status.Conditions, cond)
+		}
 		return r.Status().Update(ctx, &latest)
 	}); err != nil {
 		log.Error(err, "failed to update build status")
@@ -178,6 +193,23 @@ func (r *BuildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	log.Info("reconcile done")
 
 	return ctrl.Result{}, nil
+}
+
+// changedConditions returns the conditions in after that are new or differ
+// from the same type in before — the ones set during this reconcile pass.
+func changedConditions(before, after []metav1.Condition) []metav1.Condition {
+	seen := make(map[string]metav1.Condition, len(before))
+	for _, c := range before {
+		seen[c.Type] = c
+	}
+	var changed []metav1.Condition
+	for _, c := range after {
+		if prev, ok := seen[c.Type]; ok && prev == c {
+			continue
+		}
+		changed = append(changed, c)
+	}
+	return changed
 }
 
 // SetupWithManager sets up the controller with the Manager.
