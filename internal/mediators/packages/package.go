@@ -41,6 +41,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// DeployerClusterRole is the ClusterRole each Package's service account is
+// bound to. It states what a Package's kapp App may deploy and is shipped by
+// the installation (environments-install, config/rbac), under the name
+// prefix every object of the installation carries. This name is a
+// cross-repo contract; the manager's own role may bind this role and no
+// other.
+const DeployerClusterRole = "blanketops-environments-package-deployer-role"
+
 // Mediator manages the prerequisite resources a Package depends on.
 type Mediator struct {
 	// Client is the Kubernetes client used for all prerequisite operations.
@@ -54,6 +62,9 @@ type Mediator struct {
 	// ServiceAccountReconciler manages the package service account and its
 	// secret bindings as a cross-cutting prerequisite.
 	ServiceAccountReconciler *serviceaccounts.PackageServiceAccountReconciler
+	// DeployerBindingReconciler binds that service account to
+	// DeployerClusterRole.
+	DeployerBindingReconciler *serviceaccounts.PackageDeployerBindingReconciler
 }
 
 // New returns a new Mediator instance configured with the necessary dependencies.
@@ -64,18 +75,20 @@ func New(
 	recorder events.EventRecorder,
 ) *Mediator {
 	return &Mediator{
-		Client:                   c,
-		Scheme:                   scheme,
-		Log:                      log,
-		Recorder:                 recorder,
-		ServiceAccountReconciler: serviceaccounts.NewPackageServiceAccountReconciler(c, scheme, log),
+		Client:                    c,
+		Scheme:                    scheme,
+		Log:                       log,
+		Recorder:                  recorder,
+		ServiceAccountReconciler:  serviceaccounts.NewPackageServiceAccountReconciler(c, scheme, log),
+		DeployerBindingReconciler: serviceaccounts.NewPackageDeployerBindingReconciler(c, log, DeployerClusterRole),
 	}
 }
 
 // EnsurePrerequisites provisions the prerequisites a Package requires before
 // execution: the state repository git credentials and the package repository
 // git credentials, each skipped when its secret reference is absent from the
-// contract, and the service account the kapp App deploys as. Called from the domain's CmdCreate/CmdUpdate branch after
+// contract, and the service account the kapp App deploys as with its
+// binding to DeployerClusterRole. Called from the domain's CmdCreate/CmdUpdate branch after
 // resolution succeeds. Provisioning is fail-fast — the first failing step
 // returns its error and the domain records PackagePrerequisitesCreateFailed.
 func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageResolution.ResolvedPackage) error {
@@ -115,11 +128,15 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageRes
 	if err := m.ServiceAccountReconciler.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("reconcile service account: %w", err)
 	}
+	// Stage 4: Deployer binding — what that identity may deploy.
+	if err := m.DeployerBindingReconciler.Reconcile(ctx, resolved); err != nil {
+		return fmt.Errorf("reconcile deployer binding: %w", err)
+	}
 	return nil
 }
 
-// CleanupPrerequisites reverses EnsurePrerequisites — deletes the service
-// account and the package repository and state repository git credentials
+// CleanupPrerequisites reverses EnsurePrerequisites — deletes the deployer
+// binding, the service account and the package repository and state repository git credentials
 // this mediator provisioned, the credentials each skipped when its secret
 // reference is absent from the contract. Called from the domain's CmdDelete branch, gated by the
 // finalizer at the controller level. Teardown runs in reverse provisioning
@@ -141,6 +158,11 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageRe
 	}
 	m.Log.Info("environment context resolved for teardown", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
 	var errs []error
+	// Stage 4: Deployer binding — cluster-scoped, so nothing garbage-collects
+	// it with the Package.
+	if err := m.DeployerBindingReconciler.Delete(ctx, resolved); err != nil {
+		errs = append(errs, fmt.Errorf("delete deployer binding: %w", err))
+	}
 	// Stage 3: Service account
 	if err := m.ServiceAccountReconciler.Delete(ctx, resolved); err != nil {
 		errs = append(errs, fmt.Errorf("delete service account: %w", err))
