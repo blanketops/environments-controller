@@ -36,6 +36,7 @@ import (
 	"github.com/blanketops/environments/core/conditions"
 	"github.com/blanketops/environments/core/events"
 	pkgApplication "github.com/blanketops/environments/pkg/apis/packages/application"
+	pkgDomainModel "github.com/blanketops/environments/pkg/apis/packages/domain"
 	pkgIntent "github.com/blanketops/environments/pkg/intent/package"
 	pkgResolution "github.com/blanketops/environments/resolution/packages/resolve"
 	"github.com/go-logr/logr"
@@ -165,32 +166,36 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd command.Command) error {
 		d.events.Normal(packageCR, "PackageTriggered", "Package execution has been requested")
 
 	case command.CmdDelete:
-		// Real teardown, gated by finalizer at the controller level.
-		// Handle() must return nil ONLY if it is safe for the
-		// controller to remove the finalizer and let K8s finish
-		// deleting the object. Any error here keeps the finalizer
-		// in place and the controller will retry on next reconcile.
+		// Real teardown, gated by the finalizer at the controller level.
+		// Handle() must return nil ONLY if it is safe for the controller to
+		// remove the finalizer. Any error keeps the finalizer in place and
+		// the controller retries on the next reconcile.
 		log.Info("package teardown requested")
 
-		resolved, err := pkgResolution.ResolvePackage(packageCR)
-		if err != nil {
-			log.Error(err, "resolution failed during teardown")
-			d.events.FromError(packageCR, "PackageTeardownResolveFailed", err)
-			conditions.SetCondition(&packageCR.Status.Conditions, "PackageDeleted", conditions.ConditionFalse, "PackageTeardownResolveFailed", err.Error())
+		// Remove what the provider created. This needs only the Package's
+		// identity, so it runs even when the contract no longer resolves.
+		id := pkgDomainModel.PackageID{Namespace: packageCR.Namespace, Name: packageCR.Name}
+		if err := d.packageService.Teardown(ctx, id); err != nil {
+			log.Error(err, "package teardown failed")
+			d.events.FromError(packageCR, "PackageTeardownFailed", err)
+			conditions.SetCondition(&packageCR.Status.Conditions, "PackageDeleted", conditions.ConditionFalse, "PackageTeardownFailed", err.Error())
 			return err
 		}
 
-		// Tear down prerequisites the mediator created (secrets, SAs, RBAC).
-		if err := d.packageMediator.CleanupPrerequisites(ctx, resolved); err != nil {
+		// Prerequisites are named by the contract. A Package whose contract
+		// does not resolve has none this domain can identify, and must
+		// still be deletable.
+		resolved, err := pkgResolution.ResolvePackage(packageCR)
+		if err != nil {
+			log.Info("contract does not resolve, skipping prerequisite cleanup", "error", err.Error())
+		} else if err := d.packageMediator.CleanupPrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "prerequisites cleanup failed")
 			d.events.FromError(packageCR, "PackagePrerequisitesCleanupFailed", err)
 			conditions.SetCondition(&packageCR.Status.Conditions, "PackageDeleted", conditions.ConditionFalse, "PackagePrerequisitesCleanupFailed", err.Error())
 			return err
 		}
 
-		// Drop the projection for this object (all generations). No-op on
-		// backends without key enumeration; generation scoping + TTL
-		// covers correctness there.
+		// Drop the projection for this object (all generations).
 		if cerr := d.packageCache.Invalidate(ctx, nn); cerr != nil {
 			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
 		}
