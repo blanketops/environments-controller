@@ -14,15 +14,24 @@ http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
-Package packages implements the Package prerequisite mediator. The mediator owns the cross\-cutting prerequisites a Package requires before the application layer may act: the state repository git credentials and the package registry credentials. Both are declared optionally on the Package contract — a stage is skipped when its secret reference is absent. It is invoked by the Package domain during command handling — after resolution, before execution — and again during teardown. Prerequisite provisioning is gated on the Environment: the Environment CR must pre\-exist as the root of the delivery chain, and it is the sole authority for the ClusterSecretStore binding used by every store\-dependent secret this mediator reconciles.
+Package packages implements the Package prerequisite mediator. The mediator owns the cross\-cutting prerequisites a Package requires before the application layer may act: the state repository git credentials and the package repository git credentials. Both are declared optionally on the Package contract — a stage is skipped when its secret reference is absent. It is invoked by the Package domain during command handling — after resolution, before execution — and again during teardown. Prerequisite provisioning is gated on the Environment: the Environment CR must pre\-exist as the root of the delivery chain, and it is the sole authority for the ClusterSecretStore binding used by every store\-dependent secret this mediator reconciles.
 
 ## Index
 
+- [Constants](<#constants>)
 - [type Mediator](<#Mediator>)
   - [func New\(c client.Client, scheme \*runtime.Scheme, log logr.Logger, recorder events.EventRecorder\) \*Mediator](<#New>)
   - [func \(m \*Mediator\) CleanupPrerequisites\(ctx context.Context, resolved \*packageResolution.ResolvedPackage\) error](<#Mediator.CleanupPrerequisites>)
   - [func \(m \*Mediator\) EnsurePrerequisites\(ctx context.Context, resolved \*packageResolution.ResolvedPackage\) error](<#Mediator.EnsurePrerequisites>)
 
+
+## Constants
+
+<a name="DeployerClusterRole"></a>DeployerClusterRole is the ClusterRole each Package's service account is bound to. It states what a Package's kapp App may deploy and is shipped by the installation \(environments\-install, config/rbac\), under the name prefix every object of the installation carries. This name is a cross\-repo contract; the manager's own role may bind this role and no other.
+
+```go
+const DeployerClusterRole = "blanketops-environments-package-deployer-role"
+```
 
 <a name="Mediator"></a>
 ## type Mediator
@@ -41,7 +50,10 @@ type Mediator struct {
     Recorder events.EventRecorder
     // ServiceAccountReconciler manages the package service account and its
     // secret bindings as a cross-cutting prerequisite.
-    ServiceAccountReconciler *serviceaccounts.ServiceAccountReconciler
+    ServiceAccountReconciler *serviceaccounts.PackageServiceAccountReconciler
+    // DeployerBindingReconciler binds that service account to
+    // DeployerClusterRole.
+    DeployerBindingReconciler *serviceaccounts.PackageDeployerBindingReconciler
 }
 ```
 
@@ -61,7 +73,7 @@ New returns a new Mediator instance configured with the necessary dependencies.
 func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageResolution.ResolvedPackage) error
 ```
 
-CleanupPrerequisites reverses EnsurePrerequisites — deletes the registry credentials and state repository git credentials this mediator provisioned, each skipped when its secret reference is absent from the contract. Called from the domain's CmdDelete branch, gated by the finalizer at the controller level. Teardown runs in reverse provisioning order. All teardown steps are attempted regardless of individual failures, and errors are aggregated — a stuck registry secret shouldn't block cleanup of the state repository credentials. Any returned error keeps the finalizer in place for retry on next reconcile.
+CleanupPrerequisites reverses EnsurePrerequisites — deletes the deployer binding, the service account and the package repository and state repository git credentials this mediator provisioned, the credentials each skipped when its secret reference is absent from the contract. Called from the domain's CmdDelete branch, gated by the finalizer at the controller level. Teardown runs in reverse provisioning order. All teardown steps are attempted regardless of individual failures, and errors are aggregated — a stuck package repository secret shouldn't block cleanup of the state repository credentials. Any returned error keeps the finalizer in place for retry on next reconcile.
 
 <a name="Mediator.EnsurePrerequisites"></a>
 ### func \(\*Mediator\) EnsurePrerequisites
@@ -70,6 +82,6 @@ CleanupPrerequisites reverses EnsurePrerequisites — deletes the registry crede
 func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageResolution.ResolvedPackage) error
 ```
 
-EnsurePrerequisites provisions the prerequisites a Package requires before execution: the state repository git credentials and the package registry credentials, each skipped when its secret reference is absent from the contract. Called from the domain's CmdCreate/CmdUpdate branch after resolution succeeds. Provisioning is fail\-fast — the first failing step returns its error and the domain records PackagePrerequisitesCreateFailed.
+EnsurePrerequisites provisions the prerequisites a Package requires before execution: the state repository git credentials and the package repository git credentials, each skipped when its secret reference is absent from the contract, and the service account the kapp App deploys as with its binding to DeployerClusterRole. Called from the domain's CmdCreate/CmdUpdate branch after resolution succeeds. Provisioning is fail\-fast — the first failing step returns its error and the domain records PackagePrerequisitesCreateFailed.
 
 Generated by [gomarkdoc](<https://github.com/princjef/gomarkdoc>)
