@@ -83,8 +83,8 @@ func TestReconcile_PolicyAndTriggers(t *testing.T) {
 		{name: "no policy block", policy: nil},
 		{name: "empty policy", policy: map[string]any{}},
 		{name: "retry without allowedTriggers", policy: map[string]any{"retry": map[string]any{"onFailure": true, "maxAttempts": 2}}},
-		{name: "allowedTriggers without the event type", policy: map[string]any{keyTriggers: []any{map[string]any{"type": "pull_request"}}}},
-		{name: "allowedTriggers with the event type", policy: map[string]any{keyTriggers: []any{map[string]any{"type": eventPush}}}, wantSHA: testSHA},
+		{name: "allowedTriggers without the event type", policy: allowed("pull_request")},
+		{name: "allowedTriggers with the event type", policy: allowed(eventPush), wantSHA: testSHA},
 	}
 
 	for _, tt := range tests {
@@ -103,8 +103,17 @@ func TestReconcile_PolicyAndTriggers(t *testing.T) {
 	}
 }
 
+// allowed returns a policy that allows the given trigger types.
+func allowed(types ...string) map[string]any {
+	triggers := make([]any, 0, len(types))
+	for _, t := range types {
+		triggers = append(triggers, map[string]any{"type": t})
+	}
+	return map[string]any{keyTriggers: triggers}
+}
+
 func pushPolicy() map[string]any {
-	return map[string]any{keyTriggers: []any{map[string]any{"type": eventPush}}}
+	return allowed(eventPush)
 }
 
 func reconcileBuild(t *testing.T, r *Reconciler) {
