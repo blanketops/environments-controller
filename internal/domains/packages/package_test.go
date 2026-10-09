@@ -33,7 +33,7 @@ import (
 const testAppName = "app-sample"
 
 // Repeated across fixtures below — named to satisfy goconst.
-const keyPackageName = "packageName"
+const keyPackageName = "name"
 
 func newEnvironment() *environmentv1.Environment {
 	return &environmentv1.Environment{
@@ -75,21 +75,17 @@ func newPackageCR(contract map[string]any) *environmentv1.Package {
 
 func validPackageContract() map[string]any {
 	return map[string]any{
-		keyPackageName:   "app",
-		"packageVersion": "1.0.0",
-		"packageRepository": map[string]any{
+		keyPackageName: "app",
+		"version":      "1.0.0",
+		"repository": map[string]any{
 			"url": "oci://ghcr.io/blanketops/packages/app",
+			"ref": "origin/main",
 		},
-		// stateRepo is documented-optional in resolution (resolve.go:64:
-		// "not all packages track state via GitOps"), but the environments
-		// library's BuildPackageIntent (pkg/intent/package/builder.go:58-60)
-		// unconditionally dereferences spec.StateRepository — a real
-		// external-library nil-pointer bug found while writing this test.
-		// Included here to route around it rather than fix a different
-		// repo mid-coverage-task; see the mirrored, already-fixed bug in
-		// this repo's internal/mediators/packages/package.go for the same
-		// class of issue.
-		"stateRepo": map[string]any{
+		// stateRepository is optional in resolution, but BuildPackageIntent
+		// in the environments library dereferences it unconditionally, so a
+		// Package without one cannot be reconciled yet. Declared here so the
+		// create path can be exercised.
+		"stateRepository": map[string]any{
 			"url": "https://github.com/blanketops/app-state.git",
 		},
 	}
