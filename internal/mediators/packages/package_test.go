@@ -28,7 +28,10 @@ import (
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	packageResolution "github.com/blanketops/environments/resolution/packages/resolve"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/blanketops/environments-controller/internal/testsupport"
 )
@@ -173,5 +176,36 @@ func TestMediator_CleanupPrerequisites_AfterEnsure(t *testing.T) {
 	}
 	if err := m.CleanupPrerequisites(context.Background(), resolved); err != nil {
 		t.Fatalf("CleanupPrerequisites() = %v, want nil", err)
+	}
+}
+
+// The kapp App deploys as a ServiceAccount, so the mediator provisions it
+// with the other prerequisites and removes it with them.
+func TestMediator_ServiceAccount_EnsuredThenCleanedUp(t *testing.T) {
+	env := newEnvironment()
+	resolved := newResolvedPackage(nil, "")
+	c := testsupport.NewFakeClient(env, resolved.Package)
+	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
+	key := types.NamespacedName{Namespace: resolved.Package.Namespace, Name: "package-sample-package"}
+
+	if err := m.EnsurePrerequisites(context.Background(), resolved); err != nil {
+		t.Fatalf("EnsurePrerequisites() = %v, want nil", err)
+	}
+	sa := &corev1.ServiceAccount{}
+	if err := c.Get(context.Background(), key, sa); err != nil {
+		t.Fatalf("ServiceAccount after EnsurePrerequisites: %v", err)
+	}
+	if sa.Labels["environments.blanketops.dev/name"] != testAppName {
+		t.Errorf("labels = %v, want the Package's environment label", sa.Labels)
+	}
+	if len(sa.OwnerReferences) != 1 || sa.OwnerReferences[0].Kind != "Package" {
+		t.Errorf("ownerReferences = %v, want the Package", sa.OwnerReferences)
+	}
+
+	if err := m.CleanupPrerequisites(context.Background(), resolved); err != nil {
+		t.Fatalf("CleanupPrerequisites() = %v, want nil", err)
+	}
+	if err := c.Get(context.Background(), key, sa); !apierrors.IsNotFound(err) {
+		t.Errorf("ServiceAccount after CleanupPrerequisites: %v, want not found", err)
 	}
 }
