@@ -46,6 +46,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Outcome conditions this observer owns on a Build. Exactly one of them is
+// present once a BuildRun has finished.
+const (
+	conditionBuildSuccess = "BuildSuccess"
+	conditionBuildFailed  = "BuildFailed"
+)
+
 // Reconciler observes Shipwright BuildRun resources and feeds their
 // terminal Succeeded condition back to the owning Build CR's contract
 // status and conditions.
@@ -117,7 +124,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	conditions := r.buildContractAndConditions(&build, &br, success, cond.Message, log)
 
-	return ctrl.Result{}, r.Status.Write(ctx, &build, conditions...)
+	// The two outcome conditions describe the same thing, the latest run,
+	// so writing one removes the other. Otherwise a Build whose run failed
+	// and later succeeded would carry both.
+	replaced := conditionBuildSuccess
+	if success {
+		replaced = conditionBuildFailed
+	}
+
+	return ctrl.Result{}, r.Status.WriteReplacing(ctx, &build, []string{replaced}, conditions...)
 }
 
 func (r *Reconciler) buildContractAndConditions(
@@ -167,7 +182,7 @@ func (r *Reconciler) buildContractAndConditions(
 	var condition metav1.Condition
 	if success {
 		condition = metav1.Condition{
-			Type:               "BuildSuccess",
+			Type:               conditionBuildSuccess,
 			Status:             metav1.ConditionTrue,
 			Reason:             "BuildSucceeded",
 			Message:            message,
@@ -175,7 +190,7 @@ func (r *Reconciler) buildContractAndConditions(
 		}
 	} else {
 		condition = metav1.Condition{
-			Type:               "BuildFailed",
+			Type:               conditionBuildFailed,
 			Status:             metav1.ConditionFalse,
 			Reason:             "BuildFailed",
 			Message:            message,
