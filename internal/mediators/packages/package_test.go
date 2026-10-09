@@ -28,7 +28,11 @@ import (
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	packageResolution "github.com/blanketops/environments/resolution/packages/resolve"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/blanketops/environments-controller/internal/testsupport"
 )
@@ -63,7 +67,7 @@ func newEnvironment() *environmentsv1alpha1.Environment {
 	}
 }
 
-func newResolvedPackage(stateRepo *packageResolution.ResolvedStateRepository, registryCredsSecret string) *packageResolution.ResolvedPackage {
+func newResolvedPackage(stateRepo *packageResolution.ResolvedStateRepository, repositoryCredsSecret string) *packageResolution.ResolvedPackage {
 	pkg := &environmentsv1alpha1.Package{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "package-sample",
@@ -80,7 +84,7 @@ func newResolvedPackage(stateRepo *packageResolution.ResolvedStateRepository, re
 			Version: "1.0.0",
 			PackageRepository: packageResolution.ResolvedPackageRepository{
 				URL:               "oci://ghcr.io/blanketops/packages/app",
-				CredentialsSecret: registryCredsSecret,
+				CredentialsSecret: repositoryCredsSecret,
 			},
 			StateRepository: stateRepo,
 		},
@@ -103,7 +107,7 @@ func TestMediator_EnsurePrerequisites_MissingEnvironment(t *testing.T) {
 }
 
 // Regression test for the StateRepository-nil-pointer bug: a Package with
-// no stateRepo declared (StateRepository == nil) and no registry
+// no stateRepo declared (StateRepository == nil) and no package repository
 // credentials secret must provision cleanly — previously panicked.
 func TestMediator_EnsurePrerequisites_NoStateRepository_NoPanic(t *testing.T) {
 	env := newEnvironment()
@@ -135,7 +139,7 @@ func TestMediator_EnsurePrerequisites_Idempotent(t *testing.T) {
 	resolved := newResolvedPackage(&packageResolution.ResolvedStateRepository{
 		URL:         stateRepoURL,
 		CloneSecret: stateRepoCloneSecret,
-	}, "app-registry-creds")
+	}, "app-packages-git-ssh")
 	c := testsupport.NewFakeClient(env, resolved.Package)
 	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
 
@@ -164,7 +168,7 @@ func TestMediator_CleanupPrerequisites_AfterEnsure(t *testing.T) {
 	resolved := newResolvedPackage(&packageResolution.ResolvedStateRepository{
 		URL:         stateRepoURL,
 		CloneSecret: stateRepoCloneSecret,
-	}, "app-registry-creds")
+	}, "app-packages-git-ssh")
 	c := testsupport.NewFakeClient(env, resolved.Package)
 	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
 
@@ -173,5 +177,68 @@ func TestMediator_CleanupPrerequisites_AfterEnsure(t *testing.T) {
 	}
 	if err := m.CleanupPrerequisites(context.Background(), resolved); err != nil {
 		t.Fatalf("CleanupPrerequisites() = %v, want nil", err)
+	}
+}
+
+// The kapp App deploys as a ServiceAccount, so the mediator provisions it
+// with the other prerequisites and removes it with them.
+func TestMediator_ServiceAccount_EnsuredThenCleanedUp(t *testing.T) {
+	env := newEnvironment()
+	resolved := newResolvedPackage(nil, "")
+	c := testsupport.NewFakeClient(env, resolved.Package)
+	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
+	key := types.NamespacedName{Namespace: resolved.Package.Namespace, Name: "package-sample-package"}
+
+	if err := m.EnsurePrerequisites(context.Background(), resolved); err != nil {
+		t.Fatalf("EnsurePrerequisites() = %v, want nil", err)
+	}
+	sa := &corev1.ServiceAccount{}
+	if err := c.Get(context.Background(), key, sa); err != nil {
+		t.Fatalf("ServiceAccount after EnsurePrerequisites: %v", err)
+	}
+	if sa.Labels["environments.blanketops.dev/name"] != testAppName {
+		t.Errorf("labels = %v, want the Package's environment label", sa.Labels)
+	}
+	if len(sa.OwnerReferences) != 1 || sa.OwnerReferences[0].Kind != "Package" {
+		t.Errorf("ownerReferences = %v, want the Package", sa.OwnerReferences)
+	}
+
+	if err := m.CleanupPrerequisites(context.Background(), resolved); err != nil {
+		t.Fatalf("CleanupPrerequisites() = %v, want nil", err)
+	}
+	if err := c.Get(context.Background(), key, sa); !apierrors.IsNotFound(err) {
+		t.Errorf("ServiceAccount after CleanupPrerequisites: %v, want not found", err)
+	}
+}
+
+// The service account is bound to the deployer ClusterRole, and to that one
+// only. The binding is cluster-scoped, so cleanup has to delete it.
+func TestMediator_DeployerBinding_EnsuredThenCleanedUp(t *testing.T) {
+	env := newEnvironment()
+	resolved := newResolvedPackage(nil, "")
+	c := testsupport.NewFakeClient(env, resolved.Package)
+	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
+	key := types.NamespacedName{Name: "blanketops-package-default-package-sample"}
+
+	if err := m.EnsurePrerequisites(context.Background(), resolved); err != nil {
+		t.Fatalf("EnsurePrerequisites() = %v, want nil", err)
+	}
+	binding := &rbacv1.ClusterRoleBinding{}
+	if err := c.Get(context.Background(), key, binding); err != nil {
+		t.Fatalf("ClusterRoleBinding after EnsurePrerequisites: %v", err)
+	}
+	if binding.RoleRef.Kind != "ClusterRole" || binding.RoleRef.Name != DeployerClusterRole {
+		t.Errorf("roleRef = %+v, want ClusterRole %s", binding.RoleRef, DeployerClusterRole)
+	}
+	want := rbacv1.Subject{Kind: "ServiceAccount", Name: "package-sample-package", Namespace: resolved.Package.Namespace}
+	if len(binding.Subjects) != 1 || binding.Subjects[0] != want {
+		t.Errorf("subjects = %+v, want only %+v", binding.Subjects, want)
+	}
+
+	if err := m.CleanupPrerequisites(context.Background(), resolved); err != nil {
+		t.Fatalf("CleanupPrerequisites() = %v, want nil", err)
+	}
+	if err := c.Get(context.Background(), key, binding); !apierrors.IsNotFound(err) {
+		t.Errorf("ClusterRoleBinding after CleanupPrerequisites: %v, want not found", err)
 	}
 }

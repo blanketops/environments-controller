@@ -285,6 +285,7 @@ rules:
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
+  - clusterrolebindings
   - rolebindings
   - roles
   verbs:
@@ -295,6 +296,14 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resourceNames:
+  - blanketops-environments-package-deployer-role
+  resources:
+  - clusterroles
+  verbs:
+  - bind
 - apiGroups:
   - repo.github.upbound.io
   resources:

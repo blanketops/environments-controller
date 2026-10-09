@@ -74,6 +74,7 @@ import (
 	environment "github.com/blanketops/environments-controller/internal/controller/observers/environment"
 	"github.com/blanketops/environments-controller/internal/controller/observers/githubevent"
 	"github.com/blanketops/environments-controller/internal/controller/observers/gitrepository"
+	"github.com/blanketops/environments-controller/internal/controller/observers/packages"
 	"github.com/blanketops/environments-controller/internal/controller/sources"
 	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
@@ -203,7 +204,7 @@ func resourceName(kind string) string {
 }
 
 // RegisterObservers wires up the observer reconcilers for Build, BuildRun,
-// Deployment, Environment, GitHubEvent, and GitRepository resources.
+// Deployment, Environment, GitHubEvent, GitRepository, and Package resources.
 func RegisterObservers(mgr ctrl.Manager) error {
 	statusWriter := buildapp.NewStatusWriter(mgr.GetClient(), mgr.GetLogger().WithName("buildrun-status-writer"))
 
@@ -223,6 +224,9 @@ func RegisterObservers(mgr ctrl.Manager) error {
 		return err
 	}
 	if err := (&gitrepository.Reconciler{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+	if err := (&packages.Reconciler{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
 		return err
 	}
 	return nil
