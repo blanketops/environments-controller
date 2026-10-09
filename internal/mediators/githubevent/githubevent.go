@@ -27,7 +27,11 @@ package githubevents
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
+	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
+	eventsv1alpha1 "github.com/blanketops/environments-api/api/events/v1alpha1"
 	"github.com/blanketops/environments/pkg/apis/environment/query"
 	github "github.com/blanketops/environments/pkg/secrets/github/webhook"
 	githubeventResolution "github.com/blanketops/environments/resolution/githubevent/resolve"
@@ -78,7 +82,7 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *githubeven
 	// Step 0: Environment lookup
 	// Environment must pre-exist — it is the root of the delivery chain and
 	// the sole authority for the ClusterSecretStore binding.
-	envCtx, err := query.Lookup(ctx, m.Client, event.Namespace, event.Labels)
+	envCtx, err := m.lookupEnvironment(ctx, event)
 	if err != nil {
 		return fmt.Errorf("environment lookup: %w", err)
 	}
@@ -105,7 +109,7 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *githubeve
 	// Step 0: Environment lookup
 	// Same store binding used at creation time — needed so the reconcilers
 	// target the correct ClusterSecretStore-scoped resources on teardown.
-	envCtx, err := query.Lookup(ctx, m.Client, event.Namespace, event.Labels)
+	envCtx, err := m.lookupEnvironment(ctx, event)
 	if err != nil {
 		return fmt.Errorf("environment lookup: %w", err)
 	}
@@ -120,4 +124,52 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *githubeve
 		return utilerrors.NewAggregate(errs)
 	}
 	return nil
+}
+
+// lookupEnvironment resolves the Environment a GitHubEvent belongs to.
+//
+// Webhook-delivered GitHubEvents live in the argo-events namespace while the
+// Environment lives with the application, so the Environment is matched by
+// the environments.blanketops.dev/name label across namespaces rather than
+// in the event's own namespace only. An Environment in the event's namespace
+// wins; otherwise exactly one Environment of that name must exist, because
+// picking between several would bind the event to an arbitrary secret store.
+func (m *Mediator) lookupEnvironment(ctx context.Context, event *eventsv1alpha1.GitHubEvent) (*query.EnvironmentContext, error) {
+	name := event.Labels[query.LabelEnvironmentName]
+	namespace := event.Namespace
+
+	if name != "" {
+		var envs environmentsv1alpha1.EnvironmentList
+		if err := m.Client.List(ctx, &envs); err != nil {
+			return nil, fmt.Errorf("list environments: %w", err)
+		}
+
+		var namespaces []string
+		local := false
+		for i := range envs.Items {
+			if envs.Items[i].Name != name {
+				continue
+			}
+			if envs.Items[i].Namespace == event.Namespace {
+				local = true
+				break
+			}
+			namespaces = append(namespaces, envs.Items[i].Namespace)
+		}
+
+		switch {
+		case local:
+			// Same-namespace Environment wins; namespace is already set.
+		case len(namespaces) == 1:
+			namespace = namespaces[0]
+		case len(namespaces) > 1:
+			sort.Strings(namespaces)
+			return nil, fmt.Errorf("environment %q is ambiguous: found in namespaces %s",
+				name, strings.Join(namespaces, ", "))
+		}
+	}
+
+	// No match falls through to the same-namespace lookup, which reports
+	// the missing label or the missing Environment.
+	return query.Lookup(ctx, m.Client, namespace, event.Labels)
 }
