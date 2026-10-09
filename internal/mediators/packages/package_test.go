@@ -63,7 +63,7 @@ func newEnvironment() *environmentsv1alpha1.Environment {
 	}
 }
 
-func newResolvedPackage(stateRepo *packageResolution.ResolvedStateRepository, registryCredsSecret string) *packageResolution.ResolvedPackage {
+func newResolvedPackage(stateRepo *packageResolution.ResolvedStateRepository, repositoryCredsSecret string) *packageResolution.ResolvedPackage {
 	pkg := &environmentsv1alpha1.Package{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "package-sample",
@@ -80,7 +80,7 @@ func newResolvedPackage(stateRepo *packageResolution.ResolvedStateRepository, re
 			Version: "1.0.0",
 			PackageRepository: packageResolution.ResolvedPackageRepository{
 				URL:               "oci://ghcr.io/blanketops/packages/app",
-				CredentialsSecret: registryCredsSecret,
+				CredentialsSecret: repositoryCredsSecret,
 			},
 			StateRepository: stateRepo,
 		},
@@ -103,7 +103,7 @@ func TestMediator_EnsurePrerequisites_MissingEnvironment(t *testing.T) {
 }
 
 // Regression test for the StateRepository-nil-pointer bug: a Package with
-// no stateRepo declared (StateRepository == nil) and no registry
+// no stateRepo declared (StateRepository == nil) and no package repository
 // credentials secret must provision cleanly — previously panicked.
 func TestMediator_EnsurePrerequisites_NoStateRepository_NoPanic(t *testing.T) {
 	env := newEnvironment()
@@ -135,7 +135,7 @@ func TestMediator_EnsurePrerequisites_Idempotent(t *testing.T) {
 	resolved := newResolvedPackage(&packageResolution.ResolvedStateRepository{
 		URL:         stateRepoURL,
 		CloneSecret: stateRepoCloneSecret,
-	}, "app-registry-creds")
+	}, "app-packages-git-ssh")
 	c := testsupport.NewFakeClient(env, resolved.Package)
 	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
 
@@ -164,7 +164,7 @@ func TestMediator_CleanupPrerequisites_AfterEnsure(t *testing.T) {
 	resolved := newResolvedPackage(&packageResolution.ResolvedStateRepository{
 		URL:         stateRepoURL,
 		CloneSecret: stateRepoCloneSecret,
-	}, "app-registry-creds")
+	}, "app-packages-git-ssh")
 	c := testsupport.NewFakeClient(env, resolved.Package)
 	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
 

@@ -14,7 +14,7 @@ limitations under the License.
 Package packages implements the Package prerequisite mediator.
 The mediator owns the cross-cutting prerequisites a Package requires before
 the application layer may act: the state repository git credentials and the
-package registry credentials. Both are declared optionally on the Package
+package repository git credentials. Both are declared optionally on the Package
 contract — a stage is skipped when its secret reference is absent. It is
 invoked by the Package domain during command handling — after resolution,
 before execution — and again during teardown.
@@ -30,8 +30,8 @@ import (
 	"fmt"
 
 	"github.com/blanketops/environments/pkg/apis/environment/query"
+	packagerepo "github.com/blanketops/environments/pkg/secrets/git/packagerepo"
 	git "github.com/blanketops/environments/pkg/secrets/git/staterepo"
-	registry "github.com/blanketops/environments/pkg/secrets/registry/packageregistry"
 	serviceaccounts "github.com/blanketops/environments/pkg/serviceaccounts"
 	packageResolution "github.com/blanketops/environments/resolution/packages/resolve"
 	"github.com/go-logr/logr"
@@ -73,8 +73,8 @@ func New(
 }
 
 // EnsurePrerequisites provisions the prerequisites a Package requires before
-// execution: the state repository git credentials and the package registry
-// credentials, each skipped when its secret reference is absent from the
+// execution: the state repository git credentials and the package repository
+// git credentials, each skipped when its secret reference is absent from the
 // contract. Called from the domain's CmdCreate/CmdUpdate branch after
 // resolution succeeds. Provisioning is fail-fast — the first failing step
 // returns its error and the domain records PackagePrerequisitesCreateFailed.
@@ -103,23 +103,24 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageRes
 			return fmt.Errorf("reconcile state repository credentials: %w", err)
 		}
 	}
-	// Stage 2: Registry credentials (store-dependent)
+	// Stage 2: Git credentials (package repo, store-dependent) — the SSH
+	// secret kapp-controller fetches the package repository with.
 	if resolved.Spec.PackageRepository.CredentialsSecret != "" {
-		reg := registry.NewPackageRegistrySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
-		if err := reg.Reconcile(ctx, resolved); err != nil {
-			return fmt.Errorf("reconcile registry credentials: %w", err)
+		repo := packagerepo.NewPackageRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+		if err := repo.Reconcile(ctx, resolved); err != nil {
+			return fmt.Errorf("reconcile package repository credentials: %w", err)
 		}
 	}
 	return nil
 }
 
-// CleanupPrerequisites reverses EnsurePrerequisites — deletes the registry
-// credentials and state repository git credentials this mediator
+// CleanupPrerequisites reverses EnsurePrerequisites — deletes the package
+// repository and state repository git credentials this mediator
 // provisioned, each skipped when its secret reference is absent from the
 // contract. Called from the domain's CmdDelete branch, gated by the
 // finalizer at the controller level. Teardown runs in reverse provisioning
 // order. All teardown steps are attempted regardless of individual failures,
-// and errors are aggregated — a stuck registry secret shouldn't block
+// and errors are aggregated — a stuck package repository secret shouldn't block
 // cleanup of the state repository credentials. Any returned error keeps the
 // finalizer in place for retry on next reconcile.
 func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageResolution.ResolvedPackage) error {
@@ -136,11 +137,11 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageRe
 	}
 	m.Log.Info("environment context resolved for teardown", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
 	var errs []error
-	// Stage 2: Registry credentials
+	// Stage 2: Git credentials (package repo)
 	if resolved.Spec.PackageRepository.CredentialsSecret != "" {
-		reg := registry.NewPackageRegistrySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
-		if err := reg.Delete(ctx, resolved); err != nil {
-			errs = append(errs, fmt.Errorf("delete registry credentials: %w", err))
+		repo := packagerepo.NewPackageRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+		if err := repo.Delete(ctx, resolved); err != nil {
+			errs = append(errs, fmt.Errorf("delete package repository credentials: %w", err))
 		}
 	}
 	// Stage 1: Git credentials (state repo) — same nil-check as
