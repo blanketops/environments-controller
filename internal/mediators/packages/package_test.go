@@ -29,6 +29,7 @@ import (
 	packageResolution "github.com/blanketops/environments/resolution/packages/resolve"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -207,5 +208,37 @@ func TestMediator_ServiceAccount_EnsuredThenCleanedUp(t *testing.T) {
 	}
 	if err := c.Get(context.Background(), key, sa); !apierrors.IsNotFound(err) {
 		t.Errorf("ServiceAccount after CleanupPrerequisites: %v, want not found", err)
+	}
+}
+
+// The service account is bound to the deployer ClusterRole, and to that one
+// only. The binding is cluster-scoped, so cleanup has to delete it.
+func TestMediator_DeployerBinding_EnsuredThenCleanedUp(t *testing.T) {
+	env := newEnvironment()
+	resolved := newResolvedPackage(nil, "")
+	c := testsupport.NewFakeClient(env, resolved.Package)
+	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
+	key := types.NamespacedName{Name: "blanketops-package-default-package-sample"}
+
+	if err := m.EnsurePrerequisites(context.Background(), resolved); err != nil {
+		t.Fatalf("EnsurePrerequisites() = %v, want nil", err)
+	}
+	binding := &rbacv1.ClusterRoleBinding{}
+	if err := c.Get(context.Background(), key, binding); err != nil {
+		t.Fatalf("ClusterRoleBinding after EnsurePrerequisites: %v", err)
+	}
+	if binding.RoleRef.Kind != "ClusterRole" || binding.RoleRef.Name != DeployerClusterRole {
+		t.Errorf("roleRef = %+v, want ClusterRole %s", binding.RoleRef, DeployerClusterRole)
+	}
+	want := rbacv1.Subject{Kind: "ServiceAccount", Name: "package-sample-package", Namespace: resolved.Package.Namespace}
+	if len(binding.Subjects) != 1 || binding.Subjects[0] != want {
+		t.Errorf("subjects = %+v, want only %+v", binding.Subjects, want)
+	}
+
+	if err := m.CleanupPrerequisites(context.Background(), resolved); err != nil {
+		t.Fatalf("CleanupPrerequisites() = %v, want nil", err)
+	}
+	if err := c.Get(context.Background(), key, binding); !apierrors.IsNotFound(err) {
+		t.Errorf("ClusterRoleBinding after CleanupPrerequisites: %v, want not found", err)
 	}
 }
