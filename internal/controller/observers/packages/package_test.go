@@ -27,7 +27,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -60,7 +59,7 @@ func newApp(owned bool, useful string, conds ...kappctrlv1alpha1.Condition) *kap
 	if owned {
 		app.OwnerReferences = []metav1.OwnerReference{{
 			APIVersion: environmentsv1alpha1.GroupVersion.String(), Kind: "Package",
-			Name: testPackage, UID: "uid-package", Controller: ptr.To(true),
+			Name: testPackage, UID: "uid-package", Controller: new(true),
 		}}
 	}
 	app.Status.Conditions = conds
