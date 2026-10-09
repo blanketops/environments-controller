@@ -53,7 +53,7 @@ type Mediator struct {
 	Recorder events.EventRecorder
 	// ServiceAccountReconciler manages the package service account and its
 	// secret bindings as a cross-cutting prerequisite.
-	ServiceAccountReconciler *serviceaccounts.ServiceAccountReconciler
+	ServiceAccountReconciler *serviceaccounts.PackageServiceAccountReconciler
 }
 
 // New returns a new Mediator instance configured with the necessary dependencies.
@@ -68,14 +68,14 @@ func New(
 		Scheme:                   scheme,
 		Log:                      log,
 		Recorder:                 recorder,
-		ServiceAccountReconciler: serviceaccounts.NewServiceAccountReconciler(c, scheme, log),
+		ServiceAccountReconciler: serviceaccounts.NewPackageServiceAccountReconciler(c, scheme, log),
 	}
 }
 
 // EnsurePrerequisites provisions the prerequisites a Package requires before
 // execution: the state repository git credentials and the package repository
 // git credentials, each skipped when its secret reference is absent from the
-// contract. Called from the domain's CmdCreate/CmdUpdate branch after
+// contract, and the service account the kapp App deploys as. Called from the domain's CmdCreate/CmdUpdate branch after
 // resolution succeeds. Provisioning is fail-fast — the first failing step
 // returns its error and the domain records PackagePrerequisitesCreateFailed.
 func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageResolution.ResolvedPackage) error {
@@ -111,13 +111,17 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageRes
 			return fmt.Errorf("reconcile package repository credentials: %w", err)
 		}
 	}
+	// Stage 3: Service account — the identity the kapp App deploys as.
+	if err := m.ServiceAccountReconciler.Reconcile(ctx, resolved); err != nil {
+		return fmt.Errorf("reconcile service account: %w", err)
+	}
 	return nil
 }
 
-// CleanupPrerequisites reverses EnsurePrerequisites — deletes the package
-// repository and state repository git credentials this mediator
-// provisioned, each skipped when its secret reference is absent from the
-// contract. Called from the domain's CmdDelete branch, gated by the
+// CleanupPrerequisites reverses EnsurePrerequisites — deletes the service
+// account and the package repository and state repository git credentials
+// this mediator provisioned, the credentials each skipped when its secret
+// reference is absent from the contract. Called from the domain's CmdDelete branch, gated by the
 // finalizer at the controller level. Teardown runs in reverse provisioning
 // order. All teardown steps are attempted regardless of individual failures,
 // and errors are aggregated — a stuck package repository secret shouldn't block
@@ -137,6 +141,10 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageRe
 	}
 	m.Log.Info("environment context resolved for teardown", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
 	var errs []error
+	// Stage 3: Service account
+	if err := m.ServiceAccountReconciler.Delete(ctx, resolved); err != nil {
+		errs = append(errs, fmt.Errorf("delete service account: %w", err))
+	}
 	// Stage 2: Git credentials (package repo)
 	if resolved.Spec.PackageRepository.CredentialsSecret != "" {
 		repo := packagerepo.NewPackageRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
