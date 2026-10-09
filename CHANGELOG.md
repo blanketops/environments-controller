@@ -1,3 +1,66 @@
+## [0.6.2] - 2026-10-09
+
+### 🚀 Features
+
+- *(buildrun)* Record the pushed image and its digest on the Build
+- *(packages)* Gate Package deletion on a finalizer and tear it down
+- *(packages)* Observe the kapp App and report its outcome on the Package
+- *(packages)* Provision the package repository credentials as an SSH secret
+- *(packages)* Provision the service account the kapp App deploys as
+- *(packages)* Bind the Package service account to the deployer ClusterRole
+
+### 🐛 Bug Fixes
+
+- *(githubevent)* Grant the RBAC the GitHubEvent provider needs
+- *(githubevent)* Find the Environment across namespaces
+- *(build)* Stop the Build reconciler overwriting status it did not write
+- *(build)* Do not crash the build-observer on a Build without a policy
+- *(buildrun)* Keep only the latest run's outcome on the Build
+- *(packages)* Requeue after adding the finalizer without the deprecated field
+
+### 💼 Other
+
+- Merge release/v0.6.2 into main
+
+### 📚 Documentation
+
+- Auto-generate code documentation [skip ci]
+- Auto-generate code documentation [skip ci]
+
+### 🧪 Testing
+
+- *(build)* Cover a new push payload re-triggering the Build
+- *(build)* Build trigger policies through one helper
+- *(packages)* Use new(true) for the owner reference flag
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.1
+- *(ci)* Bump imjasonh/setup-crane from 0.4 to 0.7
+- *(ci)* Bump actions/setup-go from 5 to 7
+- *(ci)* Bump golangci/golangci-lint-action from 7 to 9
+- *(ci)* Bump docker/login-action from 3 to 4
+- *(ci)* Bump oras-project/setup-oras from 1 to 2
+- Run workflows on zenith self-hosted runners
+## [0.6.1] - 2026-08-22
+
+### 🐛 Bug Fixes
+
+- Close the release.yml changelog race too
+
+### 💼 Other
+
+- Merge release/v0.6.1 into main
+
+### 📚 Documentation
+
+- Auto-generate code documentation [skip ci]
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.0
+- *(release)* Update changelog for v0.6.0
+- Sync develop with main after release/v0.6.0
 ## [0.6.0] - 2026-08-22
 
 ### 🚀 Features
