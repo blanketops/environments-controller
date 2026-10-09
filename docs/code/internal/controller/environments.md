@@ -20,7 +20,7 @@ The domain is intentionally minimal at this stage \(see the comment in SetupWith
 
 package.go reconciles the Package CR: routes create/update through the core CQRS engine and, on setup, wires the Package domain's mediator, kapp\-controller provider, and service into the domain registry.
 
-Unlike build.go and deployment.go, there is no finalizer here yet.
+Like build.go and deployment.go, deletion is gated by a finalizer: the domain tears the Package down before the finalizer is removed.
 
 serviceunit.go reconciles the ServiceUnit CR, routing create/update through the core CQRS engine.
 

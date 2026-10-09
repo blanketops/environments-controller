@@ -75,7 +75,7 @@ RegisterDomain wires up and registers the DomainReconciler. It's separate from R
 func RegisterObservers(mgr ctrl.Manager) error
 ```
 
-RegisterObservers wires up the observer reconcilers for Build, BuildRun, Deployment, Environment, GitHubEvent, and GitRepository resources.
+RegisterObservers wires up the observer reconcilers for Build, BuildRun, Deployment, Environment, GitHubEvent, GitRepository, and Package resources.
 
 <a name="RegisterSchemes"></a>
 ## func RegisterSchemes

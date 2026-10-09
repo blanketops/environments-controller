@@ -7,8 +7,8 @@ domain: blanketops.dev
 layout:
 - go.kubebuilder.io/v4
 multigroup: true
-projectName: blanketops-environments-controller
-repo: github.com/BlanketOps/environments-controller
+projectName: environments-controller
+repo: github.com/blanketops/environments-controller
 resources:
 - controller: true
   domain: blanketops.dev
@@ -52,9 +52,8 @@ resources:
   version: v1alpha1
 - controller: true
   core: true
-  domain: k8s.io
+  domain: blanketops.dev
   group: events
   kind: GitHubEvent
-  path: k8s.io/api/events/v1alpha1
   version: v1alpha1
 version: "3"
