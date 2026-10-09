@@ -10,7 +10,8 @@ env:
     IMAGE_REPO: ghcr.io/blanketops/environments-controller
 jobs:
     release:
-      runs-on: ubuntu-latest
+      # Zenith self-hosted pool.
+      runs-on: self-hosted
       steps:
         - name: Checkout tag
           uses: actions/checkout@v7
