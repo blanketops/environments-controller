@@ -129,13 +129,20 @@ jobs:
             --platform linux/amd64,linux/arm64 \
             --tags "${{ steps.tags.outputs.tags }}" \
             --image-refs /tmp/ko-image-refs
-          DIGEST="$(tail -1 /tmp/ko-image-refs | cut -d@ -f2)"
+          # ko lists the multi-arch index first, then one manifest per
+          # platform. The tags point at the index, so that is the digest to
+          # sign and report.
+          DIGEST="$(head -1 /tmp/ko-image-refs | cut -d@ -f2)"
+          if [[ ! "${DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::could not read the image index digest from ko's output"
+            exit 1
+          fi
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Sign image
         if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
         run: |
-          cosign sign --yes \
+          cosign sign --yes --recursive \
             ${{ env.IMAGE_REPO }}@${{ steps.ko-build.outputs.digest }}
 
       # - name: Attest image provenance
