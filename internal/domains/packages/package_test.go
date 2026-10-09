@@ -17,12 +17,14 @@ import (
 	"context"
 	"testing"
 
+	kappctrlv1alpha1 "carvel.dev/kapp-controller/pkg/apis/kappctrl/v1alpha1"
 	environmentv1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	corecache "github.com/blanketops/environments/core/cache"
 	"github.com/blanketops/environments/core/command"
 	pkgapi "github.com/blanketops/environments/pkg/apis/packages/api"
 	pkgapplication "github.com/blanketops/environments/pkg/apis/packages/application"
 	"github.com/go-logr/logr"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -93,7 +95,11 @@ func validPackageContract() map[string]any {
 
 func newTestDomain(t *testing.T, objs ...client.Object) *PackageDomain {
 	t.Helper()
-	c := testsupport.NewFakeClient(objs...)
+	return newTestDomainWithClient(t, testsupport.NewFakeClient(objs...))
+}
+
+func newTestDomainWithClient(t *testing.T, c client.Client) *PackageDomain {
+	t.Helper()
 	log := logr.Discard()
 	rawRec := testsupport.NoopRawRecorder()
 
@@ -230,16 +236,44 @@ func TestPackageDomain_Handle_Create_Succeeds(t *testing.T) {
 	}
 }
 
-func TestPackageDomain_Handle_Delete_ResolutionFailure(t *testing.T) {
+// TestPackageDomain_Handle_Delete_UnresolvableContract covers a Package whose
+// contract no longer resolves. It must still be deletable: teardown needs
+// only the Package's identity, and prerequisite cleanup is skipped because
+// the contract that names the prerequisites cannot be read.
+func TestPackageDomain_Handle_Delete_UnresolvableContract(t *testing.T) {
 	pkg := newPackageCR(nil)
 	d := newTestDomain(t, pkg)
 
-	err := d.Handle(context.Background(), command.Command{Type: command.CmdDelete, Obj: pkg})
-	if err == nil {
-		t.Fatal("Handle() delete with empty contract = nil error, want error")
+	if err := d.Handle(context.Background(), command.Command{Type: command.CmdDelete, Obj: pkg}); err != nil {
+		t.Fatalf("Handle() delete with an empty contract = %v, want nil", err)
 	}
-	if status, ok := conditionStatus(pkg.Status.Conditions, "PackageDeleted"); !ok || status != metav1.ConditionFalse {
-		t.Errorf("PackageDeleted condition = (%v, found=%v), want (False, true)", status, ok)
+	if status, ok := conditionStatus(pkg.Status.Conditions, "PackageDeleted"); !ok || status != metav1.ConditionTrue {
+		t.Errorf("PackageDeleted condition = (%v, found=%v), want (True, true)", status, ok)
+	}
+}
+
+// TestPackageDomain_Handle_Delete_RemovesTheApp reconciles a Package, then
+// deletes it: the kapp App created for it must be gone afterwards.
+func TestPackageDomain_Handle_Delete_RemovesTheApp(t *testing.T) {
+	env := newEnvironment()
+	pkg := newPackageCR(validPackageContract())
+	c := testsupport.NewFakeClient(env, pkg)
+	d := newTestDomainWithClient(t, c)
+	ctx := context.Background()
+	appKey := client.ObjectKeyFromObject(pkg)
+
+	if err := d.Handle(ctx, command.Command{Type: command.CmdUpdate, Obj: pkg}); err != nil {
+		t.Fatalf("Handle() update = %v, want nil", err)
+	}
+	if err := c.Get(ctx, appKey, &kappctrlv1alpha1.App{}); err != nil {
+		t.Fatalf("kapp App after reconcile: %v", err)
+	}
+
+	if err := d.Handle(ctx, command.Command{Type: command.CmdDelete, Obj: pkg}); err != nil {
+		t.Fatalf("Handle() delete = %v, want nil", err)
+	}
+	if err := c.Get(ctx, appKey, &kappctrlv1alpha1.App{}); !apierrors.IsNotFound(err) {
+		t.Errorf("kapp App after delete: err = %v, want not found", err)
 	}
 }
 
