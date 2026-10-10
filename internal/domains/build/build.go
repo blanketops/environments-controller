@@ -167,6 +167,19 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd command.Command) error {
 		}
 
 		// Tear down prerequisites the mediator created (secrets, SAs, RBAC).
+		// Remove what the provider created: the Shipwright Build and every
+		// BuildRun started for this Build. Nothing else removes the
+		// BuildRuns — Shipwright clears their owner references, so they are
+		// not garbage-collected with the Build — and one left behind is
+		// found again, already finished, by a Build re-created under the
+		// same name, which then never gets an image.
+		if err := d.buildService.Teardown(ctx, resolved); err != nil {
+			log.Error(err, "build teardown failed")
+			d.events.FromError(buildCR, "BuildTeardownFailed", err)
+			conditions.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", conditions.ConditionFalse, "BuildTeardownFailed", err.Error())
+			return err
+		}
+
 		if err := d.buildMediator.CleanupPrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "prerequisites cleanup failed")
 			d.events.FromError(buildCR, "BuildPrerequisitesCleanupFailed", err)
