@@ -42,6 +42,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	deploydomain "github.com/blanketops/environments-controller/internal/domains/deployment"
 	deployment "github.com/blanketops/environments-controller/internal/mediators/deployment"
@@ -135,7 +136,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	cmd := command.Command{
 		GVK:  environmentsv1alpha1.GroupVersion.WithKind("Deployment"),
-		Type: command.CmdUpdate,
+		Type: cmdType,
 		Obj:  &deploymentCR,
 	}
 
@@ -255,6 +256,8 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&environmentsv1alpha1.Deployment{}).
 		Named("environments-deployment").
-		WithEventFilter(predicates.MeaningfulChangePredicate()).
+		// Marking a Deployment for deletion does not change its spec, so
+		// the spec predicate alone would never let the delete path run.
+		WithEventFilter(predicate.Or(predicates.MeaningfulChangePredicate(), deletionRequested())).
 		Complete(r)
 }
