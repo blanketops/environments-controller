@@ -34,6 +34,8 @@ import (
 	deploymentintent "github.com/blanketops/environments/pkg/intent/deployment"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
@@ -139,21 +141,22 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	log.Info("routing deployment to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
-	// Execute domain logic via engine
-	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
-		log.Error(err, "engine execution failed")
-		r.Recorder.Eventf(&deploymentCR, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
-		log.Info("reconcile exit: engine error")
-		return ctrl.Result{}, err
-	}
+	before := append([]metav1.Condition(nil), deploymentCR.Status.Conditions...)
 
-	log.Info("engine execution completed")
+	// Execute domain logic via engine
+	execErr := r.Runtime.Engine.Execute(ctx, cmd)
+	if execErr != nil {
+		log.Error(execErr, "engine execution failed")
+		r.Recorder.Eventf(&deploymentCR, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", execErr)
+	} else {
+		log.Info("engine execution completed")
+	}
 
 	// Deletion path: remove finalizer now that the engine returned nil.
 	// Status is intentionally NOT written here — the object is about to be
 	// removed, and racing a status update against finalizer removal serves
 	// no purpose.
-	if cmdType == command.CmdDelete {
+	if cmdType == command.CmdDelete && execErr == nil {
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			var latest environmentsv1alpha1.Deployment
 			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -168,17 +171,29 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		log.Info("finalizer removed, deletion will proceed")
 		return ctrl.Result{}, nil
 	}
-	// Persist status (retry-on-conflict) — create/update path only
+	// Persist the conditions this pass set, on success and on failure: a
+	// Deployment that could not be reconciled must say why. Only those
+	// conditions are merged; replacing the whole status would discard the
+	// outcome the deployment service wrote since the object was read.
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest environmentsv1alpha1.Deployment
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
 			return err
 		}
-		latest.Status = deploymentCR.Status
+		for _, cond := range changedConditions(before, deploymentCR.Status.Conditions) {
+			apimeta.SetStatusCondition(&latest.Status.Conditions, cond)
+		}
 		return r.Status().Update(ctx, &latest)
 	}); err != nil {
 		log.Error(err, "failed to update deployment status")
-		return ctrl.Result{}, err
+		if execErr == nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	if execErr != nil {
+		log.Info("reconcile exit: engine error")
+		return ctrl.Result{}, execErr
 	}
 
 	log.Info("deployment status updated successfully")
