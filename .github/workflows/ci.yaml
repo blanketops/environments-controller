@@ -50,7 +50,11 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
-          cache: true
+          # The self-hosted runners keep Go's module and build caches on a
+          # persistent volume. setup-go's own cache would upload them again
+          # after every job, which on these runners hangs "Post Setup Go" for
+          # up to an hour and holds the runner.
+          cache: false
 
       - name: Build
         run: go build ./...
