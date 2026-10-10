@@ -10,12 +10,10 @@
 #   PAT for checkout/push and private-module git config — see ci.yaml's
 #   header for the reasoning.
 #
-#   Unlike environments' code-docs.yml, the generated-docs commit here is NOT
-#   GPG-signed — this repo has no GPG_PRIVATE_KEY/GPG_PASSPHRASE secrets
-#   configured, and its existing bot-authored commits (release.yml,
-#   finalize-release.yml) are likewise unsigned. Add those secrets and a
-#   crazy-max/ghaction-import-gpg step if signed docs commits are wanted
-#   later.
+#   The generated-docs commit is made through GitHub's API
+#   (hack/api-commit.sh), not with `git commit`. A commit made with git in a
+#   workflow is never verified on GitHub; one GitHub makes itself through the
+#   API is signed by GitHub. No GPG key is involved.
 #
 # Secrets required:
 #   APP_ID, APP_PRIVATE_KEY — GitHub App credentials
@@ -76,21 +74,20 @@ jobs:
             ./internal/... \
             ./pkg/...
 
-      - name: Configure git committer
+      # Through the API, not `git commit`: a commit made with git in a workflow
+      # is never verified, and GitHub signs the ones it makes itself. See
+      # hack/api-commit.sh.
+      - name: Commit docs
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-
-      - name: Commit and push docs
-        run: |
-          git add docs/code/ -f
-          if ! git diff-index --quiet HEAD; then
-            git commit -m "docs: auto-generate code documentation [skip ci]"
-            git pull --rebase origin main
-            git push origin main
-          else
-            echo "No documentation changes to commit"
+          git fetch --quiet origin main
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "::notice::main has moved since this run started; the run for the newer commit regenerates the docs"
+            exit 0
           fi
+          hack/api-commit.sh main \
+            "docs: auto-generate code documentation [skip ci]" docs/code
 
       - name: Upload docs artifact
         uses: actions/upload-artifact@v7
