@@ -29,6 +29,7 @@ import (
 	buildmediator "github.com/blanketops/environments-controller/internal/mediators/build"
 	"github.com/blanketops/environments-controller/internal/testsupport"
 	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
@@ -272,10 +273,46 @@ func TestBuildDomain_Handle_Create_MissingEnvironment(t *testing.T) {
 	}
 }
 
+// While the Build's secrets have not arrived the Build waits: it is not
+// dispatched, and the wait is recorded as pending, not as a failure.
+func TestBuildDomain_Handle_Create_WaitsForItsSecrets(t *testing.T) {
+	env := newEnvironment()
+	buildCR := newBuildCR(validBuildContract())
+	c := testsupport.NewFakeClient(env, buildCR)
+	d := newTestDomainWithClient(t, c)
+	ctx := context.Background()
+
+	if err := d.Handle(ctx, command.Command{Type: command.CmdCreate, Obj: buildCR}); err == nil {
+		t.Fatal("Handle() = nil while the secrets are missing, want the pending error so the Build is retried")
+	}
+	var pending *metav1.Condition
+	for i := range buildCR.Status.Conditions {
+		if buildCR.Status.Conditions[i].Type == "BuildPrerequisitesCreated" {
+			pending = &buildCR.Status.Conditions[i]
+		}
+	}
+	if pending == nil || pending.Status != metav1.ConditionFalse || pending.Reason != "BuildPrerequisitesPending" {
+		t.Errorf("BuildPrerequisitesCreated = %+v, want False with reason BuildPrerequisitesPending", pending)
+	}
+	if _, ok := conditionStatus(buildCR.Status.Conditions, "BuildPrerequisitesCreateFailed"); ok {
+		t.Error("waiting for secrets must not be recorded as a failed prerequisite")
+	}
+
+	var runs shipwrightv1alpha1.BuildRunList
+	if err := c.List(ctx, &runs); err != nil {
+		t.Fatalf("list buildruns: %v", err)
+	}
+	if len(runs.Items) != 0 {
+		t.Errorf("%d BuildRun(s) started before the secrets exist, want none", len(runs.Items))
+	}
+}
+
 func TestBuildDomain_Handle_Create_PrerequisitesSucceed(t *testing.T) {
 	env := newEnvironment()
 	buildCR := newBuildCR(validBuildContract())
-	d := newTestDomain(t, env, buildCR)
+	// The Secret External Secrets would have written for the Build's source.
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "app-git-ssh", Namespace: buildCR.Namespace}}
+	d := newTestDomain(t, env, buildCR, secret)
 
 	// Prerequisites (git SSH secret, registry secret, ServiceAccount) should
 	// all provision successfully against the fake client once the owning

@@ -26,6 +26,7 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -124,7 +125,13 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd command.Command) error {
 
 		// Stage 2: Ensure prerequisites
 		log.Info("creating build prerequisites")
-		if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); err != nil {
+		if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); errors.Is(err, build.ErrPrerequisitesPending) {
+			// Not a failure: the secrets have been requested and are not
+			// there yet. Nothing is dispatched; the Build is retried.
+			log.Info("build prerequisites pending", "reason", err.Error())
+			conditions.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreated", conditions.ConditionFalse, "BuildPrerequisitesPending", err.Error())
+			return err
+		} else if err != nil {
 			log.Error(err, "build prerequisites failed")
 			d.events.FromError(buildCR, "BuildPrerequisitesCreateFailed", err)
 			conditions.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreateFailed", conditions.ConditionFalse, "build prerequisites failed, internal error", err.Error())
