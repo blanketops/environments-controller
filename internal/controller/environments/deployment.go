@@ -38,8 +38,10 @@ import (
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	deploydomain "github.com/blanketops/environments-controller/internal/domains/deployment"
 	deployment "github.com/blanketops/environments-controller/internal/mediators/deployment"
@@ -70,6 +72,9 @@ type DeploymentReconciler struct {
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=deployments/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=deployments/finalizers,verbs=update
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
+// The imperative runtime applies each ServiceUnit as a Deployment and a Service.
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups=source.toolkit.fluxcd.io,resources=gitrepositories;helmrepositories;ocirepositories,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=kustomize.toolkit.fluxcd.io,resources=kustomizations,verbs=get;list;watch;create;update;patch;delete
@@ -198,6 +203,10 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Mediator (infra / prerequisites only)
 	r.DeploymentMediator = deployment.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.deployment"), r.Recorder)
 
+	// Cross-CR reads go straight to the API server, not the informer
+	// cache: a ServiceUnit created a moment ago must be found.
+	r.reader = mgr.GetAPIReader()
+
 	// Providers (runtime backends)
 	// kubernetesBackend := api.NewK8SProvider(
 	// 	mgr.GetClient(),
@@ -231,8 +240,15 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// Controller registration
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&environmentsv1alpha1.Deployment{}).
+		For(&environmentsv1alpha1.Deployment{}, builder.WithPredicates(predicates.MeaningfulChangePredicate())).
+		// A Deployment rolls out the image of each ServiceUnit it lists. For
+		// a unit of type BUILD that image is what its Build last pushed, so
+		// a new image re-triggers the Deployments that roll it out.
+		Watches(
+			&environmentsv1alpha1.Build{},
+			handler.EnqueueRequestsFromMapFunc(r.mapBuildToDeployments),
+			builder.WithPredicates(buildImageChanged()),
+		).
 		Named("environments-deployment").
-		WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Complete(r)
 }
