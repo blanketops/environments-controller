@@ -67,7 +67,7 @@ func newDeploymentFixtures() []client.Object {
 		"applicationName": deplName, "branch": "main", "gitOwner": "example-org", "environmentType": deplEnvType, "version": "v1",
 	})
 	su := &environmentsv1alpha1.ServiceUnit{ObjectMeta: metav1.ObjectMeta{Name: deplUnit, Namespace: deplNamespace, Labels: deplLabels()}}
-	su.Spec.Contract = testsupport.RawContract(map[string]any{"type": "static", "image": "ghcr.io/example-org/web:v1", "containerPort": 8080, "size": 1})
+	su.Spec.Contract = testsupport.RawContract(map[string]any{keyUnitType: unitStatic, keyUnitImage: "ghcr.io/example-org/web:v1", "containerPort": 8080, "size": 1})
 	depl := &environmentsv1alpha1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: deplName, Namespace: deplNamespace, Labels: deplLabels()}}
 	depl.Spec.Contract = testsupport.RawContract(map[string]any{
 		"serviceUnits": []any{deplUnit}, "runtime": "kubernetes", "strategy": "Rolling",

@@ -31,7 +31,9 @@ import (
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	serviceunitdomain "github.com/blanketops/environments-controller/internal/domains/serviceunit"
 	serviceunitmediator "github.com/blanketops/environments-controller/internal/mediators/serviceunit"
@@ -142,8 +144,14 @@ func (r *ServiceUnitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// Controller registration
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&serviceunitv1alpha1.ServiceUnit{}).
+		For(&serviceunitv1alpha1.ServiceUnit{}, builder.WithPredicates(predicates.MeaningfulChangePredicate())).
+		// A ServiceUnit of type BUILD runs what its Build last pushed, so a
+		// Build that pushes a new image re-triggers the units that name it.
+		Watches(
+			&serviceunitv1alpha1.Build{},
+			handler.EnqueueRequestsFromMapFunc(r.mapBuildToServiceUnits),
+			builder.WithPredicates(buildImageChanged()),
+		).
 		Named("environments-serviceunit").
-		WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Complete(r)
 }
