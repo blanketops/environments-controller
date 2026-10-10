@@ -36,6 +36,7 @@ import (
 	"github.com/blanketops/environments/core/conditions"
 	"github.com/blanketops/environments/core/events"
 	deployapp "github.com/blanketops/environments/pkg/apis/deployment/application"
+	serviceunitquery "github.com/blanketops/environments/pkg/apis/serviceunit/query"
 	deploymentResolution "github.com/blanketops/environments/resolution/deployment/resolve"
 	serviceunit "github.com/blanketops/environments/resolution/serviceunit/resolve"
 	"github.com/go-logr/logr"
@@ -147,6 +148,9 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 			log.Error(err, "resolve serviceunits failed")
 			d.events.FromError(deploymentCR, "ServiceUnitResolutionFailed", err)
 			conditions.SetCondition(&deploymentCR.Status.Conditions, "ServiceUnitResolved", conditions.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
+			// Nothing was deployed this pass. A success left by an earlier
+			// pass no longer describes the Deployment.
+			conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentSucceeded", conditions.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
 			return err
 		}
 
@@ -281,6 +285,13 @@ func (d *DeployDomain) resolveServiceUnits(
 		}
 		su, err := serviceunit.ResolveServiceUnit(&suCR)
 		if err != nil {
+			return nil, fmt.Errorf("resolving service unit %q: %w", name, err)
+		}
+		// A ServiceUnit of type BUILD runs the image its Build last
+		// pushed, pulled with the registry secret that Build declared.
+		// An empty image means the Build has pushed nothing yet, which
+		// the deployment service reports as the build not being ready.
+		if err := serviceunitquery.InjectBuildImage(ctx, d.reader, su); err != nil {
 			return nil, fmt.Errorf("resolving service unit %q: %w", name, err)
 		}
 		out = append(out, *su)

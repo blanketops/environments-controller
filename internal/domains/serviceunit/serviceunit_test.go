@@ -15,6 +15,7 @@ package serviceunit
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
@@ -185,5 +186,99 @@ func TestServiceUnitDomain_Handle_DeleteRunsSameFlow(t *testing.T) {
 	}
 	if status, ok := conditionStatus(su.Status.Conditions, "ServiceUnitReady"); !ok || status != metav1.ConditionTrue {
 		t.Errorf("ServiceUnitReady condition = (%v, found=%v), want (True, true)", status, ok)
+	}
+}
+
+const keyName = "name"
+
+const pushedImage = "ghcr.io/example-org/app:main@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+
+func buildUnitContract(refNamespace string) map[string]any {
+	ref := map[string]any{keyName: "app"}
+	if refNamespace != "" {
+		ref["namespace"] = refNamespace
+	}
+	return map[string]any{"type": "build", "buildRef": ref}
+}
+
+func newBuild(image string) *environmentsv1alpha1.Build {
+	b := &environmentsv1alpha1.Build{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}}
+	b.Spec.Contract = testsupport.RawContract(map[string]any{
+		"image":          "ghcr.io/example-org/app:main",
+		"strategy":       map[string]any{keyName: "kaniko", "kind": "ClusterBuildStrategy"},
+		"source":         map[string]any{"url": "git@github.com:example-org/app.git"},
+		"serviceAccount": map[string]any{keyName: "build-bot", "secret": "registry-credentials"},
+	})
+	if image != "" {
+		b.Status.Contract = testsupport.RawContract(map[string]any{"Image": image})
+	}
+	return b
+}
+
+func readyCondition(t *testing.T, su *environmentsv1alpha1.ServiceUnit) metav1.Condition {
+	t.Helper()
+	for _, c := range su.Status.Conditions {
+		if c.Type == "ServiceUnitReady" {
+			return c
+		}
+	}
+	t.Fatalf("no ServiceUnitReady condition in %+v", su.Status.Conditions)
+	return metav1.Condition{}
+}
+
+// A ServiceUnit of type build runs what its Build last pushed. Until the
+// Build has pushed an image it waits, which is neither ready nor a failure.
+func TestServiceUnitDomain_Handle_BuildType_WaitsForItsBuild(t *testing.T) {
+	su := newServiceUnitCR(buildUnitContract(""))
+	d := newTestDomain(t, su, newBuild(""))
+
+	if err := d.Handle(context.Background(), command.Command{Type: command.CmdUpdate, Obj: su}); err != nil {
+		t.Fatalf("Handle() = %v, want nil while waiting", err)
+	}
+	cond := readyCondition(t, su)
+	if cond.Status != metav1.ConditionFalse || cond.Reason != "AwaitingBuild" {
+		t.Errorf("ServiceUnitReady = %+v, want False with reason AwaitingBuild", cond)
+	}
+}
+
+func TestServiceUnitDomain_Handle_BuildType_ReadyWithTheBuildsImage(t *testing.T) {
+	su := newServiceUnitCR(buildUnitContract(""))
+	d := newTestDomain(t, su, newBuild(pushedImage))
+
+	if err := d.Handle(context.Background(), command.Command{Type: command.CmdUpdate, Obj: su}); err != nil {
+		t.Fatalf("Handle() = %v, want nil", err)
+	}
+	cond := readyCondition(t, su)
+	if cond.Status != metav1.ConditionTrue || !strings.Contains(cond.Message, pushedImage) {
+		t.Errorf("ServiceUnitReady = %+v, want True naming the image the Build pushed", cond)
+	}
+}
+
+// The image is pulled with the Build's registry secret, which a workload can
+// only use from its own namespace. A Build named in another namespace, and a
+// Build that does not exist, are prerequisite failures.
+func TestServiceUnitDomain_Handle_BuildType_BuildCannotBeUsed(t *testing.T) {
+	tests := map[string]struct {
+		contract map[string]any
+		objs     []client.Object
+	}{
+		"build in another namespace": {contract: buildUnitContract("builds"), objs: []client.Object{newBuild(pushedImage)}},
+		"build does not exist":       {contract: buildUnitContract("")},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			su := newServiceUnitCR(tt.contract)
+			d := newTestDomain(t, append(tt.objs, su)...)
+
+			if err := d.Handle(context.Background(), command.Command{Type: command.CmdUpdate, Obj: su}); err == nil {
+				t.Fatal("Handle() = nil, want an error")
+			}
+			if status, ok := conditionStatus(su.Status.Conditions, "ServiceUnitPrerequisitesReady"); !ok || status != metav1.ConditionFalse {
+				t.Errorf("ServiceUnitPrerequisitesReady = (%v, found=%v), want (False, true)", status, ok)
+			}
+			if _, ok := conditionStatus(su.Status.Conditions, "ServiceUnitReady"); ok {
+				t.Error("ServiceUnitReady must not be set when the prerequisites failed")
+			}
+		})
 	}
 }

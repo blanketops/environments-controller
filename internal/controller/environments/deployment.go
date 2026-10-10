@@ -40,8 +40,10 @@ import (
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	deploydomain "github.com/blanketops/environments-controller/internal/domains/deployment"
 	deployment "github.com/blanketops/environments-controller/internal/mediators/deployment"
@@ -253,8 +255,15 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// Controller registration
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&environmentsv1alpha1.Deployment{}).
+		For(&environmentsv1alpha1.Deployment{}, builder.WithPredicates(predicates.MeaningfulChangePredicate())).
+		// A Deployment rolls out the image of each ServiceUnit it lists. For
+		// a unit of type BUILD that image is what its Build last pushed, so
+		// a new image re-triggers the Deployments that roll it out.
+		Watches(
+			&environmentsv1alpha1.Build{},
+			handler.EnqueueRequestsFromMapFunc(r.mapBuildToDeployments),
+			builder.WithPredicates(buildImageChanged()),
+		).
 		Named("environments-deployment").
-		WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Complete(r)
 }
