@@ -160,7 +160,7 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 			if err := d.deployService.Reconcile(ctx, resolved, serviceUnits, d.log); err != nil {
 				log.Error(err, "deployment of serviceunits failed")
 				d.events.FromError(deploymentCR, "DeploymentFailed", err)
-				conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentFailed", conditions.ConditionFalse, "DeploymentFailed", err.Error())
+				conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentSucceeded", conditions.ConditionFalse, "DeploymentFailed", err.Error())
 				return err
 			}
 		}

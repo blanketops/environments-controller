@@ -276,6 +276,32 @@ func TestDeployDomain_Handle_Create_Succeeds(t *testing.T) {
 	}
 }
 
+// A deployment that could not be carried out must not read as succeeded. A
+// ServiceUnit of type build whose Build has pushed no image cannot be rolled
+// out, so the deployment service fails; the domain records that on the
+// condition it sets on success, so a True left by an earlier pass does not
+// survive.
+func TestDeployDomain_Handle_Create_DeploymentFailureIsNotSucceeded(t *testing.T) {
+	env := newEnvironment()
+	su := newServiceUnit(testServiceUnitName)
+	su.Spec.Contract = testsupport.RawContract(map[string]any{
+		"type":     "build",
+		"buildRef": map[string]any{"name": "app"},
+	})
+	depl := newDeploymentCR(validDeploymentContract(testServiceUnitName))
+	depl.Status.Conditions = []metav1.Condition{{
+		Type: "DeploymentSucceeded", Status: metav1.ConditionTrue, Reason: "DeploymentSucceeded", Message: "an earlier pass",
+	}}
+	d := newTestDomainWithDeployService(t, env, su, depl)
+
+	if err := d.Handle(context.Background(), command.Command{Type: command.CmdCreate, Obj: depl}); err == nil {
+		t.Fatal("Handle() = nil, want the deployment failure")
+	}
+	if status, ok := conditionStatus(depl.Status.Conditions, "DeploymentSucceeded"); !ok || status != metav1.ConditionFalse {
+		t.Errorf("DeploymentSucceeded condition = (%v, found=%v), want (False, true)", status, ok)
+	}
+}
+
 func TestDeployDomain_Handle_Delete_ResolutionFailure(t *testing.T) {
 	depl := newDeploymentCR(nil)
 	d := newTestDomain(t, depl)
