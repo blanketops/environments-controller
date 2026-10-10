@@ -33,6 +33,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	serviceunitdomain "github.com/blanketops/environments-controller/internal/domains/serviceunit"
+	serviceunitmediator "github.com/blanketops/environments-controller/internal/mediators/serviceunit"
 	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
@@ -128,9 +130,15 @@ func (r *ServiceUnitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.Recorder = mgr.GetEventRecorder("serviceunit-controller")
 
 	// Runtime Infrastructure
-	// cache := r.Runtime.Cache
-	// events := r.Runtime.Events
-	// registry := r.Runtime.Registry
+	cache := r.Runtime.Cache
+	eventsRecorder := r.Runtime.Events
+	registry := r.Runtime.Registry
+
+	// Domain wiring. Without it the engine has nothing to route a
+	// ServiceUnit to.
+	mediator := serviceunitmediator.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.serviceunit"))
+	domain := serviceunitdomain.New(mediator, cache, eventsRecorder, r.Log.WithName("domain.serviceunit"))
+	registry.RegisterDomain(serviceunitv1alpha1.GroupVersion.WithKind("ServiceUnit"), domain)
 
 	// Controller registration
 	return ctrl.NewControllerManagedBy(mgr).

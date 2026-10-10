@@ -70,6 +70,9 @@ type DeploymentReconciler struct {
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=deployments/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=deployments/finalizers,verbs=update
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
+// The imperative runtime applies each ServiceUnit as a Deployment and a Service.
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups=source.toolkit.fluxcd.io,resources=gitrepositories;helmrepositories;ocirepositories,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=kustomize.toolkit.fluxcd.io,resources=kustomizations,verbs=get;list;watch;create;update;patch;delete
@@ -197,6 +200,10 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// Mediator (infra / prerequisites only)
 	r.DeploymentMediator = deployment.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.deployment"), r.Recorder)
+
+	// Cross-CR reads go straight to the API server, not the informer
+	// cache: a ServiceUnit created a moment ago must be found.
+	r.reader = mgr.GetAPIReader()
 
 	// Providers (runtime backends)
 	// kubernetesBackend := api.NewK8SProvider(
