@@ -18,9 +18,10 @@ Package serviceunit implements the ServiceUnit prerequisite mediator.
 
 Currently a stub relative to its siblings (build, deployment, packages):
 EnsurePrerequisites validates that resolved and its Spec are non-nil and
-logs the resolved contract, but provisions nothing — ServiceUnit has no
-cross-cutting prerequisites of its own today (its workload is applied
-directly by the owning Deployment's reconciliation, not by this mediator).
+provisions nothing: a ServiceUnit's workload is applied by the owning
+Deployment's reconciliation, not by this mediator. Its one prerequisite is
+read, not created — a ServiceUnit of type BUILD runs the image its Build
+last pushed, and that image is injected into the resolved contract here.
 */
 package serviceunit
 
@@ -28,6 +29,7 @@ import (
 	"context"
 	"fmt"
 
+	serviceunitquery "github.com/blanketops/environments/pkg/apis/serviceunit/query"
 	serviceunitResolution "github.com/blanketops/environments/resolution/serviceunit/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -71,6 +73,13 @@ func (m *Mediator) EnsurePrerequisites(
 	log.Info("mediator start")
 
 	spec := resolved.Spec
+
+	// A ServiceUnit of type BUILD names a Build, not an image. The image
+	// stays empty while that Build has pushed nothing; the domain reports
+	// that as waiting.
+	if err := serviceunitquery.InjectBuildImage(ctx, m.Client, resolved); err != nil {
+		return fmt.Errorf("resolve image from build: %w", err)
+	}
 
 	log.Info("resolved serviceunit contract",
 		"name", resolved.ServiceUnit.Name,

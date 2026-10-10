@@ -36,6 +36,7 @@ import (
 	"github.com/blanketops/environments/core/conditions"
 	"github.com/blanketops/environments/core/events"
 	deployapp "github.com/blanketops/environments/pkg/apis/deployment/application"
+	serviceunitquery "github.com/blanketops/environments/pkg/apis/serviceunit/query"
 	deploymentResolution "github.com/blanketops/environments/resolution/deployment/resolve"
 	serviceunit "github.com/blanketops/environments/resolution/serviceunit/resolve"
 	"github.com/go-logr/logr"
@@ -147,6 +148,9 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 			log.Error(err, "resolve serviceunits failed")
 			d.events.FromError(deploymentCR, "ServiceUnitResolutionFailed", err)
 			conditions.SetCondition(&deploymentCR.Status.Conditions, "ServiceUnitResolved", conditions.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
+			// Nothing was deployed this pass. A success left by an earlier
+			// pass no longer describes the Deployment.
+			conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentSucceeded", conditions.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
 			return err
 		}
 
@@ -191,14 +195,10 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 		// mediator's job below, which deletes the whole per-Deployment repo
 		// via the Git host's API; nothing here needs to touch its contents.
 		if d.deployService != nil {
-			serviceUnits, err := d.resolveServiceUnits(ctx, resolved)
-			if err != nil {
-				log.Error(err, "resolve serviceunits failed during teardown")
-				d.events.FromError(deploymentCR, "ServiceUnitResolutionFailed", err)
-				conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", conditions.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
-				return err
-			}
-			if err := d.deployService.Teardown(ctx, resolved, serviceUnits, d.log); err != nil {
+			// Teardown needs the Deployment only. The ServiceUnits it lists
+			// may already be gone, as when a Package removes them together,
+			// and that must not leave the workload running.
+			if err := d.deployService.Teardown(ctx, resolved, nil, d.log); err != nil {
 				log.Error(err, "deployment teardown failed")
 				d.events.FromError(deploymentCR, "DeploymentTeardownFailed", err)
 				conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", conditions.ConditionFalse, "DeploymentTeardownFailed", err.Error())
@@ -281,6 +281,13 @@ func (d *DeployDomain) resolveServiceUnits(
 		}
 		su, err := serviceunit.ResolveServiceUnit(&suCR)
 		if err != nil {
+			return nil, fmt.Errorf("resolving service unit %q: %w", name, err)
+		}
+		// A ServiceUnit of type BUILD runs the image its Build last
+		// pushed, pulled with the registry secret that Build declared.
+		// An empty image means the Build has pushed nothing yet, which
+		// the deployment service reports as the build not being ready.
+		if err := serviceunitquery.InjectBuildImage(ctx, d.reader, su); err != nil {
 			return nil, fmt.Errorf("resolving service unit %q: %w", name, err)
 		}
 		out = append(out, *su)
