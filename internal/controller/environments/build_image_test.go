@@ -37,6 +37,8 @@ const (
 	imgBuildName = "the-build"
 	imgNamespace = "images"
 	keyUnitType  = "type"
+	keyUnitImage = "image"
+	unitStatic   = "static"
 
 	imageOne = "ghcr.io/example-org/app:one@sha256:1111111111111111111111111111111111111111111111111111111111111111"
 	imageTwo = "ghcr.io/example-org/app:two@sha256:2222222222222222222222222222222222222222222222222222222222222222"
@@ -137,7 +139,7 @@ func TestMapBuildToServiceUnits(t *testing.T) {
 		buildUnit(imgNamespace, "worker", imgBuildName),
 		buildUnit(imgNamespace, "other-build", "something-else"),
 		buildUnit("other", "web", imgBuildName),
-		unit(imgNamespace, "static", map[string]any{keyUnitType: "static", "image": "ghcr.io/example-org/app:v1"}),
+		unit(imgNamespace, "static", map[string]any{keyUnitType: unitStatic, keyUnitImage: "ghcr.io/example-org/app:v1"}),
 		unit(imgNamespace, "broken", map[string]any{keyUnitType: "build"}),
 	)
 	r := &ServiceUnitReconciler{Client: c}
@@ -155,7 +157,7 @@ func TestMapBuildToDeployments(t *testing.T) {
 	c := testsupport.NewFakeClient(
 		buildUnit(imgNamespace, "web", imgBuildName),
 		buildUnit(imgNamespace, "worker", imgBuildName),
-		unit(imgNamespace, "static", map[string]any{keyUnitType: "static", "image": "ghcr.io/example-org/app:v1"}),
+		unit(imgNamespace, "static", map[string]any{keyUnitType: unitStatic, keyUnitImage: "ghcr.io/example-org/app:v1"}),
 		deploymentOf(imgNamespace, "site", "static", "web"),
 		deploymentOf(imgNamespace, "jobs", "worker", "web"),
 		deploymentOf(imgNamespace, "unrelated", "static"),
