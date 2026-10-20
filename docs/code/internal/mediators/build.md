@@ -14,11 +14,20 @@ Prerequisite provisioning is gated on the Environment: the Environment CR must p
 
 ## Index
 
+- [Variables](<#variables>)
 - [type Mediator](<#Mediator>)
   - [func New\(c client.Client, scheme \*runtime.Scheme, log logr.Logger, recorder events.EventRecorder\) \*Mediator](<#New>)
   - [func \(m \*Mediator\) CleanupPrerequisites\(ctx context.Context, resolved \*buildResolution.ResolvedBuild\) error](<#Mediator.CleanupPrerequisites>)
   - [func \(m \*Mediator\) EnsurePrerequisites\(ctx context.Context, resolved \*buildResolution.ResolvedBuild\) error](<#Mediator.EnsurePrerequisites>)
 
+
+## Variables
+
+<a name="ErrPrerequisitesPending"></a>ErrPrerequisitesPending reports that a Build's prerequisites have been requested but are not all in place yet. It is not a failure: the Build is looked at again and dispatched once they are.
+
+```go
+var ErrPrerequisitesPending = errors.New("build prerequisites pending")
+```
 
 <a name="Mediator"></a>
 ## type Mediator
