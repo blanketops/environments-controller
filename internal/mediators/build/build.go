@@ -28,7 +28,9 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/blanketops/environments/pkg/apis/environment/query"
 	git "github.com/blanketops/environments/pkg/secrets/git/build"
@@ -36,6 +38,8 @@ import (
 	serviceaccounts "github.com/blanketops/environments/pkg/serviceaccounts"
 	buildResolution "github.com/blanketops/environments/resolution/build/resolve"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/events"
@@ -100,6 +104,47 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *buildResol
 		return fmt.Errorf("reconcile service account: %w", err)
 	}
 
+	// Stage 4: Wait for the secrets to exist
+	// Stages 1 and 2 declare ExternalSecrets; the Secrets themselves are
+	// written by External Secrets a moment later. Shipwright validates a
+	// Build's secret references when the Build is created and fails every
+	// BuildRun of a Build it could not validate, so nothing may be
+	// dispatched until the Secrets are there.
+	if err := m.awaitSecrets(ctx, resolved); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ErrPrerequisitesPending reports that a Build's prerequisites have been
+// requested but are not all in place yet. It is not a failure: the Build is
+// looked at again and dispatched once they are.
+var ErrPrerequisitesPending = errors.New("build prerequisites pending")
+
+// awaitSecrets returns ErrPrerequisitesPending, naming what is missing,
+// until every Secret the Build's contract references exists.
+func (m *Mediator) awaitSecrets(ctx context.Context, resolved *buildResolution.ResolvedBuild) error {
+	names := []string{resolved.Spec.Source.CloneSecret}
+	if resolved.Spec.ServiceAccount != nil {
+		names = append(names, resolved.Spec.ServiceAccount.Secret)
+	}
+
+	var missing []string
+	for _, name := range names {
+		if name == "" {
+			continue
+		}
+		key := client.ObjectKey{Namespace: resolved.Build.Namespace, Name: name}
+		if err := m.Client.Get(ctx, key, &corev1.Secret{}); apierrors.IsNotFound(err) {
+			missing = append(missing, name)
+		} else if err != nil {
+			return fmt.Errorf("get secret %s: %w", name, err)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: waiting for secret(s) %s", ErrPrerequisitesPending, strings.Join(missing, ", "))
+	}
 	return nil
 }
 

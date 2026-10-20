@@ -20,6 +20,8 @@ package build
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
@@ -28,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/blanketops/environments-controller/internal/testsupport"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const testAppName = "app-sample"
@@ -77,6 +80,14 @@ func newResolvedBuild() *buildResolution.ResolvedBuild {
 	}
 }
 
+// cloneSecret is the Secret External Secrets writes for the Build's source.
+// The fake client runs no controllers, so a test that needs the prerequisites
+// to be in place creates it.
+func cloneSecret() *corev1.Secret {
+	b := newResolvedBuild()
+	return &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: b.Spec.Source.CloneSecret, Namespace: b.Build.Namespace}}
+}
+
 func TestMediator_EnsurePrerequisites_MissingEnvironment(t *testing.T) {
 	c := testsupport.NewFakeClient()
 	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
@@ -89,7 +100,7 @@ func TestMediator_EnsurePrerequisites_MissingEnvironment(t *testing.T) {
 func TestMediator_EnsurePrerequisites_Idempotent(t *testing.T) {
 	env := newEnvironment()
 	resolved := newResolvedBuild()
-	c := testsupport.NewFakeClient(env, resolved.Build)
+	c := testsupport.NewFakeClient(env, resolved.Build, cloneSecret())
 	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
 
 	if err := m.EnsurePrerequisites(context.Background(), resolved); err != nil {
@@ -122,7 +133,7 @@ func TestMediator_CleanupPrerequisites_NothingProvisioned(t *testing.T) {
 func TestMediator_CleanupPrerequisites_AfterEnsure(t *testing.T) {
 	env := newEnvironment()
 	resolved := newResolvedBuild()
-	c := testsupport.NewFakeClient(env, resolved.Build)
+	c := testsupport.NewFakeClient(env, resolved.Build, cloneSecret())
 	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
 
 	if err := m.EnsurePrerequisites(context.Background(), resolved); err != nil {
@@ -130,5 +141,41 @@ func TestMediator_CleanupPrerequisites_AfterEnsure(t *testing.T) {
 	}
 	if err := m.CleanupPrerequisites(context.Background(), resolved); err != nil {
 		t.Fatalf("CleanupPrerequisites() = %v, want nil", err)
+	}
+}
+
+// The ExternalSecrets are declared at once but the Secrets arrive later.
+// Until every Secret the Build references exists the prerequisites are
+// pending, naming what is missing, so nothing is dispatched: Shipwright
+// fails every BuildRun of a Build created before its secrets.
+func TestMediator_EnsurePrerequisites_PendingUntilTheSecretsExist(t *testing.T) {
+	env := newEnvironment()
+	resolved := newResolvedBuild()
+	resolved.Spec.ServiceAccount = &buildResolution.ResolvedServiceAccount{Name: "build-bot", Secret: "registry-credentials"}
+	c := testsupport.NewFakeClient(env, resolved.Build)
+	m := New(c, testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
+	ctx := context.Background()
+
+	err := m.EnsurePrerequisites(ctx, resolved)
+	if !errors.Is(err, ErrPrerequisitesPending) || !strings.Contains(err.Error(), "app-git-ssh") || !strings.Contains(err.Error(), "registry-credentials") {
+		t.Fatalf("EnsurePrerequisites() = %v, want pending naming both secrets", err)
+	}
+
+	// One arrives.
+	if err := c.Create(ctx, cloneSecret()); err != nil {
+		t.Fatalf("create clone secret: %v", err)
+	}
+	err = m.EnsurePrerequisites(ctx, resolved)
+	if !errors.Is(err, ErrPrerequisitesPending) || strings.Contains(err.Error(), "app-git-ssh") || !strings.Contains(err.Error(), "registry-credentials") {
+		t.Fatalf("EnsurePrerequisites() = %v, want pending naming only the registry secret", err)
+	}
+
+	// Both are there.
+	registry := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "registry-credentials", Namespace: resolved.Build.Namespace}}
+	if err := c.Create(ctx, registry); err != nil {
+		t.Fatalf("create registry secret: %v", err)
+	}
+	if err := m.EnsurePrerequisites(ctx, resolved); err != nil {
+		t.Fatalf("EnsurePrerequisites() with both secrets = %v, want nil", err)
 	}
 }

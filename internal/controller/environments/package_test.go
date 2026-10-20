@@ -26,6 +26,7 @@ import (
 	pkgProvider "github.com/blanketops/environments/pkg/apis/packages/api"
 	pkgApp "github.com/blanketops/environments/pkg/apis/packages/application"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -266,6 +267,82 @@ func TestPackageReconciler_DeleteTearsDownAndReleasesTheFinalizer(t *testing.T) 
 				t.Errorf("Reconcile after deletion: %v", err)
 			}
 		})
+	}
+}
+
+// kapp-controller holds the App with a finalizer while it removes what the
+// App deployed, running as the Package's service account. Until the App is
+// gone the Package waits: its finalizer, its service account and the binding
+// stay, and the wait is not reported as a failure.
+func TestPackageReconciler_DeleteWaitsForTheApp(t *testing.T) {
+	c := testsupport.NewFakeClient(newPackageEnvironment(), newPackage(validPackageContract()))
+	r := newPackageReconciler(c)
+	ctx := context.Background()
+	_ = reconcilePackage(t, r) // finalizer
+	if err := reconcilePackage(t, r); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	// Hold the App the way kapp-controller does.
+	app := &kappctrlv1alpha1.App{}
+	if err := c.Get(ctx, pkgKey, app); err != nil {
+		t.Fatalf("get app: %v", err)
+	}
+	app.Finalizers = []string{"finalizers.kapp-ctrl.k14s.io/delete"}
+	if err := c.Update(ctx, app); err != nil {
+		t.Fatalf("hold the app: %v", err)
+	}
+
+	p, err := getPackage(t, c)
+	if err != nil {
+		t.Fatalf("get package: %v", err)
+	}
+	if err := c.Delete(ctx, p); err != nil {
+		t.Fatalf("delete package: %v", err)
+	}
+
+	saKey := client.ObjectKey{Namespace: pkgNamespace, Name: pkgTestName + "-package"}
+	for i := range 2 {
+		res, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: pkgKey})
+		if err != nil {
+			t.Fatalf("delete Reconcile %d while the App is held: %v, want no error", i+1, err)
+		}
+		if res.RequeueAfter <= 0 {
+			t.Errorf("delete Reconcile %d: RequeueAfter = %v, want the Package looked at again", i+1, res.RequeueAfter)
+		}
+		p, err := getPackage(t, c)
+		if err != nil {
+			t.Fatalf("package must wait while the App is held, got: %v", err)
+		}
+		if !controllerutil.ContainsFinalizer(p, packageFinalizer) {
+			t.Fatal("finalizer released while the App still exists")
+		}
+		cond := apimeta.FindStatusCondition(p.Status.Conditions, "PackageDeleted")
+		if cond == nil || cond.Status != metav1.ConditionFalse || cond.Reason != "PackageTeardownInProgress" {
+			t.Errorf("PackageDeleted = %+v, want False with reason PackageTeardownInProgress", cond)
+		}
+		if err := c.Get(ctx, saKey, &corev1.ServiceAccount{}); err != nil {
+			t.Fatalf("service account must stay while the App is held: %v", err)
+		}
+	}
+
+	// kapp-controller finishes and releases the App.
+	if err := c.Get(ctx, pkgKey, app); err != nil {
+		t.Fatalf("get app: %v", err)
+	}
+	app.Finalizers = nil
+	if err := c.Update(ctx, app); err != nil {
+		t.Fatalf("release the app: %v", err)
+	}
+
+	if err := reconcilePackage(t, r); err != nil {
+		t.Fatalf("delete Reconcile once the App is gone: %v", err)
+	}
+	if _, err := getPackage(t, c); !apierrors.IsNotFound(err) {
+		t.Errorf("package after teardown: err = %v, want not found", err)
+	}
+	if err := c.Get(ctx, saKey, &corev1.ServiceAccount{}); !apierrors.IsNotFound(err) {
+		t.Errorf("service account after teardown: err = %v, want not found", err)
 	}
 }
 

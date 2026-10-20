@@ -35,6 +35,7 @@ import (
 	"github.com/blanketops/environments/core/command"
 	"github.com/blanketops/environments/core/conditions"
 	"github.com/blanketops/environments/core/events"
+	serviceunitquery "github.com/blanketops/environments/pkg/apis/serviceunit/query"
 	serviceunitResolution "github.com/blanketops/environments/resolution/serviceunit/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -146,9 +147,19 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd command.Command) err
 
 	log.Info("serviceunit reconciliation complete")
 
-	d.events.Normal(su, "ServiceUnitReady", "ServiceUnit successfully reconciled")
+	// A ServiceUnit of type BUILD is ready once its Build has pushed an
+	// image. Until then it waits; a new image re-triggers it.
+	if key, isBuild := serviceunitquery.BuildKey(resolved); isBuild && resolved.Spec.Image == "" {
+		msg := fmt.Sprintf("waiting for build %s to push an image", key.Name)
+		log.Info("serviceunit waiting for its build", "build", key.String())
+		conditions.SetCondition(&su.Status.Conditions, "ServiceUnitReady", conditions.ConditionFalse, "AwaitingBuild", msg)
+		return nil
+	}
 
-	conditions.SetCondition(&su.Status.Conditions, "ServiceUnitReady", conditions.ConditionTrue, "Ready", "ServiceUnit successfully reconciled")
+	msg := "ServiceUnit successfully reconciled with image " + resolved.Spec.Image
+	d.events.Normal(su, "ServiceUnitReady", "ServiceUnit successfully reconciled with image %s", resolved.Spec.Image)
+
+	conditions.SetCondition(&su.Status.Conditions, "ServiceUnitReady", conditions.ConditionTrue, "Ready", msg)
 
 	log.Info("serviceunit domain handling complete")
 

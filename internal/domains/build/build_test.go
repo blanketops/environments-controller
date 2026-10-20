@@ -28,6 +28,9 @@ import (
 
 	buildmediator "github.com/blanketops/environments-controller/internal/mediators/build"
 	"github.com/blanketops/environments-controller/internal/testsupport"
+	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 const testAppName = "app-sample"
@@ -100,7 +103,13 @@ func validBuildContract() map[string]any {
 // built").
 func newTestDomain(t *testing.T, objs ...client.Object) *BuildDomain {
 	t.Helper()
-	c := testsupport.NewFakeClient(objs...)
+	return newTestDomainWithClient(t, testsupport.NewFakeClient(objs...))
+}
+
+// newTestDomainWithClient wires the domain against a client the test keeps,
+// so it can read back what the domain left on the cluster.
+func newTestDomainWithClient(t *testing.T, c client.Client) *BuildDomain {
+	t.Helper()
 	log := logr.Discard()
 	rawRec := testsupport.NoopRawRecorder()
 
@@ -264,10 +273,46 @@ func TestBuildDomain_Handle_Create_MissingEnvironment(t *testing.T) {
 	}
 }
 
+// While the Build's secrets have not arrived the Build waits: it is not
+// dispatched, and the wait is recorded as pending, not as a failure.
+func TestBuildDomain_Handle_Create_WaitsForItsSecrets(t *testing.T) {
+	env := newEnvironment()
+	buildCR := newBuildCR(validBuildContract())
+	c := testsupport.NewFakeClient(env, buildCR)
+	d := newTestDomainWithClient(t, c)
+	ctx := context.Background()
+
+	if err := d.Handle(ctx, command.Command{Type: command.CmdCreate, Obj: buildCR}); err == nil {
+		t.Fatal("Handle() = nil while the secrets are missing, want the pending error so the Build is retried")
+	}
+	var pending *metav1.Condition
+	for i := range buildCR.Status.Conditions {
+		if buildCR.Status.Conditions[i].Type == "BuildPrerequisitesCreated" {
+			pending = &buildCR.Status.Conditions[i]
+		}
+	}
+	if pending == nil || pending.Status != metav1.ConditionFalse || pending.Reason != "BuildPrerequisitesPending" {
+		t.Errorf("BuildPrerequisitesCreated = %+v, want False with reason BuildPrerequisitesPending", pending)
+	}
+	if _, ok := conditionStatus(buildCR.Status.Conditions, "BuildPrerequisitesCreateFailed"); ok {
+		t.Error("waiting for secrets must not be recorded as a failed prerequisite")
+	}
+
+	var runs shipwrightv1alpha1.BuildRunList
+	if err := c.List(ctx, &runs); err != nil {
+		t.Fatalf("list buildruns: %v", err)
+	}
+	if len(runs.Items) != 0 {
+		t.Errorf("%d BuildRun(s) started before the secrets exist, want none", len(runs.Items))
+	}
+}
+
 func TestBuildDomain_Handle_Create_PrerequisitesSucceed(t *testing.T) {
 	env := newEnvironment()
 	buildCR := newBuildCR(validBuildContract())
-	d := newTestDomain(t, env, buildCR)
+	// The Secret External Secrets would have written for the Build's source.
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "app-git-ssh", Namespace: buildCR.Namespace}}
+	d := newTestDomain(t, env, buildCR, secret)
 
 	// Prerequisites (git SSH secret, registry secret, ServiceAccount) should
 	// all provision successfully against the fake client once the owning
@@ -309,6 +354,45 @@ func TestBuildDomain_Handle_Delete_MissingEnvironment(t *testing.T) {
 
 	if status, ok := conditionStatus(buildCR.Status.Conditions, "BuildDeleted"); !ok || status != metav1.ConditionFalse {
 		t.Errorf("BuildDeleted condition = (%v, found=%v), want (False, true)", status, ok)
+	}
+}
+
+// Deleting a Build removes the Shipwright Build and the BuildRuns started for
+// it. Shipwright clears a BuildRun's owner references, so nothing else does;
+// a BuildRun left behind is found again, already finished, by a Build
+// re-created under the same name, and that Build then never gets an image.
+func TestBuildDomain_Handle_Delete_RemovesShipwrightObjects(t *testing.T) {
+	env := newEnvironment()
+	buildCR := newBuildCR(validBuildContract())
+	labels := map[string]string{"build.blanketops.dev/name": buildCR.Name}
+	shipBuild := &shipwrightv1alpha1.Build{ObjectMeta: metav1.ObjectMeta{Name: buildCR.Name, Namespace: buildCR.Namespace}}
+	// No owner references, as Shipwright leaves them.
+	runOne := &shipwrightv1alpha1.BuildRun{ObjectMeta: metav1.ObjectMeta{Name: buildCR.Name + "-aaaaaaaaaaaa", Namespace: buildCR.Namespace, Labels: labels}}
+	runTwo := &shipwrightv1alpha1.BuildRun{ObjectMeta: metav1.ObjectMeta{Name: buildCR.Name + "-bbbbbbbbbbbb", Namespace: buildCR.Namespace, Labels: labels}}
+	// Another Build's run must be left alone.
+	other := &shipwrightv1alpha1.BuildRun{ObjectMeta: metav1.ObjectMeta{Name: "someone-else-cccccccccccc", Namespace: buildCR.Namespace, Labels: map[string]string{"build.blanketops.dev/name": "someone-else"}}}
+
+	c := testsupport.NewFakeClient(env, buildCR, shipBuild, runOne, runTwo, other)
+	d := newTestDomainWithClient(t, c)
+	ctx := context.Background()
+
+	if err := d.Handle(ctx, command.Command{Type: command.CmdDelete, Obj: buildCR}); err != nil {
+		t.Fatalf("Handle() delete = %v, want nil", err)
+	}
+
+	for _, run := range []*shipwrightv1alpha1.BuildRun{runOne, runTwo} {
+		if err := c.Get(ctx, client.ObjectKeyFromObject(run), &shipwrightv1alpha1.BuildRun{}); !apierrors.IsNotFound(err) {
+			t.Errorf("BuildRun %s after delete: err = %v, want not found", run.Name, err)
+		}
+	}
+	if err := c.Get(ctx, client.ObjectKeyFromObject(shipBuild), &shipwrightv1alpha1.Build{}); !apierrors.IsNotFound(err) {
+		t.Errorf("Shipwright Build after delete: err = %v, want not found", err)
+	}
+	if err := c.Get(ctx, client.ObjectKeyFromObject(other), &shipwrightv1alpha1.BuildRun{}); err != nil {
+		t.Errorf("another Build's BuildRun must be left alone: %v", err)
+	}
+	if status, ok := conditionStatus(buildCR.Status.Conditions, "BuildDeleted"); !ok || status != metav1.ConditionTrue {
+		t.Errorf("BuildDeleted condition = (%v, found=%v), want (True, true)", status, ok)
 	}
 }
 
