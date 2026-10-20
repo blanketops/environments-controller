@@ -11,11 +11,10 @@
 #   - go-version-file: go.mod instead of hardcoded version
 #   - Removed Force Remote Dependency step — replace directives must not be
 #     committed to go.mod; local replace is development-only
-#   - Removed -mod=vendor — controller fetches deps via HTTPS + GOPRIVATE at
-#     build time; vendor directory is not committed in this repo
+#   - Removed -mod=vendor — controller fetches deps from the public module
+#     proxy at build time; vendor directory is not committed in this repo
 #   - golangci-lint replaces staticcheck — consistent with library CI
 #   - go vet added before lint
-#   - GONOSUMDB + GOPRIVATE + GOPROXY=direct set consistently
 #   - Added gofmt check, go test + coverage, and a gocov-html report
 #
 # No secrets required — environments, environments-api, and
