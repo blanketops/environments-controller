@@ -42,8 +42,9 @@ jobs:
         - name: Generate release notes
           run: git-cliff --config .cliff.toml --latest --output RELEASE_NOTES.md
 
-        - name: Setup crane
-          uses: imjasonh/setup-crane@v0.7
+        # crane is baked into the runner image (zenith-runner-toolchain 1.0.11+).
+        - name: Check crane
+          run: crane version
 
         - name: Login to GHCR
           uses: docker/login-action@v4
