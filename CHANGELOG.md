@@ -1,3 +1,34 @@
+## [0.6.3] - 2026-10-20
+
+### 🚀 Features
+
+- *(serviceunit)* Run the image a Build pushes, from push to rollout
+
+### 🐛 Bug Fixes
+
+- Make ServiceUnit and Deployment reconcile at all
+- *(deployment)* Keep the outcome the deployment service wrote, and say when it failed
+- *(deployment)* Tear the workload down when a Deployment is deleted
+- *(build)* Remove the Shipwright Build and BuildRuns when a Build is deleted
+- *(environment)* Write an Environment's status when it has a ServiceUnit
+- *(build)* Finish mediating a Build's secrets before it is dispatched
+- *(packages)* Wait for the kapp App before removing a Package's prerequisites
+
+### 💼 Other
+
+- Merge release/v0.6.3 into main
+
+### 📚 Documentation
+
+- Auto-generate code documentation [skip ci]
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.6.2
+- Sync develop with main after release/v0.6.2
+- *(ko)* Sign the image index, not one platform's manifest
+- Stop setup-go uploading the Go cache after every job
+- *(release)* Make the workflows' commits verified
 ## [0.6.2] - 2026-10-09
 
 ### 🚀 Features
