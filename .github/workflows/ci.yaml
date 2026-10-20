@@ -74,7 +74,13 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          # golangci-lint is baked into the self-hosted runner image, and its
+          # analysis cache lives on the runners' persistent volume
+          # (GOLANGCI_LINT_CACHE). Downloading the binary and round-tripping
+          # the cache through GitHub on every job cost minutes. The version
+          # is therefore whatever the runner image pins.
+          install-mode: none
+          skip-cache: true
           args: --timeout=5m
 
       - name: Test
