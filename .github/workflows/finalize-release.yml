@@ -67,7 +67,7 @@ jobs:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: blanketops
-          repositories: environments-controller,environments,environments-api,environments-contract
+          repositories: environments-controller
 
       - name: Checkout
         uses: actions/checkout@v7
@@ -97,13 +97,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-
-      - name: Configure Git for private modules
-        run: |
-          git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
-          go env -w GOPRIVATE=github.com/blanketops/*
-          go env -w GONOSUMDB=github.com/blanketops/*
-          go env -w GOPROXY=direct
 
       - name: Install gomarkdoc
         run: go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
