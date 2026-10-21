@@ -1,3 +1,12 @@
+## [0.6.5] - 2026-10-21
+
+### 💼 Other
+
+- Merge release/v0.6.5 into main
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.4
 ## [0.6.4] - 2026-10-21
 
 ### 🐛 Bug Fixes
@@ -23,6 +32,7 @@
 - Sync develop with main
 - Land bot writes to main through pull requests
 - Sync develop with main
+- *(release)* Update changelog for v0.6.4 (#190)
 ## [0.6.3] - 2026-10-20
 
 ### 🚀 Features
