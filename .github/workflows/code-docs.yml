@@ -7,8 +7,7 @@
 #
 # Auth:
 #   Uses the BlanketOps-Environments GitHub App instead of a personal-account
-#   PAT for checkout/push and private-module git config — see ci.yaml's
-#   header for the reasoning.
+#   PAT for checkout and for the API commit below.
 #
 #   The generated-docs commit is made through GitHub's API
 #   (hack/api-commit.sh), not with `git commit`. A commit made with git in a
@@ -42,7 +41,7 @@ jobs:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: blanketops
-          repositories: environments-controller,environments,environments-api,environments-contract
+          repositories: environments-controller
 
       - name: Checkout
         uses: actions/checkout@v7
@@ -55,13 +54,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-
-      - name: Configure Git for private modules
-        run: |
-          git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
-          go env -w GOPRIVATE=github.com/blanketops/*
-          go env -w GONOSUMDB=github.com/blanketops/*
-          go env -w GOPROXY=direct
 
       - name: Install gomarkdoc
         run: go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
@@ -91,6 +83,7 @@ jobs:
 
       - name: Upload docs artifact
         uses: actions/upload-artifact@v7
+        continue-on-error: true
         with:
           name: godoc-${{ github.sha }}
           path: docs/code/

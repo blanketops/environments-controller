@@ -219,6 +219,15 @@ jobs:
           severity: CRITICAL,HIGH,MEDIUM
           exit-code: "0"
           output: trivy-report.md
+          # The vulnerability DB lives on the runners' persistent cache volume
+          # and is reused across jobs. The action's own cache (actions/cache)
+          # would download and re-upload binary and DB through GitHub on
+          # every run, so it stays off.
+          cache: "false"
+          cache-dir: /var/cache/zenith/trivy
+          # trivy is baked into the runner image (zenith-runner-toolchain
+          # 1.0.11+), so setup-trivy's per-job download is skipped.
+          skip-setup-trivy: "true"
 
       - name: Trivy Summary
         if: always()
