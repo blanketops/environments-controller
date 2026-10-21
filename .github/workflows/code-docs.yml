@@ -24,6 +24,13 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch: {}
+
+# One docs run at a time: a second one waits instead of racing the first to
+# open a pull request on the same main.
+concurrency:
+  group: code-docs
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -66,19 +73,16 @@ jobs:
             ./internal/... \
             ./pkg/...
 
-      # Through the API, not `git commit`: a commit made with git in a workflow
-      # is never verified, and GitHub signs the ones it makes itself. See
-      # hack/api-commit.sh.
+      # Through a pull request: main's `protect` ruleset takes changes only
+      # through a pull request with verified commits, and the App is not a
+      # bypass actor. hack/api-pr.sh opens one with a commit GitHub signs and
+      # squash-merges it; the skip marker in the message keeps that from
+      # starting workflows, including this one.
       - name: Commit docs
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          git fetch --quiet origin main
-          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
-            echo "::notice::main has moved since this run started; the run for the newer commit regenerates the docs"
-            exit 0
-          fi
-          hack/api-commit.sh main \
+          hack/api-pr.sh main "docs/code-${GITHUB_SHA::7}" \
             "docs: auto-generate code documentation [skip ci]" docs/code
 
       - name: Upload docs artifact
