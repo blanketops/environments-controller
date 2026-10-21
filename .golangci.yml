@@ -32,6 +32,10 @@ linters:
     modernize:
       disable:
       - omitzero
+      # Go 1.27 lets a struct literal set an embedded struct's fields
+      # directly (Secret{Name: n} for Secret{ObjectMeta: ObjectMeta{Name: n}}).
+      # Kept in the explicit form while the rest of the family is on Go 1.26.
+      - embedlit
   exclusions:
     generated: lax
     rules:
