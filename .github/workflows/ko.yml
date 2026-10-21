@@ -72,18 +72,14 @@ jobs:
           # up to an hour and holds the runner.
           cache: false
 
-      - name: Setup ko
-        uses: ko-build/setup-ko@v0.7
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v4.1.2
-        with:
-          cosign-release: 'v2.4.1'
-
-      - name: Install ORAS
-        uses: oras-project/setup-oras@v2
-        with:
-          version: 1.2.0
+      # ko, cosign (2.4.1) and oras are baked into the runner image
+      # (zenith-runner-toolchain 1.0.11+); installing them per job meant
+      # fresh downloads over a slow link. GHCR login is the step below.
+      - name: Check baked tools
+        run: |
+          ko version
+          cosign version
+          oras version
 
       - name: Login to GHCR
         run: |
