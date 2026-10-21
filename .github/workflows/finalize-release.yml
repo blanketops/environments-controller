@@ -76,12 +76,18 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       # The scripts come from the release branch, which is what is being
-      # released. They are copied out of the checkout because the steps below
-      # move it to main, and main does not carry them until this merge lands.
+      # released, or from main for one cut before they existed. They are
+      # copied out of the checkout because the steps below move it.
+      #
+      # main's `protect` ruleset takes changes only through a pull request
+      # and the App is not a bypass actor: the release branch is merged
+      # through its pull request (api-merge-pr.sh) and every file change
+      # lands through a pull request of its own (api-pr.sh).
       - name: Stage the API helpers
         run: |
-          for script in api-commit.sh api-merge.sh; do
-            git show "origin/release/${VERSION}:hack/${script}" > "${RUNNER_TEMP}/${script}"
+          for script in api-commit.sh api-merge.sh api-merge-pr.sh api-pr.sh; do
+            git show "origin/release/${VERSION}:hack/${script}" > "${RUNNER_TEMP}/${script}" 2>/dev/null \
+              || git show "origin/main:hack/${script}" > "${RUNNER_TEMP}/${script}"
             chmod +x "${RUNNER_TEMP}/${script}"
           done
 
@@ -89,7 +95,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          "${RUNNER_TEMP}/api-merge.sh" main "release/${VERSION}" \
+          "${RUNNER_TEMP}/api-merge-pr.sh" main "release/${VERSION}" \
             "release: merge release/${VERSION} into main"
 
       - name: Set up Go
@@ -113,17 +119,14 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          "${RUNNER_TEMP}/api-commit.sh" main \
+          "${RUNNER_TEMP}/api-pr.sh" main "release/${VERSION}-docs" \
             "docs: auto-generate code documentation [skip ci]" docs/code/
+          git fetch --quiet origin main
+          git checkout --quiet --detach origin/main
 
-      - name: Install git-cliff
-        run: |
-          GITCLIFF_VERSION="2.13.0"
-          curl -L "https://github.com/orhun/git-cliff/releases/download/v${GITCLIFF_VERSION}/git-cliff-${GITCLIFF_VERSION}-x86_64-unknown-linux-gnu.tar.gz" -o git-cliff.tar.gz
-          tar xzf git-cliff.tar.gz
-          sudo mv "git-cliff-${GITCLIFF_VERSION}/git-cliff" /usr/local/bin/git-cliff
-          rm -rf git-cliff.tar.gz "git-cliff-${GITCLIFF_VERSION}"
-          git-cliff --version
+      # git-cliff is baked into the runner image (zenith-runner-toolchain).
+      - name: git-cliff version
+        run: git-cliff --version
 
       # --tag renders the commits since the last release under this version:
       # the tag itself is only created after this file is committed.
@@ -134,8 +137,10 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          "${RUNNER_TEMP}/api-commit.sh" main \
+          "${RUNNER_TEMP}/api-pr.sh" main "release/${VERSION}-changelog" \
             "chore(release): update changelog for ${VERSION}" CHANGELOG.md
+          git fetch --quiet origin main
+          git checkout --quiet --detach origin/main
 
       # On the changelog commit, not the [skip ci] docs commit before it: a tag
       # on a [skip ci] commit starts no workflow.
