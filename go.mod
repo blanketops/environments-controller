@@ -5,8 +5,8 @@ go 1.27.0
 require (
 	carvel.dev/kapp-controller v0.60.9
 	github.com/argoproj/argo-events v1.9.11
-	github.com/blanketops/environments v0.8.6
-	github.com/blanketops/environments-api v0.2.9
+	github.com/blanketops/environments v0.8.7
+	github.com/blanketops/environments-api v0.3.0
 	github.com/cert-manager/cert-manager v1.21.2
 	github.com/fluxcd/kustomize-controller/api v1.9.6
 	github.com/fluxcd/source-controller/api v1.9.6
@@ -33,7 +33,7 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blanketops/environments-contract v0.5.5 // indirect
+	github.com/blanketops/environments-contract v0.5.7 // indirect
 	github.com/blendle/zapdriver v1.3.1 // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20260422231931-4d751bb6e37c // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -43,7 +43,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.10.0 // indirect
 	github.com/fluxcd/pkg/apis/kustomize v1.19.2 // indirect
-	github.com/fluxcd/pkg/apis/meta v1.32.0 // indirect
+	github.com/fluxcd/pkg/apis/meta v1.36.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -78,7 +78,7 @@ require (
 	github.com/prometheus/common v0.71.0 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
-	github.com/redis/go-redis/v9 v9.22.0 // indirect
+	github.com/redis/go-redis/v9 v9.23.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
@@ -95,12 +95,12 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.45.0 // indirect
 	go.opentelemetry.io/otel/trace v1.45.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
-	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
