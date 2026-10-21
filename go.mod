@@ -13,7 +13,7 @@ require (
 	github.com/go-logr/logr v1.4.4
 	github.com/go-logr/zapr v1.3.0
 	github.com/magefile/mage v1.17.2
-	github.com/shipwright-io/build v0.21.9
+	github.com/shipwright-io/build v0.21.10
 	github.com/tektoncd/pipeline v1.17.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.58.0
