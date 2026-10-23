@@ -123,3 +123,17 @@ jobs:
               **Digest:** \`${{ steps.image.outputs.digest }}\`
 
               EOF
+
+        # The releaser (blanketops/environments-bots, as the Releaser App)
+        # attaches the tag and the published release to the Release issue,
+        # closes it and sets it to Done. It runs even when a step above
+        # failed: it then finds no published release, says so on the issue,
+        # and leaves it open.
+        - name: Releaser complete
+          if: always()
+          uses: blanketops/environments-bots/.github/actions/releaser@v0.0.2
+          with:
+            command: complete
+            release: ${{ github.ref_name }}
+            app-id: ${{ secrets.RELEASER_APP_ID }}
+            private-key: ${{ secrets.RELEASER_APP_PRIVATE_KEY }}

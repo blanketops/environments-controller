@@ -41,6 +41,7 @@
 #   `git-cliff --tag` before the tag exists.
 #
 # Secrets required:
+#   RELEASER_APP_ID, RELEASER_APP_PRIVATE_KEY — the Releaser App (verify)
 #   APP_ID, APP_PRIVATE_KEY — GitHub App credentials, exchanged for a
 #   short-lived installation token scoped to this repo
 
@@ -91,10 +92,37 @@ jobs:
             chmod +x "${RUNNER_TEMP}/${script}"
           done
 
+      # The releaser (blanketops/environments-bots, as the Releaser App)
+      # checks before anything is merged: one open Release issue, nothing
+      # still open into release/<version> or in the version's milestone, no
+      # tag yet.
+      - name: Releaser verify
+        uses: blanketops/environments-bots/.github/actions/releaser@v0.0.2
+        with:
+          command: verify
+          release: ${{ github.event.inputs.version }}
+          app-id: ${{ secrets.RELEASER_APP_ID }}
+          private-key: ${{ secrets.RELEASER_APP_PRIVATE_KEY }}
+
+      # A release pull request merged by hand leaves nothing to merge: the
+      # release branch is then not ahead of main, and opening a pull request
+      # for an empty difference fails (HTTP 422). The steps after this one
+      # still run on main as merged.
       - name: Merge release into main
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
+          ahead=$(curl -sS --fail-with-body \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/compare/main...release/${VERSION}" \
+            | jq -r '.ahead_by')
+          if [ "$ahead" = "0" ]; then
+            echo "::notice::release/${VERSION} is already in main (its pull request was merged); nothing to merge"
+            git fetch --quiet origin main
+            git checkout --quiet --detach origin/main
+            exit 0
+          fi
           "${RUNNER_TEMP}/api-merge-pr.sh" main "release/${VERSION}" \
             "release: merge release/${VERSION} into main"
 
