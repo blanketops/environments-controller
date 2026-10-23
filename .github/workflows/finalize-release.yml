@@ -41,6 +41,7 @@
 #   `git-cliff --tag` before the tag exists.
 #
 # Secrets required:
+#   RELEASER_APP_ID, RELEASER_APP_PRIVATE_KEY — the Releaser App (verify)
 #   APP_ID, APP_PRIVATE_KEY — GitHub App credentials, exchanged for a
 #   short-lived installation token scoped to this repo
 
@@ -90,6 +91,18 @@ jobs:
               || git show "origin/main:hack/${script}" > "${RUNNER_TEMP}/${script}"
             chmod +x "${RUNNER_TEMP}/${script}"
           done
+
+      # The releaser (blanketops/environments-bots, as the Releaser App)
+      # checks before anything is merged: one open Release issue, nothing
+      # still open into release/<version> or in the version's milestone, no
+      # tag yet.
+      - name: Releaser verify
+        uses: blanketops/environments-bots/.github/actions/releaser@v0.0.2
+        with:
+          command: verify
+          release: ${{ github.event.inputs.version }}
+          app-id: ${{ secrets.RELEASER_APP_ID }}
+          private-key: ${{ secrets.RELEASER_APP_PRIVATE_KEY }}
 
       # A release pull request merged by hand leaves nothing to merge: the
       # release branch is then not ahead of main, and opening a pull request

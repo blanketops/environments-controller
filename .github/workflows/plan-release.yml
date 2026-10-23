@@ -1,0 +1,33 @@
+# Plan Release — on every push to develop, the releaser
+# (blanketops/environments-bots, as the BlanketOps Environments Releaser
+# App) keeps the next release planned as a "Release: vX.Y.Z" issue on
+# project 1 when develop has commits no release carries yet. Cutting stays
+# a decision: run Create Release.
+#
+# Secrets required:
+#   RELEASER_APP_ID, RELEASER_APP_PRIVATE_KEY — the Releaser App
+
+name: Plan Release
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-plan-and-cut
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: releaser plan
+    runs-on: self-hosted
+    steps:
+      - uses: blanketops/environments-bots/.github/actions/releaser@v0.0.2
+        with:
+          command: plan
+          app-id: ${{ secrets.RELEASER_APP_ID }}
+          private-key: ${{ secrets.RELEASER_APP_PRIVATE_KEY }}

@@ -1,13 +1,17 @@
-# Auth:
-#   Uses the BlanketOps-Environments GitHub App (via
-#   actions/create-github-app-token) instead of a personal-account PAT — a
-#   push/PR made with the default GITHUB_TOKEN does not trigger downstream
-#   workflow runs (e.g. CI on the new release branch), but an App
-#   installation token does, same as a PAT would.
+# Create Release — the releaser (blanketops/environments-bots, as the
+# BlanketOps Environments Releaser App) checks the release and, when every
+# check passes, creates release/{version} at develop's head and opens its
+# pull request into main. It records each check on the Release issue
+# ("Release: {version}", on project 1 as Release), opening it if Plan
+# Release has not.
+#
+# The version input is optional: empty releases the planned Release issue,
+# else the version the commits since the latest tag need. Once the branch
+# is ready, run Finalize Release; the Release workflow then attaches the
+# published release to the issue and closes it.
 #
 # Secrets required:
-#   APP_ID, APP_PRIVATE_KEY — GitHub App credentials, exchanged for a
-#   short-lived installation token scoped to this repo
+#   RELEASER_APP_ID, RELEASER_APP_PRIVATE_KEY — the Releaser App
 
 name: Create Release
 
@@ -15,75 +19,24 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (e.g. v0.0.9)"
-        required: true
+        description: "Release version (e.g. v0.0.9); empty for the planned release"
+        required: false
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+
+concurrency:
+  group: release-plan-and-cut
+  cancel-in-progress: false
 
 jobs:
   create:
-    # Zenith self-hosted pool.
+    name: releaser cut
     runs-on: self-hosted
-
-
     steps:
-      - name: Generate GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v3
+      - uses: blanketops/environments-bots/.github/actions/releaser@v0.0.2
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: blanketops
-          repositories: environments-controller
-
-      - name: Checkout develop
-        uses: actions/checkout@v7
-        with:
-          ref: develop
-          fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-
-      - name: Create release branch
-        run: |
-          git checkout -b release/${{ github.event.inputs.version }}
-          git push origin release/${{ github.event.inputs.version }}
-
-      - name: Open PR to main
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          gh pr create \
-            --base main \
-            --head release/${{ github.event.inputs.version }} \
-            --title "release: ${{ github.event.inputs.version }}" \
-            --body "## Release ${{ github.event.inputs.version }}
-
-          Release branch cut from \`develop\`. Merge fix PRs into this branch before finalizing.
-
-          **Next step:** once all fixes are merged, run the _Finalize Release_ workflow." \
-          || echo "::warning::PR creation failed — branch release/${{ github.event.inputs.version }} was created successfully. Open the PR manually."
-
-      - name: Release Summary
-        run: |
-          cat >> $GITHUB_STEP_SUMMARY <<EOF 
-          # 🚀 Release Branch Created 
-          **Version:** \`${{ github.event.inputs.version }}\`
-          ## Completed 
-           - Checked out \`develop\`
-           - Created \`release/${{ github.event.inputs.version }}\` 
-           - Pushed release branch to origin 
-           - Opened (or attempted to open) a PR to \`main\` 
-           ## Release Flow 
-           -  develop → release/${{ github.event.inputs.version }} → main 
-           ## Next Steps 
-           1. Merge any release fixes into the release branch.
-           2. Validate the release candidate .
-           3. Run the **Finalize Release** workflow. 
-          EOF
+          command: cut
+          release: ${{ github.event.inputs.version }}
+          app-id: ${{ secrets.RELEASER_APP_ID }}
+          private-key: ${{ secrets.RELEASER_APP_PRIVATE_KEY }}
