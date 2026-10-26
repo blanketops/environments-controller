@@ -1,6 +1,6 @@
 module github.com/blanketops/environments-controller
 
-go 1.27.0
+go 1.27.3
 
 require (
 	carvel.dev/kapp-controller v0.60.9
@@ -14,7 +14,7 @@ require (
 	github.com/go-logr/zapr v1.3.0
 	github.com/magefile/mage v1.17.2
 	github.com/shipwright-io/build v0.21.10
-	github.com/tektoncd/pipeline v1.17.0
+	github.com/tektoncd/pipeline v1.17.1
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.58.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
