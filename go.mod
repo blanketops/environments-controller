@@ -6,6 +6,8 @@ require (
 	carvel.dev/kapp-controller v0.60.10
 	github.com/argoproj/argo-events v1.9.11
 	github.com/blanketops/environments v0.8.7
+	github.com/blanketops/environments-api v0.3.2
+	github.com/cert-manager/cert-manager v1.21.2
 	github.com/blanketops/environments-api v0.3.0
 	github.com/cert-manager/cert-manager v1.21.3
 	github.com/fluxcd/kustomize-controller/api v1.9.6
