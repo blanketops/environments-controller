@@ -173,8 +173,8 @@ github.com/prometheus/procfs v0.21.1 h1:GljZCt+zSTS+NZq88cyQ1LjZ+RCHp3uVuabBWA5+
 github.com/prometheus/procfs v0.21.1/go.mod h1:aB55Cww9pdSJVHk0hUf0inxWyyjPogFIjmHKYgMKmtY=
 github.com/redis/go-redis/v9 v9.23.0 h1:/TTVdJa8BRNsybwwGGnmiYktHNlUXtbOQxlWpHBPL3s=
 github.com/redis/go-redis/v9 v9.23.0/go.mod h1:EWP2UUk+XDaI1s5nQB5mablZN6vccXlmBQTyfnF87D0=
-github.com/shipwright-io/build v0.21.10 h1:KHM1/wp79s+mjqNYPvct8y3maa0ZhJI1GvNKNRHBwV0=
-github.com/shipwright-io/build v0.21.10/go.mod h1:SwPxyuOkW+P1DikwmbbtuFGbADe90PrJMKJOvTYpf70=
+github.com/shipwright-io/build v0.21.11 h1:+mz6f6DGetZ+2d/JjunF3ok4DEnQw0XR5kuH3gwCscE=
+github.com/shipwright-io/build v0.21.11/go.mod h1:SwPxyuOkW+P1DikwmbbtuFGbADe90PrJMKJOvTYpf70=
 github.com/spf13/pflag v1.0.10 h1:4EBh2KAYBwaONj6b2Ye1GiHfwjqyROoF4RwYO+vPwFk=
 github.com/spf13/pflag v1.0.10/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3An2Bg=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
