@@ -1,6 +1,6 @@
 module github.com/blanketops/environments-controller
 
-go 1.27.0
+go 1.27.3
 
 require (
 	carvel.dev/kapp-controller v0.60.10
