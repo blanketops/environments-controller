@@ -131,7 +131,7 @@ jobs:
         # and leaves it open.
         - name: Releaser complete
           if: always()
-          uses: blanketops/environments-bots/.github/actions/releaser@v0.0.2
+          uses: blanketops/environments-bots/.github/actions/releaser@v0.0.3
           with:
             command: complete
             release: ${{ github.ref_name }}
