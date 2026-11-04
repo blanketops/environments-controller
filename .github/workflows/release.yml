@@ -1,3 +1,17 @@
+# =============================================================================
+# release.yml — Publish GitHub Release
+#
+# Fires on push of a v* tag (finalize-release.yml creates it). Reads the
+# already-current CHANGELOG.md for release notes and publishes a GitHub
+# Release. CHANGELOG.md itself is generated and committed by
+# finalize-release.yml before it tags; this workflow only reads it.
+#
+# Trigger scope:
+#   push tags matching v*
+#
+# Secrets required:
+#   GITHUB_TOKEN — via actions/create-github-app-token for checkout/release
+# =============================================================================
 name: Release
 on:
     push:
