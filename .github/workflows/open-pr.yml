@@ -1,14 +1,15 @@
 # =============================================================================
 # open-pr.yml — Open a pull request + tracking issue on a branch's first push
 #
-# Dogfood: environments-bots runs its own developer bot, built from the pushed
-# commit (not a pinned release) so HEAD is exercised here before a release
-# fans it out to the other repositories.
-#
+# On a push to a feature branch, the developer bot opens a pull request into
+# develop and a one-to-one tracking issue (labelled pr-tracking plus the
+# branch's Conventional Commit type) if the branch has none yet. It is
+# idempotent, so later pushes to the same branch do nothing.
+# 
 # Trigger scope:
 #   push to any branch except the long-lived ones (main, develop, release/**,
 #   sync/**), which the developer bot skips anyway.
-#
+# 
 # Secrets required:
 #   DEVELOPER_APP_ID, DEVELOPER_APP_PRIVATE_KEY — Developer App credentials
 # =============================================================================
@@ -33,13 +34,6 @@ jobs:
       - name: Check out the pushed commit
         uses: actions/checkout@v7
 
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          # Self-hosted runners keep Go's caches on a persistent volume.
-          cache: false
-
       - name: Generate Developer App token
         id: app
         uses: actions/create-github-app-token@v3
@@ -49,7 +43,23 @@ jobs:
           owner: blanketops
           repositories: ${{ github.event.repository.name }}
 
+      - name: Download and verify the developer binary
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          VERSION: v0.0.8
+        run: |
+          set -euo pipefail
+          gh release download "${VERSION}" -R blanketops/environments-bots \
+            -p developer-linux-amd64 -p developer-linux-amd64.sigstore.json \
+            -D "${RUNNER_TEMP}"
+          cosign verify-blob \
+            --bundle "${RUNNER_TEMP}/developer-linux-amd64.sigstore.json" \
+            --certificate-identity "https://github.com/blanketops/environments-bots/.github/workflows/release.yml@refs/tags/${VERSION}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "${RUNNER_TEMP}/developer-linux-amd64"
+          chmod +x "${RUNNER_TEMP}/developer-linux-amd64"
+
       - name: Open
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-        run: go run ./cmd/developer open -base develop
+        run: "${RUNNER_TEMP}/developer-linux-amd64" open -base develop
