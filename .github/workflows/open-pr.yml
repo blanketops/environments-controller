@@ -1,0 +1,55 @@
+# =============================================================================
+# open-pr.yml — Open a pull request + tracking issue on a branch's first push
+#
+# Dogfood: environments-bots runs its own developer bot, built from the pushed
+# commit (not a pinned release) so HEAD is exercised here before a release
+# fans it out to the other repositories.
+#
+# Trigger scope:
+#   push to any branch except the long-lived ones (main, develop, release/**,
+#   sync/**), which the developer bot skips anyway.
+#
+# Secrets required:
+#   DEVELOPER_APP_ID, DEVELOPER_APP_PRIVATE_KEY — Developer App credentials
+# =============================================================================
+name: Open PR
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - develop
+      - 'release/**'
+      - 'sync/**'
+
+permissions:
+  contents: read
+
+jobs:
+  open:
+    name: open the pull request and tracking issue
+    runs-on: self-hosted
+    steps:
+      - name: Check out the pushed commit
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          # Self-hosted runners keep Go's caches on a persistent volume.
+          cache: false
+
+      - name: Generate Developer App token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.DEVELOPER_APP_ID }}
+          private-key: ${{ secrets.DEVELOPER_APP_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Open
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: go run ./cmd/developer open -base develop
