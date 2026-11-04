@@ -43,5 +43,5 @@ jobs:
         with:
           command: cut
           release: ${{ github.event.inputs.version }}
-          app-id: ${{ secrets.RELEASER_APP_ID }}
+          client-id: ${{ secrets.RELEASER_APP_ID }}
           private-key: ${{ secrets.RELEASER_APP_PRIVATE_KEY }}

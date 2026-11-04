@@ -34,5 +34,5 @@ jobs:
       - uses: blanketops/environments-bots/.github/actions/releaser@v0.0.7
         with:
           command: plan
-          app-id: ${{ secrets.RELEASER_APP_ID }}
+          client-id: ${{ secrets.RELEASER_APP_ID }}
           private-key: ${{ secrets.RELEASER_APP_PRIVATE_KEY }}

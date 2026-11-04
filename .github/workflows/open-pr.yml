@@ -38,7 +38,7 @@ jobs:
         id: app
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.DEVELOPER_APP_ID }}
+          client-id: ${{ secrets.DEVELOPER_APP_ID }}
           private-key: ${{ secrets.DEVELOPER_APP_PRIVATE_KEY }}
           owner: blanketops
           repositories: ${{ github.event.repository.name }}
