@@ -105,7 +105,7 @@ jobs:
       # still open into release/<version> or in the version's milestone, no
       # tag yet.
       - name: Releaser verify
-        uses: blanketops/environments-bots/.github/actions/releaser@v0.0.3
+        uses: blanketops/environments-bots/.github/actions/releaser@v0.0.7
         with:
           command: verify
           release: ${{ github.event.inputs.version }}
