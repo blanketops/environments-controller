@@ -53,5 +53,6 @@ jobs:
       - name: Resolve
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          "$RUNNER_TEMP/developer-linux-amd64" resolve -pull "${{ github.event.pull_request.number }}"
+          "$RUNNER_TEMP/developer-linux-amd64" resolve -pull "$PR_NUMBER"
