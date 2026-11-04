@@ -1,12 +1,17 @@
-# Plan Release — on every push to develop, the releaser
-# (blanketops/environments-bots, as the BlanketOps Environments Releaser
-# App) keeps the next release planned as a "Release: vX.Y.Z" issue on
-# project 1 when develop has commits no release carries yet. Cutting stays
-# a decision: run Create Release.
+# =============================================================================
+# plan-release.yml — Plan the Next Release on Every Push to Develop
+#
+# Runs on every push to develop. The releaser (blanketops/environments-bots,
+# as the BlanketOps Environments Releaser App) keeps the next release planned
+# as a "Release: vX.Y.Z" issue on project 1 when develop has commits no
+# release carries yet. Cutting stays a decision: run Create Release.
+#
+# Trigger scope:
+#   push to develop; workflow_dispatch
 #
 # Secrets required:
 #   RELEASER_APP_ID, RELEASER_APP_PRIVATE_KEY — the Releaser App
-
+# =============================================================================
 name: Plan Release
 
 on:
