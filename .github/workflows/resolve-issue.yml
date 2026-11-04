@@ -1,0 +1,57 @@
+# =============================================================================
+# resolve-issue.yml — Close a PR's tracking issue on merge
+#
+# When a pull request merges, the developer bot closes the one-to-one tracking
+# issue it opened for the branch (see open-pr.yml). It acts only on merge.
+#
+# Trigger scope:
+#   pull_request closed, only when merged == true
+#
+# Secrets required:
+#   DEVELOPER_APP_ID, DEVELOPER_APP_PRIVATE_KEY — Developer App credentials
+# =============================================================================
+name: Resolve tracking issue
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: close the tracking issue
+    if: github.event.pull_request.merged == true
+    runs-on: self-hosted
+    steps:
+      - name: Generate Developer App token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.DEVELOPER_APP_ID }}
+          private-key: ${{ secrets.DEVELOPER_APP_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Download and verify the developer binary
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          VERSION: v0.0.8
+        run: |
+          set -euo pipefail
+          gh release download "$VERSION" -R blanketops/environments-bots \
+            -p developer-linux-amd64 -p developer-linux-amd64.sigstore.json \
+            -D "$RUNNER_TEMP"
+          cosign verify-blob \
+            --bundle "$RUNNER_TEMP/developer-linux-amd64.sigstore.json" \
+            --certificate-identity "https://github.com/blanketops/environments-bots/.github/workflows/release.yml@refs/tags/$VERSION" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$RUNNER_TEMP/developer-linux-amd64"
+          chmod +x "$RUNNER_TEMP/developer-linux-amd64"
+
+      - name: Resolve
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          "$RUNNER_TEMP/developer-linux-amd64" resolve -pull "${{ github.event.pull_request.number }}"
