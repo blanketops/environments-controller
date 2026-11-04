@@ -46,7 +46,7 @@ jobs:
       - name: Download and verify the developer binary
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-          VERSION: v0.0.8
+          VERSION: v0.1.0
         run: |
           set -euo pipefail
           gh release download "${VERSION}" -R blanketops/environments-bots \
