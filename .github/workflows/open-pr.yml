@@ -1,0 +1,65 @@
+# =============================================================================
+# open-pr.yml — Open a PR and tracking issue for feature-branch pushes
+#
+# On a push to a feature branch, the developer bot opens a pull request into
+# develop and a one-to-one tracking issue (labelled pr-tracking plus the
+# branch's Conventional Commit type) if the branch has none yet. Idempotent.
+#
+# Trigger scope:
+#   push to any branch except main, develop, release/**, sync/**
+#
+# Secrets required:
+#   DEVELOPER_APP_ID, DEVELOPER_APP_PRIVATE_KEY — Developer App credentials
+# =============================================================================
+name: Open PR
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - develop
+      - 'release/**'
+      - 'sync/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: open-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  open:
+    name: open pull request and tracking issue
+    runs-on: self-hosted
+    steps:
+      - name: Generate Developer App token
+        id: app
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.DEVELOPER_APP_ID }}
+          private-key: ${{ secrets.DEVELOPER_APP_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Download and verify the developer binary
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          VERSION: v0.0.8
+        run: |
+          set -euo pipefail
+          gh release download "$VERSION" -R blanketops/environments-bots \
+            -p developer-linux-amd64 -p developer-linux-amd64.sigstore.json \
+            -D "$RUNNER_TEMP"
+          cosign verify-blob \
+            --bundle "$RUNNER_TEMP/developer-linux-amd64.sigstore.json" \
+            --certificate-identity "https://github.com/blanketops/environments-bots/.github/workflows/release.yml@refs/tags/$VERSION" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$RUNNER_TEMP/developer-linux-amd64"
+          chmod +x "$RUNNER_TEMP/developer-linux-amd64"
+
+      - name: Open
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          "$RUNNER_TEMP/developer-linux-amd64" open -base develop
