@@ -24,7 +24,6 @@ env:
     IMAGE_REPO: ghcr.io/blanketops/environments-controller
 jobs:
     release:
-      # Zenith self-hosted pool.
       runs-on: self-hosted
       steps:
         - name: Checkout tag
@@ -41,13 +40,6 @@ jobs:
               rm -rf git-cliff.tar.gz "git-cliff-${GITCLIFF_VERSION}"
               git-cliff --version
 
-        # CHANGELOG.md is generated and committed by finalize-release.yml,
-        # synchronously, before it merges main back into develop -- doing it
-        # there instead of here closes a race where this workflow (triggered
-        # asynchronously by the tag push) used to commit the changelog to
-        # main after finalize-release.yml had already synced develop,
-        # leaving develop permanently missing that commit. Checking out main
-        # here just gets onto the tip finalize-release.yml already updated.
         - name: Checkout main
           run: |
               git checkout main
@@ -56,7 +48,6 @@ jobs:
         - name: Generate release notes
           run: git-cliff --config .cliff.toml --latest --output RELEASE_NOTES.md
 
-        # crane is baked into the runner image (zenith-runner-toolchain 1.0.11+).
         - name: Check crane
           run: crane version
 
@@ -67,8 +58,6 @@ jobs:
             username: ${{ github.actor }}
             password: ${{ secrets.GITHUB_TOKEN }}
 
-        # ko.yml builds and pushes this same tag concurrently (both fire on
-        # the same tag push) — poll rather than assume it's already there.
         - name: Resolve container image digest
           id: image
           run: |
@@ -138,11 +127,6 @@ jobs:
 
               EOF
 
-        # The releaser (blanketops/environments-bots, as the Releaser App)
-        # attaches the tag and the published release to the Release issue,
-        # closes it and sets it to Done. It runs even when a step above
-        # failed: it then finds no published release, says so on the issue,
-        # and leaves it open.
         - name: Releaser complete
           if: always()
           uses: blanketops/environments-bots/.github/actions/releaser@v0.0.3

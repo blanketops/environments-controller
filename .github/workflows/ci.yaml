@@ -39,7 +39,6 @@ env:
 
 jobs:
   build:
-    # Zenith self-hosted pool.
     runs-on: self-hosted
     steps:
       - name: Checkout
@@ -49,10 +48,6 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
-          # The self-hosted runners keep Go's module and build caches on a
-          # persistent volume. setup-go's own cache would upload them again
-          # after every job, which on these runners hangs "Post Setup Go" for
-          # up to an hour and holds the runner.
           cache: false
 
       - name: Build
@@ -74,11 +69,6 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v9
         with:
-          # golangci-lint is baked into the self-hosted runner image, and its
-          # analysis cache lives on the runners' persistent volume
-          # (GOLANGCI_LINT_CACHE). Downloading the binary and round-tripping
-          # the cache through GitHub on every job cost minutes. The version
-          # is therefore whatever the runner image pins.
           install-mode: none
           skip-cache: true
           args: --timeout=5m
@@ -92,11 +82,6 @@ jobs:
       - name: Generate coverage HTML
         run: go tool cover -html=coverage.out -o coverage.html
 
-      # gocov's tagged releases (and current master) pin golang.org/x/tools
-      # at a version that fails to compile under this repo's Go toolchain —
-      # confirmed the same way the environments library's own CI documents
-      # it. Building from source with a forced newer x/tools is the only
-      # way to get a working gocov binary here.
       - name: Build gocov (patched for this Go toolchain)
         run: |
           git clone --depth 1 --branch v1.2.1 https://github.com/axw/gocov.git /tmp/gocov-src
@@ -111,16 +96,16 @@ jobs:
       - name: Generate beauty coverage report
         run: gocov convert coverage.out | gocov-html > beauty-report.html
 
-      - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v7
-        continue-on-error: true
-        with:
-          name: coverage-report-${{ github.sha }}
-          path: |
-            coverage.out
-            coverage.html
-            beauty-report.html
-          retention-days: 14
+      # - name: Upload coverage artifacts
+      #   uses: actions/upload-artifact@v7
+      #   continue-on-error: true
+      #   with:
+      #     name: coverage-report-${{ github.sha }}
+      #     path: |
+      #       coverage.out
+      #       coverage.html
+      #       beauty-report.html
+      #     retention-days: 14
 
       - name: Coverage summary
         if: always()

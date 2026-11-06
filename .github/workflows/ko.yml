@@ -57,7 +57,6 @@ env:
 
 jobs:
   build-and-publish:
-    # Zenith self-hosted pool.
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v7
@@ -66,15 +65,8 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
-          # The self-hosted runners keep Go's module and build caches on a
-          # persistent volume. setup-go's own cache would upload them again
-          # after every job, which on these runners hangs "Post Setup Go" for
-          # up to an hour and holds the runner.
           cache: false
 
-      # ko, cosign (2.4.1) and oras are baked into the runner image
-      # (zenith-runner-toolchain 1.0.11+); installing them per job meant
-      # fresh downloads over a slow link. GHCR login is the step below.
       - name: Check baked tools
         run: |
           ko version
@@ -90,7 +82,6 @@ jobs:
             --username "${{ github.actor }}" \
             --password-stdin
 
-      # tag push → {version} + latest; manual dispatch → ref_name only
       - name: Compute image tags
         id: tags
         run: |

@@ -5,11 +5,6 @@ Kubernetes controller for BlanketOps Environments.
 - This project wires Kubernetes CRDs to the `blanketops/environments` engine.
 - The controller is intentionally thin — all business logic lives in the engine module.
 
-## Architecture
-
-The system is split into two parts:
-
-### 🧠 Engine (`blanketops/environments`)
 
 - Domain logic
 - Resolution layer
@@ -18,7 +13,7 @@ The system is split into two parts:
 - Secrets management
 - Contracts
 
-🎛 Controller (this project)
+🎛 Controller
 
 - Kubernetes reconcilers
 - Watches CRDs
@@ -31,25 +26,25 @@ The controller orchestrates reconciliation; business rules live in the engine mo
 
 The controller reconciles:
 
-- Build
-- Deployment
-- Environment
-- Package
-- ServiceUnit
-- GitRepository
-- GitHubEvent
-- Route (registered, but errors on every CR — no domain handler is registered for its GVK yet)
-- Domain (registered, but Reconcile is a no-op stub)
+- Build.
+- Deployment.
+- Environment.
+- Package.
+- ServiceUnit.
+- GitRepository.
+- GitHubEvent.
+- Route.
+- Domain.
 
 ## Design Principles
 
-- Thin controller
-- Engine-driven architecture
-- Explicit domain contracts
-- Resolution-based orchestration
+- Thin controller.
+- Engine-driven architecture.
+- Explicit domain contracts.
+- Resolution-based orchestration.
 
-Infrastructure adapters isolated from Kubernetes layer
+Infrastructure adapters isolated from Kubernetes layer.
 
 ## License
 
-Apache 2.0
+Apache License 2.0 — see [LICENSE](LICENSE) for details.
