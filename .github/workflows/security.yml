@@ -50,19 +50,22 @@ env:
   IMAGE_REPO: ghcr.io/blanketops/environments-controller
 
 jobs:
-
-  # ───────────────────────────────────────────────────────────────────────────
-  # Job 1: gosec (from gosec.yml)
-  # Original scope: push to main, pull_request (any).
-  # ───────────────────────────────────────────────────────────────────────────
   gosec:
     name: Gosec
-    # Zenith self-hosted pool.
     runs-on: self-hosted
     if: >
       github.event_name == 'pull_request' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_ID_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: environments-controller
+          
       - name: Checkout
         uses: actions/checkout@v7
 
@@ -70,10 +73,6 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
-          # The self-hosted runners keep Go's module and build caches on a
-          # persistent volume. setup-go's own cache would upload them again
-          # after every job, which on these runners hangs "Post Setup Go" for
-          # up to an hour and holds the runner.
           cache: false
 
       - name: Install gosec
@@ -111,13 +110,8 @@ jobs:
             echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ───────────────────────────────────────────────────────────────────────────
-  # Job 2: govulncheck (from vulnscan.yml)
-  # Original scope: push to main, pull_request (any), weekly Monday 06:00 UTC.
-  # ───────────────────────────────────────────────────────────────────────────
   govulncheck:
     name: govulncheck
-    # Zenith self-hosted pool.
     runs-on: self-hosted
     if: >
       github.event_name == 'pull_request' ||
@@ -131,10 +125,6 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
-          # The self-hosted runners keep Go's module and build caches on a
-          # persistent volume. setup-go's own cache would upload them again
-          # after every job, which on these runners hangs "Post Setup Go" for
-          # up to an hour and holds the runner.
           cache: false
 
       - name: Run govulncheck
@@ -179,13 +169,8 @@ jobs:
             echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ───────────────────────────────────────────────────────────────────────────
-  # Job 3: trivy-image (from vulnscan.yml)
-  # Original scope: weekly schedule (scanning :latest), or tag push.
-  # ───────────────────────────────────────────────────────────────────────────
   trivy-image:
     name: Trivy Image Scan
-    # Zenith self-hosted pool.
     runs-on: self-hosted
     if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')
     steps:
@@ -219,14 +204,8 @@ jobs:
           severity: CRITICAL,HIGH,MEDIUM
           exit-code: "0"
           output: trivy-report.md
-          # The vulnerability DB lives on the runners' persistent cache volume
-          # and is reused across jobs. The action's own cache (actions/cache)
-          # would download and re-upload binary and DB through GitHub on
-          # every run, so it stays off.
           cache: "false"
           cache-dir: /var/cache/zenith/trivy
-          # trivy is baked into the runner image (zenith-runner-toolchain
-          # 1.0.11+), so setup-trivy's per-job download is skipped.
           skip-setup-trivy: "true"
 
       - name: Trivy Summary

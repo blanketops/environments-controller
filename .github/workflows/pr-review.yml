@@ -1,0 +1,79 @@
+# =============================================================================
+# pr-review.yml — Review pull requests with the PR Reviewer bot
+#
+# Runs on every pull request open, reopen, and synchronize. The reviewer, as
+# the BlanketOps Environments PR Reviewer App, reads the pull request diff, the
+# repository's PULL_REQUEST_TEMPLATE.md and issue templates, checks the PR body
+# against the template checklist, flags common issues (hardcoded secrets, large
+# files, missing tests, leftover debug/panic, TODO/FIXME), and posts a review
+# comment with labels. When LLM_API_KEY is set it also appends an advisory
+# model review; with no key it stays fully deterministic.
+#
+# The reviewer binary is built and signed in environments-bots and downloaded
+# here (this repo has no bot source), verified with cosign before it runs.
+#
+# Trigger scope:
+#   pull_request: opened, reopened, synchronize
+#
+# Secrets/vars required:
+#   vars.PR_REVIEWER_CLIENT_ID, secrets.PR_REVIEWER_APP_PRIVATE_KEY — the App
+#   secrets.LLM_API_KEY, vars.LLM_BASE_URL, vars.LLM_MODEL — optional LLM pass
+# =============================================================================
+
+name: PR Review
+
+on:
+    pull_request:
+        types: [opened, reopened, synchronize]
+
+permissions:
+    contents: read
+    pull-requests: write
+
+concurrency:
+    group: pr-review-${{ github.event.pull_request.number }}
+    cancel-in-progress: false
+
+jobs:
+    review:
+        name: PR Review
+        runs-on: self-hosted
+
+        steps:
+            - name: Generate PR Reviewer App token
+              id: pr-reviewer-token
+              uses: actions/create-github-app-token@v3
+              with:
+                  client-id: ${{ vars.PR_REVIEWER_CLIENT_ID }}
+                  private-key: ${{ secrets.PR_REVIEWER_APP_PRIVATE_KEY }}
+                  owner: blanketops
+                  repositories: ${{ github.event.repository.name }}
+
+            - name: Download and verify the pr-reviewer binary
+              env:
+                  GH_TOKEN: ${{ steps.pr-reviewer-token.outputs.token }}
+                  VERSION: v0.1.0
+              run: |
+                  set -euo pipefail
+                  gh release download "${VERSION}" -R blanketops/environments-bots \
+                    -p pr-reviewer-linux-amd64 -p pr-reviewer-linux-amd64.sigstore.json \
+                    -D "${RUNNER_TEMP}"
+                  cosign verify-blob \
+                    --bundle "${RUNNER_TEMP}/pr-reviewer-linux-amd64.sigstore.json" \
+                    --certificate-identity "https://github.com/blanketops/environments-bots/.github/workflows/release.yml@refs/tags/${VERSION}" \
+                    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+                    "${RUNNER_TEMP}/pr-reviewer-linux-amd64"
+                  chmod +x "${RUNNER_TEMP}/pr-reviewer-linux-amd64"
+
+            - name: Review pull request
+              env:
+                  GH_TOKEN: ${{ steps.pr-reviewer-token.outputs.token }}
+                  PR: ${{ github.event.pull_request.number }}
+                  # Optional advisory LLM pass. When LLM_API_KEY is unset the reviewer
+                  # stays fully deterministic. Base URL and model are repo variables so
+                  # the model can be swapped without code changes.
+                  LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+                  LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+                  LLM_MODEL: ${{ vars.LLM_MODEL }}
+              run: |
+                  "${RUNNER_TEMP}/pr-reviewer-linux-amd64" review -pr "${PR}"
