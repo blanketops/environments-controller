@@ -24,9 +24,14 @@ import (
 )
 
 type (
+	// EnvironmentReconciler reconciles an Environment object.
 	EnvironmentReconciler = internalenv.EnvironmentReconciler
-	BuildReconciler       = internalenv.BuildReconciler
-	DeploymentReconciler  = internalenv.DeploymentReconciler
-	PackageReconciler     = internalenv.PackageReconciler
+	// BuildReconciler reconciles a Build object.
+	BuildReconciler = internalenv.BuildReconciler
+	// DeploymentReconciler reconciles a Deployment object.
+	DeploymentReconciler = internalenv.DeploymentReconciler
+	// PackageReconciler reconciles a Package object.
+	PackageReconciler = internalenv.PackageReconciler
+	// ServiceUnitReconciler reconciles a ServiceUnit object.
 	ServiceUnitReconciler = internalenv.ServiceUnitReconciler
 )

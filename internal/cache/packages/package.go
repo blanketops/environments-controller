@@ -22,9 +22,10 @@ package packages
 
 import (
 	libpackages "github.com/blanketops/environments/cache/packages"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
 )
 
-func New(c *core.Cache) *libpackages.PackageCache {
+// New constructs a Package domain cache backed by c.
+func New(c *cache.Cache) *libpackages.PackageCache {
 	return libpackages.NewPackageCache(c)
 }

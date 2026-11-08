@@ -22,9 +22,10 @@ package serviceunit
 
 import (
 	libserviceunit "github.com/blanketops/environments/cache/serviceunit"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
 )
 
-func New(c *core.Cache) *libserviceunit.ServiceUnitCache {
+// New constructs a ServiceUnit domain cache backed by c.
+func New(c *cache.Cache) *libserviceunit.ServiceUnitCache {
 	return libserviceunit.NewServiceUnitCache(c)
 }

@@ -36,9 +36,10 @@ package gitrepository
 
 import (
 	libgitrepository "github.com/blanketops/environments/cache/gitrepository"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
 )
 
-func New(c *core.Cache) *libgitrepository.GitRepositoryCache {
+// New constructs a GitRepository domain cache backed by c.
+func New(c *cache.Cache) *libgitrepository.GitRepositoryCache {
 	return libgitrepository.NewGitRepositoryCache(c)
 }

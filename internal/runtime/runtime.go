@@ -13,36 +13,53 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package runtime bundles the shared CQRS infrastructure every domain and
+mediator in this controller depends on: the field cache, event recorder,
+Domain registry, and command-dispatch Engine (all from
+github.com/blanketops/environments/core). New constructs exactly one
+Runtime per controller manager at startup; domains register themselves
+against its Registry, and controllers route observed events through its
+Engine rather than handling reconciliation logic directly.
+*/
 package runtime
 
 import (
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
+	"github.com/blanketops/environments/core/engine"
+	"github.com/blanketops/environments/core/events"
+	"github.com/blanketops/environments/core/registry"
 	"github.com/go-logr/logr"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
+// Runtime bundles the shared infrastructure every domain and mediator
+// depends on: the field cache, event recorder, domain registry, and
+// command-dispatch engine.
 type Runtime struct {
-	Cache    *core.Cache
-	Events   *core.EventRecorder
-	Registry *core.Registry
-	Engine   *core.Engine
+	Cache    *cache.Cache
+	Events   *events.EventRecorder
+	Registry *registry.Registry
+	Engine   *engine.Engine
 	Log      logr.Logger
 }
 
+// New constructs a Runtime from the controller manager, wiring up a fresh
+// Cache, Registry, Engine, and EventRecorder.
 func New(mgr ctrl.Manager) *Runtime {
 
 	log := ctrl.Log.WithName("environments-runtime")
-	cache := core.NewCache(mgr, nil)
-	registry := core.NewRegistry()
+	objCache := cache.NewCache(mgr, nil)
+	reg := registry.NewRegistry()
 
-	engine := core.NewEngine(registry, ctrl.Log.WithName("environments-engine"))
-	events := core.NewEventRecorder(mgr.GetEventRecorder("environments-runtime"))
+	eng := engine.NewEngine(reg, ctrl.Log.WithName("environments-engine"))
+	eventRecorder := events.NewEventRecorder(mgr.GetEventRecorder("environments-runtime"))
 
 	return &Runtime{
-		Cache:    cache,
-		Registry: registry,
-		Engine:   engine,
-		Events:   events,
+		Cache:    objCache,
+		Registry: reg,
+		Engine:   eng,
+		Events:   eventRecorder,
 		Log:      log,
 	}
 }

@@ -18,15 +18,14 @@ limitations under the License.
 //
 // The cache itself, and the write path that populates it, live in the
 // external core library; this file owns only the constructor.
-
 package environment
 
 import (
 	libbuild "github.com/blanketops/environments/cache/environment"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
 )
 
 // New constructs the Build domain cache for this controller runtime.
-func New(c *core.Cache) *libbuild.EnvironmentCache {
+func New(c *cache.Cache) *libbuild.EnvironmentCache {
 	return libbuild.NewEnvironmentCache(c)
 }

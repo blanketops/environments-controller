@@ -32,9 +32,7 @@ const (
 	golangciVersion      = "v2.7.2"
 )
 
-// -----------------------------------------------------------------------------
 // Tool management
-// -----------------------------------------------------------------------------
 
 // localBin returns the absolute path to the local bin directory.
 func localBin() string {
@@ -135,18 +133,14 @@ func k8sEnvtestVersion() string {
 	return fmt.Sprintf("1.%d", minor)
 }
 
-// -----------------------------------------------------------------------------
 // General
-// -----------------------------------------------------------------------------
 
 // Help lists all available targets.
 func Help() error {
 	return sh.RunV("mage", "-l")
 }
 
-// -----------------------------------------------------------------------------
 // Code generation
-// -----------------------------------------------------------------------------
 
 // Manifests generates the ClusterRole from kubebuilder RBAC markers
 // into config/rbac. The install repo syncs role.yaml from here —
@@ -175,9 +169,7 @@ func Generate() error {
 	)
 }
 
-// -----------------------------------------------------------------------------
 // Code quality
-// -----------------------------------------------------------------------------
 
 // Fmt runs go fmt against all packages.
 func Fmt() error {
@@ -216,9 +208,7 @@ func LintConfig() error {
 	return sh.Run(lint, "config", "verify")
 }
 
-// -----------------------------------------------------------------------------
 // Build
-// -----------------------------------------------------------------------------
 
 // Build builds the manager binary into bin/manager.
 func Build() error {
@@ -232,9 +222,7 @@ func Run() error {
 	return sh.Run("go", "run", "./cmd/main.go")
 }
 
-// -----------------------------------------------------------------------------
 // Test
-// -----------------------------------------------------------------------------
 
 // Test runs the unit test suite.
 func Test() error {
@@ -257,9 +245,7 @@ func Test() error {
 	)
 }
 
-// -----------------------------------------------------------------------------
 // Image
-// -----------------------------------------------------------------------------
 
 func img() string {
 	if v := os.Getenv("IMG"); v != "" {
@@ -285,9 +271,7 @@ func DockerPush() error {
 	return sh.Run(containerTool(), "push", img())
 }
 
-// -----------------------------------------------------------------------------
 // Clean
-// -----------------------------------------------------------------------------
 
 // Clean removes build artifacts.
 func Clean() error {

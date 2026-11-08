@@ -22,19 +22,22 @@ resource specifications into validated contracts, delegates
 processing to the application layer, and records reconciliation
 outcomes through conditions and events.
 */
-
 package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	libbuild "github.com/blanketops/environments/cache/build"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/conditions"
+	"github.com/blanketops/environments/core/events"
 	"github.com/blanketops/environments/pkg/apis/build/application"
-	buildResolution "github.com/blanketops/environments/resolution/build"
+	buildResolution "github.com/blanketops/environments/resolution/build/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -56,19 +59,19 @@ type BuildDomain struct {
 	buildCache *libbuild.BuildCache
 
 	// events handles logging of Kubernetes events.
-	events *core.EventRecorder
+	events *events.EventRecorder
 
 	// log is the logger instance for this domain.
 	log logr.Logger
 }
 
 // New returns a new BuildDomain instance configured with the necessary dependencies.
-func New(buildMediator *build.Mediator, buildService *application.BuildService, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *BuildDomain {
+func New(buildMediator *build.Mediator, buildService *application.BuildService, domainCache *cache.Cache, eventRecorder *events.EventRecorder, log logr.Logger) *BuildDomain {
 	return &BuildDomain{
 		buildMediator: buildMediator,
 		buildService:  buildService,
-		buildCache:    libbuild.NewBuildCache(cache),
-		events:        events,
+		buildCache:    libbuild.NewBuildCache(domainCache),
+		events:        eventRecorder,
 		log:           log,
 	}
 }
@@ -78,8 +81,8 @@ func (d *BuildDomain) GVK() schema.GroupVersionKind {
 	return environmentsv1alpha1.GroupVersion.WithKind("Build")
 }
 
-// Handle executes core.Command operations routed by the Engine.
-func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
+// Handle executes command.Command operations routed by the Engine.
+func (d *BuildDomain) Handle(ctx context.Context, cmd command.Command) error {
 
 	buildCR, ok := cmd.Obj.(*environmentsv1alpha1.Build)
 	if !ok || buildCR == nil {
@@ -93,94 +96,101 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 	gen := buildCR.GetGeneration()
 
 	switch cmd.Type {
-	case core.CmdCreate, core.CmdUpdate:
+	case command.CmdCreate, command.CmdUpdate:
 
-		// ------------------------------------------------
 		// Stage 0: Resolve Build contract
-		// ------------------------------------------------
 		log.Info("resolving build contract")
 		resolved, err := buildResolution.ResolveBuild(buildCR)
 		if err != nil {
 			log.Error(err, "build resolution failed")
 			d.events.FromError(buildCR, "BuildResolveFailed", err)
-			core.SetCondition(&buildCR.Status.Conditions, "BuildResolveFailed", core.ConditionFalse, "BuildResolve", err.Error())
+			conditions.SetCondition(&buildCR.Status.Conditions, "BuildResolveFailed", conditions.ConditionFalse, "BuildResolve", err.Error())
 			return err
 		}
 
-		// ------------------------------------------------------------------------------------------------------------
 		// Stage 1: Publish resolved contract to cache for observability and potential reuse within the same generation.
-		// ------------------------------------------------------------------------------------------------------------
 		if cerr := d.buildCache.PublishResolved(ctx, nn, gen, resolved); cerr != nil {
 			log.V(1).Info("resolved projection publish incomplete", "error", cerr.Error())
 			d.events.FromError(buildCR, "BuildCacheFailed", cerr)
-			core.SetCondition(&buildCR.Status.Conditions, "BuildCacheFailed", core.ConditionFalse, "resolved projection publish incomplete", cerr.Error())
+			conditions.SetCondition(&buildCR.Status.Conditions, "BuildCacheFailed", conditions.ConditionFalse, "resolved projection publish incomplete", cerr.Error())
 		}
 
 		log.Info("build resolved successfully")
 		d.events.Normal(buildCR, "BuildResolve", "Build specification resolved successfully")
-		core.SetCondition(&buildCR.Status.Conditions, "BuildResolved", core.ConditionTrue, "BuildSpecResolved", "Build specification resolved successfully")
+		conditions.SetCondition(&buildCR.Status.Conditions, "BuildResolved", conditions.ConditionTrue, "BuildSpecResolved", "Build specification resolved successfully")
 
 		log.Info("build cached successfully")
 		d.events.Normal(buildCR, "BuildCache", "Build specification cached successfully")
-		core.SetCondition(&buildCR.Status.Conditions, "BuildCached", core.ConditionTrue, "BuildSpecCached", "Build specification cached successfully")
+		conditions.SetCondition(&buildCR.Status.Conditions, "BuildCached", conditions.ConditionTrue, "BuildSpecCached", "Build specification cached successfully")
 
-		// ------------------------------------------------
 		// Stage 2: Ensure prerequisites
-		// ------------------------------------------------
 		log.Info("creating build prerequisites")
-		if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); err != nil {
+		if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); errors.Is(err, build.ErrPrerequisitesPending) {
+			// Not a failure: the secrets have been requested and are not
+			// there yet. Nothing is dispatched; the Build is retried.
+			log.Info("build prerequisites pending", "reason", err.Error())
+			conditions.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreated", conditions.ConditionFalse, "BuildPrerequisitesPending", err.Error())
+			return err
+		} else if err != nil {
 			log.Error(err, "build prerequisites failed")
 			d.events.FromError(buildCR, "BuildPrerequisitesCreateFailed", err)
-			core.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreateFailed", core.ConditionFalse, "build prerequisites failed, internal error", err.Error())
+			conditions.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreateFailed", conditions.ConditionFalse, "build prerequisites failed, internal error", err.Error())
 			return err
 		}
 
 		log.Info("build prerequisites created")
 		d.events.Normal(buildCR, "BuildPrerequisitesCreate", "All build prerequisites created successfully")
-		core.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreated", core.ConditionTrue, "BuildPrerequisitesReady", "All build prerequisites satisfied")
+		conditions.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreated", conditions.ConditionTrue, "BuildPrerequisitesReady", "All build prerequisites satisfied")
 
-		// ------------------------------------------------
 		// Stage 3: Start build (intent only)
-		// ------------------------------------------------
 		log.Info("starting build run")
 		if err := d.buildService.Reconcile(ctx, resolved); err != nil {
 			log.Error(err, "build run failed")
 			d.events.FromError(buildCR, "BuildFailed", err)
-			core.SetCondition(&buildCR.Status.Conditions, "BuildStart", core.ConditionFalse, "starting build run, internal error", err.Error())
+			conditions.SetCondition(&buildCR.Status.Conditions, "BuildStart", conditions.ConditionFalse, "starting build run, internal error", err.Error())
 			return err
 		}
 
-		// ------------------------------------------------
 		// 4. Build Execution started
-		// ------------------------------------------------
 		log.Info("build run started")
 		d.events.Normal(buildCR, "BuildRunStarted", "Build run has started")
-		core.SetCondition(&buildCR.Status.Conditions, "BuildStart", core.ConditionTrue, "BuildRunStarted", "Build run has started")
+		conditions.SetCondition(&buildCR.Status.Conditions, "BuildStart", conditions.ConditionTrue, "BuildRunStarted", "Build run has started")
 		log.Info("build domain handling complete")
 
-	case core.CmdDelete:
-		// --------------------------------------------------------
+	case command.CmdDelete:
 		// Real teardown, gated by finalizer at the controller level.
 		// Handle() must return nil ONLY if it is safe for the
 		// controller to remove the finalizer and let K8s finish
 		// deleting the object. Any error here keeps the finalizer
 		// in place and the controller will retry on next reconcile.
-		// --------------------------------------------------------
 		log.Info("build teardown requested")
 
 		resolved, err := buildResolution.ResolveBuild(buildCR)
 		if err != nil {
 			log.Error(err, "resolution failed during teardown")
 			d.events.FromError(buildCR, "BuildTeardownResolveFailed", err)
-			core.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", core.ConditionFalse, "BuildTeardownResolveFailed", err.Error())
+			conditions.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", conditions.ConditionFalse, "BuildTeardownResolveFailed", err.Error())
 			return err
 		}
 
 		// Tear down prerequisites the mediator created (secrets, SAs, RBAC).
+		// Remove what the provider created: the Shipwright Build and every
+		// BuildRun started for this Build. Nothing else removes the
+		// BuildRuns — Shipwright clears their owner references, so they are
+		// not garbage-collected with the Build — and one left behind is
+		// found again, already finished, by a Build re-created under the
+		// same name, which then never gets an image.
+		if err := d.buildService.Teardown(ctx, resolved); err != nil {
+			log.Error(err, "build teardown failed")
+			d.events.FromError(buildCR, "BuildTeardownFailed", err)
+			conditions.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", conditions.ConditionFalse, "BuildTeardownFailed", err.Error())
+			return err
+		}
+
 		if err := d.buildMediator.CleanupPrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "prerequisites cleanup failed")
 			d.events.FromError(buildCR, "BuildPrerequisitesCleanupFailed", err)
-			core.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", core.ConditionFalse, "BuildPrerequisitesCleanupFailed", err.Error())
+			conditions.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", conditions.ConditionFalse, "BuildPrerequisitesCleanupFailed", err.Error())
 			return err
 		}
 
@@ -193,14 +203,12 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd core.Command) error {
 
 		log.Info("build teardown complete")
 		d.events.Normal(buildCR, "BuildDeleted", "build and owned resources cleaned up successfully")
-		core.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", core.ConditionTrue, "BuildCleanupComplete", "build and owned resources cleaned up successfully")
+		conditions.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", conditions.ConditionTrue, "BuildCleanupComplete", "build and owned resources cleaned up successfully")
 	}
 	return nil
 }
 
-// -----------------------------------------------------------------------------
 // Predicate hooks
-// -----------------------------------------------------------------------------
 
 // CanCreate reports whether the supplied object can be processed as a Build create operation.
 func (d *BuildDomain) CanCreate(obj client.Object) bool {

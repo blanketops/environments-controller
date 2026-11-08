@@ -24,6 +24,10 @@ import (
 )
 
 type (
+	// DomainReconciler reconciles a Domain CR by resolving its contract and
+	// handing it to the Domain application service.
 	DomainReconciler = internalnetworks.DomainReconciler
-	RouteReconciler  = internalnetworks.RouteReconciler
+	// RouteReconciler reconciles a Route CR by resolving its contract and
+	// handing it to the route application service.
+	RouteReconciler = internalnetworks.RouteReconciler
 )

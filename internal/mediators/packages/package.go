@@ -14,7 +14,7 @@ limitations under the License.
 Package packages implements the Package prerequisite mediator.
 The mediator owns the cross-cutting prerequisites a Package requires before
 the application layer may act: the state repository git credentials and the
-package registry credentials. Both are declared optionally on the Package
+package repository git credentials. Both are declared optionally on the Package
 contract — a stage is skipped when its secret reference is absent. It is
 invoked by the Package domain during command handling — after resolution,
 before execution — and again during teardown.
@@ -30,16 +30,24 @@ import (
 	"fmt"
 
 	"github.com/blanketops/environments/pkg/apis/environment/query"
-	"github.com/blanketops/environments/pkg/secrets/git"
-	"github.com/blanketops/environments/pkg/secrets/registry"
+	packagerepo "github.com/blanketops/environments/pkg/secrets/git/packagerepo"
+	git "github.com/blanketops/environments/pkg/secrets/git/staterepo"
 	serviceaccounts "github.com/blanketops/environments/pkg/serviceaccounts"
-	packageResolution "github.com/blanketops/environments/resolution/packages"
+	packageResolution "github.com/blanketops/environments/resolution/packages/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// DeployerClusterRole is the ClusterRole each Package's service account is
+// bound to. It states what a Package's kapp App may deploy and is shipped by
+// the installation (environments-install, config/rbac), under the name
+// prefix every object of the installation carries. This name is a
+// cross-repo contract; the manager's own role may bind this role and no
+// other.
+const DeployerClusterRole = "blanketops-environments-package-deployer-role"
 
 // Mediator manages the prerequisite resources a Package depends on.
 type Mediator struct {
@@ -53,7 +61,10 @@ type Mediator struct {
 	Recorder events.EventRecorder
 	// ServiceAccountReconciler manages the package service account and its
 	// secret bindings as a cross-cutting prerequisite.
-	ServiceAccountReconciler *serviceaccounts.ServiceAccountReconciler
+	ServiceAccountReconciler *serviceaccounts.PackageServiceAccountReconciler
+	// DeployerBindingReconciler binds that service account to
+	// DeployerClusterRole.
+	DeployerBindingReconciler *serviceaccounts.PackageDeployerBindingReconciler
 }
 
 // New returns a new Mediator instance configured with the necessary dependencies.
@@ -64,18 +75,20 @@ func New(
 	recorder events.EventRecorder,
 ) *Mediator {
 	return &Mediator{
-		Client:                   c,
-		Scheme:                   scheme,
-		Log:                      log,
-		Recorder:                 recorder,
-		ServiceAccountReconciler: serviceaccounts.NewServiceAccountReconciler(c, scheme, log),
+		Client:                    c,
+		Scheme:                    scheme,
+		Log:                       log,
+		Recorder:                  recorder,
+		ServiceAccountReconciler:  serviceaccounts.NewPackageServiceAccountReconciler(c, scheme, log),
+		DeployerBindingReconciler: serviceaccounts.NewPackageDeployerBindingReconciler(c, log, DeployerClusterRole),
 	}
 }
 
 // EnsurePrerequisites provisions the prerequisites a Package requires before
-// execution: the state repository git credentials and the package registry
-// credentials, each skipped when its secret reference is absent from the
-// contract. Called from the domain's CmdCreate/CmdUpdate branch after
+// execution: the state repository git credentials and the package repository
+// git credentials, each skipped when its secret reference is absent from the
+// contract, and the service account the kapp App deploys as with its
+// binding to DeployerClusterRole. Called from the domain's CmdCreate/CmdUpdate branch after
 // resolution succeeds. Provisioning is fail-fast — the first failing step
 // returns its error and the domain records PackagePrerequisitesCreateFailed.
 func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageResolution.ResolvedPackage) error {
@@ -83,44 +96,52 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageRes
 		return fmt.Errorf("nil ResolvedPackage (resolver bug)")
 	}
 	pkg := resolved.Package
-	// ------------------------------------------------
 	// Step 0: Environment lookup
 	// Environment must pre-exist — it is the root of the delivery chain and
 	// the sole authority for the ClusterSecretStore binding.
-	// ------------------------------------------------
 	envCtx, err := query.Lookup(ctx, m.Client, pkg.Namespace, pkg.Labels)
 	if err != nil {
 		return fmt.Errorf("environment lookup: %w", err)
 	}
 	m.Log.Info("environment context resolved", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 1: Git credentials (state repo, store-dependent)
-	// ------------------------------------------------------------------------------------------------------------
-	if resolved.Spec.StateRepository.CloneSecret != "" {
+	//
+	// StateRepository is a documented-optional pointer ("not all packages
+	// track state via GitOps") — must be nil-checked before dereferencing
+	// CloneSecret, unlike PackageRepository below which is a required value
+	// type and always safe to access directly.
+	if resolved.Spec.StateRepository != nil && resolved.Spec.StateRepository.CloneSecret != "" {
 		stateRepo := git.NewPackageStateRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 		if err := stateRepo.Reconcile(ctx, resolved); err != nil {
 			return fmt.Errorf("reconcile state repository credentials: %w", err)
 		}
 	}
-	// ------------------------------------------------------------------------------------------------------------
-	// Stage 2: Registry credentials (store-dependent)
-	// ------------------------------------------------------------------------------------------------------------
+	// Stage 2: Git credentials (package repo, store-dependent) — the SSH
+	// secret kapp-controller fetches the package repository with.
 	if resolved.Spec.PackageRepository.CredentialsSecret != "" {
-		reg := registry.NewPackageRegistrySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
-		if err := reg.Reconcile(ctx, resolved); err != nil {
-			return fmt.Errorf("reconcile registry credentials: %w", err)
+		repo := packagerepo.NewPackageRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+		if err := repo.Reconcile(ctx, resolved); err != nil {
+			return fmt.Errorf("reconcile package repository credentials: %w", err)
 		}
+	}
+	// Stage 3: Service account — the identity the kapp App deploys as.
+	if err := m.ServiceAccountReconciler.Reconcile(ctx, resolved); err != nil {
+		return fmt.Errorf("reconcile service account: %w", err)
+	}
+	// Stage 4: Deployer binding — what that identity may deploy.
+	if err := m.DeployerBindingReconciler.Reconcile(ctx, resolved); err != nil {
+		return fmt.Errorf("reconcile deployer binding: %w", err)
 	}
 	return nil
 }
 
-// CleanupPrerequisites reverses EnsurePrerequisites — deletes the registry
-// credentials and state repository git credentials this mediator
-// provisioned, each skipped when its secret reference is absent from the
-// contract. Called from the domain's CmdDelete branch, gated by the
+// CleanupPrerequisites reverses EnsurePrerequisites — deletes the deployer
+// binding, the service account and the package repository and state repository git credentials
+// this mediator provisioned, the credentials each skipped when its secret
+// reference is absent from the contract. Called from the domain's CmdDelete branch, gated by the
 // finalizer at the controller level. Teardown runs in reverse provisioning
 // order. All teardown steps are attempted regardless of individual failures,
-// and errors are aggregated — a stuck registry secret shouldn't block
+// and errors are aggregated — a stuck package repository secret shouldn't block
 // cleanup of the state repository credentials. Any returned error keeps the
 // finalizer in place for retry on next reconcile.
 func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageResolution.ResolvedPackage) error {
@@ -128,30 +149,34 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageRe
 		return fmt.Errorf("nil ResolvedPackage (resolver bug)")
 	}
 	pkg := resolved.Package
-	// ------------------------------------------------
 	// Step 0: Environment lookup
 	// Same store binding used at creation time — needed so the reconcilers
 	// target the correct ClusterSecretStore-scoped resources on teardown.
-	// ------------------------------------------------
 	envCtx, err := query.Lookup(ctx, m.Client, pkg.Namespace, pkg.Labels)
 	if err != nil {
 		return fmt.Errorf("environment lookup: %w", err)
 	}
 	m.Log.Info("environment context resolved for teardown", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
 	var errs []error
-	// ------------------------------------------------------------------------------------------------------------
-	// Stage 2: Registry credentials
-	// ------------------------------------------------------------------------------------------------------------
+	// Stage 4: Deployer binding — cluster-scoped, so nothing garbage-collects
+	// it with the Package.
+	if err := m.DeployerBindingReconciler.Delete(ctx, resolved); err != nil {
+		errs = append(errs, fmt.Errorf("delete deployer binding: %w", err))
+	}
+	// Stage 3: Service account
+	if err := m.ServiceAccountReconciler.Delete(ctx, resolved); err != nil {
+		errs = append(errs, fmt.Errorf("delete service account: %w", err))
+	}
+	// Stage 2: Git credentials (package repo)
 	if resolved.Spec.PackageRepository.CredentialsSecret != "" {
-		reg := registry.NewPackageRegistrySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
-		if err := reg.Delete(ctx, resolved); err != nil {
-			errs = append(errs, fmt.Errorf("delete registry credentials: %w", err))
+		repo := packagerepo.NewPackageRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+		if err := repo.Delete(ctx, resolved); err != nil {
+			errs = append(errs, fmt.Errorf("delete package repository credentials: %w", err))
 		}
 	}
-	// ------------------------------------------------------------------------------------------------------------
-	// Stage 1: Git credentials (state repo)
-	// ------------------------------------------------------------------------------------------------------------
-	if resolved.Spec.StateRepository.CloneSecret != "" {
+	// Stage 1: Git credentials (state repo) — same nil-check as
+	// EnsurePrerequisites; StateRepository is a documented-optional pointer.
+	if resolved.Spec.StateRepository != nil && resolved.Spec.StateRepository.CloneSecret != "" {
 		stateRepo := git.NewPackageStateRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 		if err := stateRepo.Delete(ctx, resolved); err != nil {
 			errs = append(errs, fmt.Errorf("delete state repository credentials: %w", err))

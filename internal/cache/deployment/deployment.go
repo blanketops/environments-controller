@@ -18,14 +18,14 @@ limitations under the License.
 //
 // The cache itself, and the write path that populates it, live in the
 // external core library; this file owns only the constructor.
-
 package deployment
 
 import (
 	libdeployment "github.com/blanketops/environments/cache/deployment"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
 )
 
-func New(c *core.Cache) *libdeployment.DeploymentCache {
+// New constructs a Deployment domain cache backed by c.
+func New(c *cache.Cache) *libdeployment.DeploymentCache {
 	return libdeployment.NewDeploymentCache(c)
 }

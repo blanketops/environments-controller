@@ -22,9 +22,10 @@ package githubevent
 
 import (
 	libgithubevent "github.com/blanketops/environments/cache/githubevent"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
 )
 
-func New(c *core.Cache) *libgithubevent.GitHubEventCache {
+// New constructs a GitHubEvent domain cache backed by c.
+func New(c *cache.Cache) *libgithubevent.GitHubEventCache {
 	return libgithubevent.NewGitHubEventCache(c)
 }

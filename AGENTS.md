@@ -4,12 +4,12 @@
 
 This is a **thin Kubernetes controller**. It contains no business logic — it
 watches CRDs and calls into the external engine module
-(`github.com/BlanketOps/environments`, mid-migration to
-`github.com/BlanketOps/environments`) for domain logic, resolution, and
+(`github.com/blanketops/environments`, mid-migration to
+`github.com/blanketops/environments`) for domain logic, resolution, and
 mediation. See [README.md](README.md) for the architecture split.
 
 CRD type definitions (`*_types.go`, DeepCopy, etc.) do **not** live in this
-repo — they're imported from the external `github.com/BlanketOps/environments-api`
+repo — they're imported from the external `github.com/blanketops/environments-api`
 module and registered onto the scheme in `internal/bootstrap/register.go`.
 There is no `api/` directory here; that's intentional, not missing scaffolding.
 
@@ -47,21 +47,21 @@ PROJECT                              Kubebuilder metadata (DO NOT EDIT) — sour
 
 ### Business Logic Lives in the Engine Module, Not Here
 Domain rules, resolution, and mediation belong in the external engine module
-(`.../blanketops-environments` → `BlanketOps/environments`). Controllers in
+(`.../blanketops-environments` → `blanketops/environments`). Controllers in
 this repo call into `internal/domains` → `internal/mediators` → the engine;
 they don't implement business rules directly.
 
 ### CRD Schemas Live in environments-api, Not Here
 Don't add `api/<version>/*_types.go` to this repo for the reconciled Kinds —
-those types come from `github.com/BlanketOps/environments-api` and are
+those types come from `github.com/blanketops/environments-api` and are
 registered in `internal/bootstrap/register.go` (`RegisterSchemes`).
 
 ### Engine Module Path Migration In Progress
 Imports across this repo currently read
-`github.com/BlanketOps/environments/...`. The engine repo is
-moving to `github.com/BlanketOps/environments`, but as of this writing the
+`github.com/blanketops/environments/...`. The engine repo is
+moving to `github.com/blanketops/environments`, but as of this writing the
 upstream module's own `go.mod` still declares
-`module github.com/BlanketOps/environments` — so the import-path
+`module github.com/blanketops/environments` — so the import-path
 rename here must wait until upstream retags under the new module path, or a
 require on the new path will fail to resolve.
 

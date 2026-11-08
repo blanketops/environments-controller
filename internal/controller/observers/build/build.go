@@ -51,11 +51,11 @@ import (
 
 	buildv1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	eventsv1alpha1 "github.com/blanketops/environments-api/api/events/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/events"
 	"github.com/blanketops/environments/pkg/apis/build/application"
 	"github.com/blanketops/environments/pkg/apis/build/domain"
-	buildresolution "github.com/blanketops/environments/resolution/build"
-	githubeventresolution "github.com/blanketops/environments/resolution/githubevent"
+	buildresolution "github.com/blanketops/environments/resolution/build/resolve"
+	githubeventresolution "github.com/blanketops/environments/resolution/githubevent/resolve"
 	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -71,12 +71,17 @@ const (
 	retryAttemptAnnotation  = "build.blanketops.dev/retry-attempt"
 )
 
+// Reconciler mirrors trigger metadata and retry bookkeeping onto Build CRs.
+// See the package doc for its two responsibilities (applyTriggers,
+// applyRetry) and the cross-namespace/race caveats.
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
-	Recorder *core.EventRecorder
+	Recorder *events.EventRecorder
 }
 
+// Reconcile fetches the Build, resolves its contract, then applies trigger
+// metadata and retry bookkeeping via applyTriggers/applyRetry.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "build-observer", "build", req.String())
 	log.Info("reconcile start")
@@ -113,7 +118,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) applyTriggers(ctx context.Context, build *buildv1.Build, resolved *buildresolution.ResolvedBuild) error {
 	log := ctrl.LoggerFrom(ctx).WithValues("fn", "applyTriggers")
 
-	if len(resolved.Spec.Policy.Triggers) == 0 {
+	// A Build may declare no policy at all; that means no triggers.
+	if resolved.Spec.Policy == nil || len(resolved.Spec.Policy.Triggers) == 0 {
 		log.Info("trigger scan: no triggers configured on policy, skipping")
 		return nil
 	}
@@ -127,39 +133,38 @@ func (r *Reconciler) applyTriggers(ctx context.Context, build *buildv1.Build, re
 	// Deliberately no client.InNamespace(...) — GitHubEvents live in a
 	// different namespace (argo-events) than Build CRs. Correlate by label
 	// only. See package doc.
-	var events eventsv1alpha1.GitHubEventList
-	if err := r.List(ctx, &events,
+	var githubEvents eventsv1alpha1.GitHubEventList
+	if err := r.List(ctx, &githubEvents,
 		client.MatchingLabels{"environments.blanketops.dev/name": appName},
 	); err != nil {
 		return err
 	}
 
-	log.Info("trigger scan: candidates found", "appName", appName, "count", len(events.Items))
+	log.Info("trigger scan: candidates found", "appName", appName, "count", len(githubEvents.Items))
 
 	var latestEvent *eventsv1alpha1.GitHubEvent
 	var latestResolved *githubeventresolution.ResolvedGitHubEvent
 
-	for i := range events.Items {
-		ev := &events.Items[i]
+	for i := range githubEvents.Items {
+		ev := &githubEvents.Items[i]
 		ghResolved, err := githubeventresolution.ResolveGitHubEvent(ev)
 		if err != nil {
 			log.Info("trigger scan: resolve failed", "event", ev.Name, "error", err.Error())
 			continue
 		}
 
-		contract := ghResolved.Spec.ToGitHubEventContract()
-		if contract.GetEventId() == "" {
+		if ghResolved.Spec.EventID == "" {
 			log.Info("trigger scan: empty event id, skipping", "event", ev.Name)
 			continue
 		}
 
-		eventType := normalizeEventType(contract.GetEventType().String())
+		eventType := normalizeEventType(ghResolved.Spec.EventType)
 		if !triggerMatches([]buildresolution.ResolvedBuildPolicy{*resolved.Spec.Policy}, eventType) {
 			log.Info("trigger scan: event type did not match policy triggers", "event", ev.Name, "eventType", eventType)
 			continue
 		}
 
-		log.Info("trigger scan: candidate matched", "event", ev.Name, "eventType", eventType, "sha", contract.GetCommitSha())
+		log.Info("trigger scan: candidate matched", "event", ev.Name, "eventType", eventType, "sha", ghResolved.Spec.CommitSHA)
 
 		if latestEvent == nil || ev.CreationTimestamp.After(latestEvent.CreationTimestamp.Time) {
 			latestEvent = ev
@@ -172,8 +177,7 @@ func (r *Reconciler) applyTriggers(ctx context.Context, build *buildv1.Build, re
 		return nil
 	}
 
-	contract := latestResolved.Spec.ToGitHubEventContract()
-	newSHA := contract.GetCommitSha()
+	newSHA := latestResolved.Spec.CommitSHA
 
 	// FIXED: never overwrite a valid annotation with an empty SHA.
 	if newSHA == "" {
@@ -195,8 +199,8 @@ func (r *Reconciler) applyTriggers(ctx context.Context, build *buildv1.Build, re
 	if build.Annotations == nil {
 		build.Annotations = map[string]string{}
 	}
-	build.Annotations[triggerTypeAnnotation] = normalizeEventType(contract.GetEventType().String())
-	build.Annotations[triggerRefAnnotation] = contract.GetRef()
+	build.Annotations[triggerTypeAnnotation] = normalizeEventType(latestResolved.Spec.EventType)
+	build.Annotations[triggerRefAnnotation] = latestResolved.Spec.Ref
 	build.Annotations[triggerSHAAnnotation] = newSHA
 	build.Annotations[triggerSourceAnnotation] = "github"
 
@@ -274,13 +278,12 @@ func mostRecentBuildRun(items []shipwrightv1alpha1.BuildRun) *shipwrightv1alpha1
 	return latest
 }
 
-// normalizeEventType converts the proto text-marshaled form of
-// GetEventType() (e.g. "type:GIT_HUB_EVENT_TYPE_PUSH") into the lowercase,
-// underscore form used by Build policy triggers (e.g. "push"). GetEventType
-// returns a wrapper message rather than the bare enum, so calling .String()
-// on it text-marshals the whole message instead of returning the enum
-// constant name — this strips that down to a value triggerMatches can
-// actually compare against.
+// normalizeEventType converts EventType's raw contract form (which may still
+// carry a legacy "type:" prefix or the older GIT_HUB_EVENT_TYPE_ enum-name
+// spelling, e.g. "type:GIT_HUB_EVENT_TYPE_PUSH") into the lowercase form used
+// by Build policy triggers (e.g. "push"). A no-op on values already in that
+// form — kept defensive since this repo doesn't control what the upstream
+// Sensor writes into the raw JSON contract.
 func normalizeEventType(raw string) string {
 	raw = strings.TrimPrefix(raw, "type:")
 	raw = strings.TrimPrefix(raw, "GIT_HUB_EVENT_TYPE_")
@@ -298,8 +301,11 @@ func triggerMatches(triggers []buildresolution.ResolvedBuildPolicy, eventType st
 	return false
 }
 
+// SetupWithManager registers the Build observer with the controller
+// manager, watching Build CRs directly and GitHubEvent CRs indirectly via
+// mapGitHubEventToBuilds so a matching trigger event re-enqueues its Build.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("build-observer"))
+	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("build-observer"))
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&buildv1.Build{}).

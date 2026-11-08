@@ -31,8 +31,12 @@ import (
 
 	serviceunitv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	libserviceunit "github.com/blanketops/environments/cache/serviceunit"
-	"github.com/blanketops/environments/core"
-	serviceunitResolution "github.com/blanketops/environments/resolution/serviceunit"
+	"github.com/blanketops/environments/core/cache"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/conditions"
+	"github.com/blanketops/environments/core/events"
+	serviceunitquery "github.com/blanketops/environments/pkg/apis/serviceunit/query"
+	serviceunitResolution "github.com/blanketops/environments/resolution/serviceunit/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,24 +52,29 @@ type ServiceUnitDomain struct {
 	// ServiceUnit resources. Advisory only: misses and errors fall through
 	// to full computation; correctness never depends on a hit.
 	serviceUnitCache *libserviceunit.ServiceUnitCache
-	events           *core.EventRecorder
+	events           *events.EventRecorder
 	log              logr.Logger
 }
 
-func New(mediator *serviceunit.Mediator, cache *core.Cache, events *core.EventRecorder, log logr.Logger) *ServiceUnitDomain {
+// New constructs a ServiceUnitDomain.
+func New(mediator *serviceunit.Mediator, domainCache *cache.Cache, eventRecorder *events.EventRecorder, log logr.Logger) *ServiceUnitDomain {
 	return &ServiceUnitDomain{
 		serviceUnitMediator: mediator,
-		serviceUnitCache:    libserviceunit.NewServiceUnitCache(cache),
-		events:              events,
+		serviceUnitCache:    libserviceunit.NewServiceUnitCache(domainCache),
+		events:              eventRecorder,
 		log:                 log,
 	}
 }
 
+// GVK reports the GroupVersionKind this domain handles: ServiceUnit.
 func (d *ServiceUnitDomain) GVK() schema.GroupVersionKind {
 	return serviceunitv1alpha1.GroupVersion.WithKind("ServiceUnit")
 }
 
-func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error {
+// Handle resolves cmd's ServiceUnit contract and ensures its prerequisites,
+// recording conditions and events at each stage. Reconciliation of the
+// workload itself (Stage 3) is not yet wired up.
+func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd command.Command) error {
 
 	su, ok := cmd.Obj.(*serviceunitv1alpha1.ServiceUnit)
 	if !ok || su == nil {
@@ -80,9 +89,7 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error 
 
 	log.Info("handling serviceunit command", "type", cmd.Type)
 
-	// ------------------------------------------------
 	// Stage 1: Resolve contract
-	// ------------------------------------------------
 
 	log.Info("resolving serviceunit contract")
 
@@ -91,18 +98,16 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error 
 
 		log.Error(err, "serviceunit resolution failed")
 		d.events.FromError(su, "ServiceUnitResolveFailed", err)
-		core.SetCondition(&su.Status.Conditions, "ServiceUnitResolved", core.ConditionFalse, "InvalidSpec", err.Error())
+		conditions.SetCondition(&su.Status.Conditions, "ServiceUnitResolved", conditions.ConditionFalse, "InvalidSpec", err.Error())
 
 		return err
 	}
 
 	log.Info("serviceunit resolved successfully")
 	d.events.Normal(su, "ServiceUnitResolved", "ServiceUnit specification resolved successfully")
-	core.SetCondition(&su.Status.Conditions, "ServiceUnitResolved", core.ConditionTrue, "Resolved", "ServiceUnit specification resolved successfully")
+	conditions.SetCondition(&su.Status.Conditions, "ServiceUnitResolved", conditions.ConditionTrue, "Resolved", "ServiceUnit specification resolved successfully")
 
-	// ------------------------------------------------
 	// Stage 2: Ensure prerequisites
-	// ------------------------------------------------
 
 	log.Info("ensuring serviceunit prerequisites")
 
@@ -110,18 +115,16 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error 
 
 		log.Error(err, "serviceunit prerequisites failed")
 		d.events.FromError(su, "ServiceUnitPrerequisitesFailed", err)
-		core.SetCondition(&su.Status.Conditions, "ServiceUnitPrerequisitesReady", core.ConditionFalse, "PrerequisitesFailed", err.Error())
+		conditions.SetCondition(&su.Status.Conditions, "ServiceUnitPrerequisitesReady", conditions.ConditionFalse, "PrerequisitesFailed", err.Error())
 
 		return err
 	}
 
 	log.Info("serviceunit prerequisites ensured")
 	d.events.Normal(su, "ServiceUnitPrerequisitesReady", "All ServiceUnit prerequisites created successfully")
-	core.SetCondition(&su.Status.Conditions, "ServiceUnitPrerequisitesReady", core.ConditionTrue, "PrerequisitesReady", "All prerequisites created successfully")
+	conditions.SetCondition(&su.Status.Conditions, "ServiceUnitPrerequisitesReady", conditions.ConditionTrue, "PrerequisitesReady", "All prerequisites created successfully")
 
-	// ------------------------------------------------
 	// Stage 3: Execute intent
-	// ------------------------------------------------
 
 	// log.Info("reconciling serviceunit workload")
 
@@ -131,10 +134,10 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error 
 
 	// 	d.events.FromError(su, "ServiceUnitReconcileFailed", err)
 
-	// 	core.SetCondition(
+	// 	conditions.SetCondition(
 	// 		&su.Status.Conditions,
 	// 		"ServiceUnitReady",
-	// 		core.ConditionFalse,
+	// 		conditions.ConditionFalse,
 	// 		"ReconcileFailed",
 	// 		err.Error(),
 	// 	)
@@ -144,20 +147,33 @@ func (d *ServiceUnitDomain) Handle(ctx context.Context, cmd core.Command) error 
 
 	log.Info("serviceunit reconciliation complete")
 
-	d.events.Normal(su, "ServiceUnitReady", "ServiceUnit successfully reconciled")
+	// A ServiceUnit of type BUILD is ready once its Build has pushed an
+	// image. Until then it waits; a new image re-triggers it.
+	if key, isBuild := serviceunitquery.BuildKey(resolved); isBuild && resolved.Spec.Image == "" {
+		msg := fmt.Sprintf("waiting for build %s to push an image", key.Name)
+		log.Info("serviceunit waiting for its build", "build", key.String())
+		conditions.SetCondition(&su.Status.Conditions, "ServiceUnitReady", conditions.ConditionFalse, "AwaitingBuild", msg)
+		return nil
+	}
 
-	core.SetCondition(&su.Status.Conditions, "ServiceUnitReady", core.ConditionTrue, "Ready", "ServiceUnit successfully reconciled")
+	msg := "ServiceUnit successfully reconciled with image " + resolved.Spec.Image
+	d.events.Normal(su, "ServiceUnitReady", "ServiceUnit successfully reconciled with image %s", resolved.Spec.Image)
+
+	conditions.SetCondition(&su.Status.Conditions, "ServiceUnitReady", conditions.ConditionTrue, "Ready", msg)
 
 	log.Info("serviceunit domain handling complete")
 
 	return nil
 }
 
+// CanCreate reports whether obj is a ServiceUnit.
 func (d *ServiceUnitDomain) CanCreate(obj client.Object) bool {
 	_, ok := obj.(*serviceunitv1alpha1.ServiceUnit)
 	return ok
 }
 
+// CanUpdate reports whether oldObj and newObj are both ServiceUnits whose
+// specs differ.
 func (d *ServiceUnitDomain) CanUpdate(oldObj, newObj client.Object) bool {
 	oldSU, okOld := oldObj.(*serviceunitv1alpha1.ServiceUnit)
 	newSU, okNew := newObj.(*serviceunitv1alpha1.ServiceUnit)
@@ -168,6 +184,7 @@ func (d *ServiceUnitDomain) CanUpdate(oldObj, newObj client.Object) bool {
 	return !reflect.DeepEqual(oldSU.Spec, newSU.Spec)
 }
 
+// CanDelete reports whether obj is a ServiceUnit.
 func (d *ServiceUnitDomain) CanDelete(obj client.Object) bool {
 	_, ok := obj.(*serviceunitv1alpha1.ServiceUnit)
 	return ok

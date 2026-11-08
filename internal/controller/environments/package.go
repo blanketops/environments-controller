@@ -15,27 +15,46 @@ limitations under the License.
 // core CQRS engine and, on setup, wires the Package domain's mediator,
 // kapp-controller provider, and service into the domain registry.
 //
-// Unlike build.go and deployment.go, there is no finalizer here yet.
+// Like build.go and deployment.go, deletion is gated by a finalizer: the
+// domain tears the Package down before the finalizer is removed.
 package environments
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	packagev1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/predicates"
 	pkgProvider "github.com/blanketops/environments/pkg/apis/packages/api"
 	pkgApp "github.com/blanketops/environments/pkg/apis/packages/application"
+	pkgDomainModel "github.com/blanketops/environments/pkg/apis/packages/domain"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	pkgDomain "github.com/blanketops/environments-controller/internal/domains/packages"
 	pkgMediator "github.com/blanketops/environments-controller/internal/mediators/packages"
 	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
+
+// packageFinalizer gates deletion of a Package CR until the kapp App and the
+// prerequisites it provisioned have been torn down.
+const packageFinalizer = "environments.blanketops.dev/package-finalizer"
+
+// teardownPollInterval is how often a Package being deleted is looked at
+// again while kapp-controller removes what its App deployed.
+const teardownPollInterval = 5 * time.Second
 
 // PackageReconciler reconciles a Package object
 type PackageReconciler struct {
@@ -52,6 +71,8 @@ type PackageReconciler struct {
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=packages/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=packages/finalizers,verbs=update
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,resourceNames=blanketops-environments-package-deployer-role,verbs=bind
 
 // +kubebuilder:rbac:groups=packaging.carvel.dev,resources=packages;packageinstalls;packagerepositories,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=packaging.carvel.dev,resources=packageinstalls/status,verbs=get;update;patch
@@ -67,14 +88,11 @@ type PackageReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.1/pkg/reconcile
 func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "package", "namespace", req.Namespace, "name", req.Name)
 	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
-	// ------------------------------------------------
 	// Fetch Package
-	// ------------------------------------------------
 	var packages packagev1alpha1.Package
 	if err := r.Get(ctx, req.NamespacedName, &packages); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -88,46 +106,98 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	log.Info("package fetched", "generation", packages.Generation, "resourceVersion", packages.ResourceVersion)
 
-	// ------------------------------------------------
+	// Finalizer gate — determines cmd.Type
+	cmdType := command.CmdUpdate
+	if !packages.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(&packages, packageFinalizer) {
+			log.Info("reconcile exit: deletion in progress, finalizer already removed")
+			return ctrl.Result{}, nil
+		}
+		cmdType = command.CmdDelete
+	} else if !controllerutil.ContainsFinalizer(&packages, packageFinalizer) {
+		controllerutil.AddFinalizer(&packages, packageFinalizer)
+		if err := r.Update(ctx, &packages); err != nil {
+			log.Error(err, "failed to add finalizer")
+			return ctrl.Result{}, err
+		}
+		log.Info("finalizer added")
+		return ctrl.Result{RequeueAfter: time.Second}, nil
+	}
+
 	// Construct core command
-	// ------------------------------------------------
-	cmd := core.Command{
+	cmd := command.Command{
 		GVK:  packagev1alpha1.GroupVersion.WithKind("Package"),
-		Type: core.CmdUpdate,
+		Type: cmdType,
 		Obj:  &packages,
 	}
 
 	log.Info("routing package to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
-	// ------------------------------------------------
+	before := append([]metav1.Condition(nil), packages.Status.Conditions...)
+
 	// Execute domain logic via engine
-	// ------------------------------------------------
-	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
+	execErr := r.Runtime.Engine.Execute(ctx, cmd)
 
-		log.Error(err, "engine execution failed")
-		// r.Recorder.Eventf(&packages, nil, corev1.EventTypeWarning, "EngineFailure", "%v", err)
-		log.Info("reconcile exit: engine error")
+	// Waiting for kapp-controller to remove what the App deployed is not a
+	// failure. The finalizer stays, the condition saying so is persisted
+	// below, and the Package is looked at again shortly.
+	tearingDown := cmdType == command.CmdDelete && errors.Is(execErr, pkgDomainModel.ErrTeardownInProgress)
 
-		return ctrl.Result{}, err
+	if tearingDown {
+		log.Info("teardown in progress", "reason", execErr.Error())
+	} else if execErr != nil {
+		log.Error(execErr, "engine execution failed")
+		r.Recorder.Eventf(&packages, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", execErr)
+	} else {
+		log.Info("engine execution completed")
 	}
 
-	log.Info("engine execution completed")
+	// Deletion path: remove the finalizer once teardown returned nil. Status
+	// is not written — the object is about to be removed.
+	if cmdType == command.CmdDelete && execErr == nil {
+		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			var latest packagev1alpha1.Package
+			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+				return client.IgnoreNotFound(err)
+			}
+			controllerutil.RemoveFinalizer(&latest, packageFinalizer)
+			return r.Update(ctx, &latest)
+		}); err != nil {
+			log.Error(err, "failed to remove finalizer")
+			return ctrl.Result{}, err
+		}
+		log.Info("finalizer removed, deletion will proceed")
+		return ctrl.Result{}, nil
+	}
 
-	// ------------------------------------------------
-	// Persist status (retry-on-conflict)
-	// ------------------------------------------------
+	// Persist the conditions this pass set, on success and on failure: a
+	// Package that could not be reconciled must say why. Only those
+	// conditions are merged; replacing the whole status would discard what
+	// the package service wrote since the object was read.
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest packagev1alpha1.Package
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
 			return err
 		}
-
-		latest.Status = packages.Status
+		for _, cond := range changedConditions(before, packages.Status.Conditions) {
+			apimeta.SetStatusCondition(&latest.Status.Conditions, cond)
+		}
 		return r.Status().Update(ctx, &latest)
-
 	}); err != nil {
 		log.Error(err, "failed to update package status")
-		return ctrl.Result{}, err
+		if execErr == nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	if tearingDown {
+		log.Info("reconcile exit: waiting for teardown")
+		return ctrl.Result{RequeueAfter: teardownPollInterval}, nil
+	}
+
+	if execErr != nil {
+		log.Info("reconcile exit: engine error")
+		return ctrl.Result{}, execErr
 	}
 
 	log.Info("package status updated successfully")
@@ -136,57 +206,58 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
-// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
-// -----------------------------------------------------------------
 func (r *PackageReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// ---------------------------------------------------------------------
 	// Logging & events
-	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("Package")
 	r.Recorder = mgr.GetEventRecorder("package-controller")
 
-	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
 	eventsRecorder := r.Runtime.Events
 	registry := r.Runtime.Registry
 
-	// ---------------------------------------------------------------------
 	// Mediator (prerequisites only)
-	// ---------------------------------------------------------------------
 	r.PackageMediator = pkgMediator.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.package"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// Providers (kapp)
-	// ---------------------------------------------------------------------
 	kappProvider := pkgProvider.NewApplicationProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("provider.kapp"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// BackendSelector (Backend selector maps strategy -> provider)
-	// ---------------------------------------------------------------------
 	backendSelector := pkgApp.NewBackendSelector(kappProvider)
 
-	// -----------------------------------------------------------------------------------------
 	// Package Service (Mapper and StatiusWriter, domain service for orchestration))
-	// ------------------------------------------------------------------------------------------
 	mapper := pkgApp.NewMapper()
 	statusWriter := pkgApp.NewStatusWriter(r.Client, r.Log.WithName("package-status-writer"))
 	packageService := pkgApp.NewPackageService(mapper, backendSelector, statusWriter)
 
-	// --------------------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
-	// --------------------------------------------------------------------------------
 	pkgDomainInst := pkgDomain.New(r.PackageMediator, packageService, cache, eventsRecorder, r.Log.WithName("domain.package"))
 	registry.RegisterDomain(packagev1alpha1.GroupVersion.WithKind("Package"), pkgDomainInst)
 
-	// ---------------------------------------------------------------------
 	// Controller registration
-	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&packagev1alpha1.Package{}).
 		Named("environments-package").
-		WithEventFilter(core.MeaningfulChangePredicate()).
+		WithEventFilter(predicate.Or(predicates.MeaningfulChangePredicate(), deletionRequested())).
 		Complete(r)
+}
+
+// deletionRequested passes the update that sets an object's deletion
+// timestamp. MeaningfulChangePredicate only passes spec changes, and marking
+// an object for deletion does not change its spec — without this the
+// reconciler would never run its delete path and the finalizer would keep
+// the object forever.
+func deletionRequested() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc:  func(event.CreateEvent) bool { return false },
+		DeleteFunc:  func(event.DeleteEvent) bool { return false },
+		GenericFunc: func(event.GenericEvent) bool { return false },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			if e.ObjectOld == nil || e.ObjectNew == nil {
+				return false
+			}
+			return e.ObjectOld.GetDeletionTimestamp().IsZero() && !e.ObjectNew.GetDeletionTimestamp().IsZero()
+		},
+	}
 }

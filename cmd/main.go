@@ -26,7 +26,11 @@ import (
 	"flag"
 	"os"
 
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
+	"github.com/blanketops/environments/core/engine"
+	"github.com/blanketops/environments/core/events"
+	"github.com/blanketops/environments/core/registry"
+	domainapi "github.com/blanketops/environments/pkg/apis/domain/api"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -50,18 +54,28 @@ func init() {
 // Runtime describes read access to the core engine's Engine, Cache,
 // Events, and Registry subsystems.
 type Runtime interface {
-	Engine() *core.Engine
-	Cache() *core.Cache
-	Events() *core.EventRecorder
-	Registry() *core.Registry
+	Engine() *engine.Engine
+	Cache() *cache.Cache
+	Events() *events.EventRecorder
+	Registry() *registry.Registry
 }
 
 func main() {
 	var enableLeaderElection bool
 	var probeAddr string
+	var acmeServer string
+	var acmeEmail string
+	var acmePrivateKeySecretName string
 
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Probe bind address")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false, "Enable leader election")
+	flag.StringVar(&acmeServer, "acme-server",
+		"https://acme-v02.api.letsencrypt.org/directory",
+		"ACME directory URL for custom-strategy Domain certificates")
+	flag.StringVar(&acmeEmail, "acme-email", "",
+		"ACME account email for custom-strategy Domain certificates (required for custom-strategy Domains)")
+	flag.StringVar(&acmePrivateKeySecretName, "acme-private-key-secret-name", "acme-account-key",
+		"Name of the Secret cert-manager stores the ACME account private key in")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -78,15 +92,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// ---------------------------------------------------
 	// Create Runtime
-	// ---------------------------------------------------
 
 	rt := runtimeinfra.New(mgr)
 
-	// ---------------------------------------------------
 	// Controllers
-	// ---------------------------------------------------
 
 	if err := bootstrap.RegisterControllers(mgr, rt); err != nil {
 		setupLog.Error(err, "failed to register controllers")
@@ -100,6 +110,16 @@ func main() {
 
 	if err := bootstrap.RegisterBuild(mgr, rt, setupLog, mgr.GetEventRecorder("blanketops-environments")); err != nil {
 		setupLog.Error(err, "failed to register build subsystem")
+		os.Exit(1)
+	}
+
+	acmeConfig := domainapi.ACMEConfig{
+		Server:               acmeServer,
+		Email:                acmeEmail,
+		PrivateKeySecretName: acmePrivateKeySecretName,
+	}
+	if err := bootstrap.RegisterDomain(mgr, rt, acmeConfig); err != nil {
+		setupLog.Error(err, "failed to register domain controller")
 		os.Exit(1)
 	}
 

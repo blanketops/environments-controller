@@ -24,5 +24,6 @@ import (
 )
 
 type (
+	// GitHubEventReconciler reconciles a GitHubEvent object.
 	GitHubEventReconciler = internalevents.GitHubEventReconciler
 )

@@ -27,7 +27,8 @@ import (
 	"context"
 
 	environmentv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	coreCommand "github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/predicates"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -56,6 +57,8 @@ type EnvironmentReconciler struct {
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
+// Reconcile fetches the Environment, routes it through the core CQRS
+// engine, and persists the resulting status with conflict retry.
 func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues(
 		"controller", "environment",
@@ -82,9 +85,9 @@ func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	)
 
 	// ── Route to engine ───────────────────────────────────────────────────────
-	cmd := core.Command{
+	cmd := coreCommand.Command{
 		GVK:  environmentv1alpha1.GroupVersion.WithKind("Environment"),
-		Type: core.CmdUpdate,
+		Type: coreCommand.CmdUpdate,
 		Obj:  &environment,
 	}
 
@@ -118,6 +121,9 @@ func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{}, nil
 }
 
+// SetupWithManager registers the Environment domain with the core engine
+// and wires the reconciler into the controller manager, watching
+// Environment CRs.
 func (r *EnvironmentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// ── Logging & events ──────────────────────────────────────────────────────
 	r.Log = ctrl.Log.WithName("controllers").WithName("Environment")
@@ -150,6 +156,6 @@ func (r *EnvironmentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&environmentv1alpha1.Environment{}).
 		Named("environments").
-		WithEventFilter(core.MeaningfulChangePredicate()).
+		WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Complete(r)
 }

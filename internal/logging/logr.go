@@ -21,6 +21,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// AsLogr wraps a zap.Logger as a logr.Logger.
 func AsLogr(z *zap.Logger) logr.Logger {
 	return zapr.NewLogger(z)
 }

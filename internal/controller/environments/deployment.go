@@ -22,19 +22,29 @@ package environments
 
 import (
 	"context"
+	"time"
 
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/predicates"
 	"github.com/blanketops/environments/pkg/apis/deployment/api"
 	"github.com/blanketops/environments/pkg/apis/deployment/application"
+	"github.com/blanketops/environments/pkg/apis/deployment/reconcile"
+	"github.com/blanketops/environments/pkg/apis/deployment/strategy"
+	deploymentintent "github.com/blanketops/environments/pkg/intent/deployment"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	deploydomain "github.com/blanketops/environments-controller/internal/domains/deployment"
 	deployment "github.com/blanketops/environments-controller/internal/mediators/deployment"
@@ -65,6 +75,9 @@ type DeploymentReconciler struct {
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=deployments/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=environments.blanketops.dev,resources=deployments/finalizers,verbs=update
 // +kubebuilder:rbac:groups=external-secrets.io,resources=externalsecrets,verbs=get;list;watch
+// The imperative runtime applies each ServiceUnit as a Deployment and a Service.
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups=source.toolkit.fluxcd.io,resources=gitrepositories;helmrepositories;ocirepositories,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=kustomize.toolkit.fluxcd.io,resources=kustomizations,verbs=get;list;watch;create;update;patch;delete
@@ -90,9 +103,7 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
-	// ------------------------------------------------
 	// Fetch Deployment
-	// ------------------------------------------------
 	var deploymentCR environmentsv1alpha1.Deployment
 	if err := r.Get(ctx, req.NamespacedName, &deploymentCR); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -105,16 +116,14 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	log.Info("deployment fetched", "generation", deploymentCR.Generation, "resourceVersion", deploymentCR.ResourceVersion)
-	// ------------------------------------------------
 	// Finalizer gate — determines cmd.Type
-	// ------------------------------------------------
-	cmdType := core.CmdUpdate
+	cmdType := command.CmdUpdate
 	if !deploymentCR.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(&deploymentCR, deploymentFinalizer) {
 			log.Info("reconcile exit: deletion in progress, finalizer already removed")
 			return ctrl.Result{}, nil
 		}
-		cmdType = core.CmdDelete
+		cmdType = command.CmdDelete
 	} else if !controllerutil.ContainsFinalizer(&deploymentCR, deploymentFinalizer) {
 		controllerutil.AddFinalizer(&deploymentCR, deploymentFinalizer)
 		if err := r.Update(ctx, &deploymentCR); err != nil {
@@ -122,40 +131,35 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, err
 		}
 		log.Info("finalizer added")
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
-	// ------------------------------------------------
 	// Construct core command
-	// ------------------------------------------------
 
-	cmd := core.Command{
+	cmd := command.Command{
 		GVK:  environmentsv1alpha1.GroupVersion.WithKind("Deployment"),
-		Type: core.CmdUpdate,
+		Type: cmdType,
 		Obj:  &deploymentCR,
 	}
 
 	log.Info("routing deployment to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
-	// ------------------------------------------------
+	before := append([]metav1.Condition(nil), deploymentCR.Status.Conditions...)
+
 	// Execute domain logic via engine
-	// ------------------------------------------------
-	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
-		log.Error(err, "engine execution failed")
-		r.Recorder.Eventf(&deploymentCR, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", err)
-		log.Info("reconcile exit: engine error")
-		return ctrl.Result{}, err
+	execErr := r.Runtime.Engine.Execute(ctx, cmd)
+	if execErr != nil {
+		log.Error(execErr, "engine execution failed")
+		r.Recorder.Eventf(&deploymentCR, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", execErr)
+	} else {
+		log.Info("engine execution completed")
 	}
 
-	log.Info("engine execution completed")
-
-	// ------------------------------------------------
 	// Deletion path: remove finalizer now that the engine returned nil.
 	// Status is intentionally NOT written here — the object is about to be
 	// removed, and racing a status update against finalizer removal serves
 	// no purpose.
-	// ------------------------------------------------
-	if cmdType == core.CmdDelete {
+	if cmdType == command.CmdDelete && execErr == nil {
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			var latest environmentsv1alpha1.Deployment
 			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -170,19 +174,29 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		log.Info("finalizer removed, deletion will proceed")
 		return ctrl.Result{}, nil
 	}
-	// ------------------------------------------------
-	// Persist status (retry-on-conflict) — create/update path only
-	// ------------------------------------------------
+	// Persist the conditions this pass set, on success and on failure: a
+	// Deployment that could not be reconciled must say why. Only those
+	// conditions are merged; replacing the whole status would discard the
+	// outcome the deployment service wrote since the object was read.
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest environmentsv1alpha1.Deployment
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
 			return err
 		}
-		latest.Status = deploymentCR.Status
+		for _, cond := range changedConditions(before, deploymentCR.Status.Conditions) {
+			apimeta.SetStatusCondition(&latest.Status.Conditions, cond)
+		}
 		return r.Status().Update(ctx, &latest)
 	}); err != nil {
 		log.Error(err, "failed to update deployment status")
-		return ctrl.Result{}, err
+		if execErr == nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	if execErr != nil {
+		log.Info("reconcile exit: engine error")
+		return ctrl.Result{}, execErr
 	}
 
 	log.Info("deployment status updated successfully")
@@ -191,31 +205,25 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{}, nil
 }
 
-// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
-// -----------------------------------------------------------------
 func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// ---------------------------------------------------------------------
 	// Logging & events
-	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("Deployment")
 	r.Recorder = mgr.GetEventRecorder("deployment-controller")
 
-	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	// ---------------------------------------------------------------------
 	cache := r.Runtime.Cache
 	eventsRecorder := r.Runtime.Events
 	registry := r.Runtime.Registry
 
-	// ---------------------------------------------------------------------
 	// Mediator (infra / prerequisites only)
-	// ---------------------------------------------------------------------
 	r.DeploymentMediator = deployment.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.deployment"), r.Recorder)
 
-	// ---------------------------------------------------------------------
+	// Cross-CR reads go straight to the API server, not the informer
+	// cache: a ServiceUnit created a moment ago must be found.
+	r.reader = mgr.GetAPIReader()
+
 	// Providers (runtime backends)
-	// ---------------------------------------------------------------------
 	// kubernetesBackend := api.NewK8SProvider(
 	// 	mgr.GetClient(),
 	// 	mgr.GetScheme(),
@@ -228,40 +236,41 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// ecsBackend := application.NewECSBackend(...)
 	// fluxBackend := application.NewFluxBackend(...)
 
-	// ---------------------------------------------------------------------
 	// Runtime Provider (imperative backends)
-	// ---------------------------------------------------------------------
-	runtimeProvider := api.NewRuntimeProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("runtime"), r.Recorder)
+	runtimeProvider := strategy.NewRuntimeProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("runtime"), r.Recorder)
 
-	// ---------------------------------------------------------------------
 	// GitOps Reconciler (Flux integration layer)
-	// ---------------------------------------------------------------------
 	kustomizer := api.NewKustomizeStrategyProvider(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("reconciliation.kustomize"))
 
-	// ---------------------------------------------------------------------
 	// Reconciliation Executor (delivery axis)
-	// ---------------------------------------------------------------------
-	reconciliationExecutor := api.NewReconciliationExecutor(runtimeProvider, kustomizer, r.Log.WithName("reconciliation"))
+	reconciliationExecutor := reconcile.NewReconciliationExecutor(runtimeProvider, kustomizer, r.Log.WithName("reconciliation"))
 
-	// ---------------------------------------------------------------------
 	// Service Layer
-	// ---------------------------------------------------------------------
-	intentBuilder := application.NewIntentBuilder()
+	intentBuilder := deploymentintent.NewIntentBuilder()
 	statusWriter := application.NewStatusWriter(mgr.GetClient(), r.Log.WithName("deployment.status-writer"))
 	r.DeploymentService = application.NewDeploymentService(intentBuilder, statusWriter, reconciliationExecutor, ctrl.Log)
 
-	// ---------------------------------------------------------------------
 	// Registry ( Domain Registration, domain orchestrates mediator + service)
-	// ---------------------------------------------------------------------
 	deployDomain := deploydomain.New(r.DeploymentMediator, r.DeploymentService, cache, r.reader, eventsRecorder, r.Log.WithName("domain.deployment"))
 	registry.RegisterDomain(environmentsv1alpha1.SchemeBuilder.GroupVersion.WithKind("Deployment"), deployDomain)
 
-	// ---------------------------------------------------------------------
 	// Controller registration
-	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&environmentsv1alpha1.Deployment{}).
+		// Marking a Deployment for deletion does not change its spec, so the
+		// spec predicate alone would never let the delete path run. The
+		// predicates are set on the Deployment only: as a filter on the whole
+		// controller they would also drop the Build updates watched below.
+		For(&environmentsv1alpha1.Deployment{}, builder.WithPredicates(
+			predicate.Or(predicates.MeaningfulChangePredicate(), deletionRequested()),
+		)).
+		// A Deployment rolls out the image of each ServiceUnit it lists. For
+		// a unit of type BUILD that image is what its Build last pushed, so
+		// a new image re-triggers the Deployments that roll it out.
+		Watches(
+			&environmentsv1alpha1.Build{},
+			handler.EnqueueRequestsFromMapFunc(r.mapBuildToDeployments),
+			builder.WithPredicates(buildImageChanged()),
+		).
 		Named("environments-deployment").
-		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }

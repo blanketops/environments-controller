@@ -28,7 +28,7 @@ import (
 	libgitrepository "github.com/blanketops/environments/cache/gitrepository"
 	libpackages "github.com/blanketops/environments/cache/packages"
 	libserviceunit "github.com/blanketops/environments/cache/serviceunit"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/cache"
 )
 
 // Caches aggregates all domain caches, constructed once in main and
@@ -44,7 +44,7 @@ type Caches struct {
 
 // NewCaches constructs every domain cache and returns them aggregated
 // in a single Caches value.
-func NewCaches(c *core.Cache) *Caches {
+func NewCaches(c *cache.Cache) *Caches {
 	return &Caches{
 		Build:         libbuild.NewBuildCache(c),
 		Deployment:    libdeployment.NewDeploymentCache(c),

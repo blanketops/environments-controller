@@ -44,10 +44,10 @@ import (
 	"time"
 
 	environmentv1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/events"
 	"github.com/blanketops/environments/pkg/apis/deployment/application"
 	"github.com/blanketops/environments/pkg/apis/deployment/domain"
-	deploymentResolution "github.com/blanketops/environments/resolution/deployment"
+	deploymentResolution "github.com/blanketops/environments/resolution/deployment/resolve"
 	fluxkustomize "github.com/fluxcd/kustomize-controller/api/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -64,7 +64,7 @@ type Reconciler struct {
 	// state is observed.
 	Status *application.StatusWriter
 	// Recorder emits Kubernetes events on the owning Deployment resource.
-	Recorder *core.EventRecorder
+	Recorder *events.EventRecorder
 }
 
 // Reconcile is invoked by controller-runtime for every Flux Kustomization event.
@@ -75,21 +75,17 @@ func (r *Reconciler) Reconcile(
 	req ctrl.Request,
 ) (ctrl.Result, error) {
 
-	// ------------------------------------------------
 	// Fetch Kustomization.
-	// ------------------------------------------------
 	var ks fluxkustomize.Kustomization
 	if err := r.Get(ctx, req.NamespacedName, &ks); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// ------------------------------------------------
 	// Extract the Flux Ready condition.
 	//
 	// Flux uses metav1.Condition (not corev1.ConditionStatus) so we scan
 	// the conditions slice directly rather than using a helper. The Ready
 	// condition is the authoritative signal for Kustomization health.
-	// ------------------------------------------------
 	var readyCond *metav1.Condition
 	for i := range ks.Status.Conditions {
 		if ks.Status.Conditions[i].Type == "Ready" {
@@ -98,23 +94,19 @@ func (r *Reconciler) Reconcile(
 		}
 	}
 
-	// ------------------------------------------------
 	// Only act on terminal Kustomizations.
 	//
 	// ConditionUnknown means Flux is still reconciling. We have no outcome
 	// to report until the condition resolves to True or False.
-	// ------------------------------------------------
 	if readyCond == nil || readyCond.Status == metav1.ConditionUnknown {
 		return ctrl.Result{}, nil
 	}
 
-	// ------------------------------------------------
 	// Resolve the owning Deployment CR via label.
 	//
 	// The Deployment domain stamps this label on every Kustomization it
 	// creates. Kustomizations without the label are not platform-owned
 	// and are silently ignored.
-	// ------------------------------------------------
 	deploymentName := ks.Labels["deployment.blanketops.dev/name"]
 	if deploymentName == "" {
 		return ctrl.Result{}, nil
@@ -132,25 +124,21 @@ func (r *Reconciler) Reconcile(
 		return ctrl.Result{}, err
 	}
 
-	// ------------------------------------------------
 	// Resolve the authoritative Deployment contract.
 	//
 	// Runtime and other policy fields must come from the resolved contract,
 	// not from cached or stale CR fields.
-	// ------------------------------------------------
 	resolved, err := deploymentResolution.ResolveDeployment(&deployment)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	// ------------------------------------------------
 	// Map Flux Ready condition → domain DeploymentPhase.
 	//
 	// Flux's ConditionTrue/False maps cleanly to Ready/Failed. The default
 	// case guards against any future Flux condition values we haven't
 	// accounted for, landing them in Reconciling rather than silently
 	// dropping them.
-	// ------------------------------------------------
 	var phase domain.DeploymentPhase
 
 	switch readyCond.Status {
@@ -169,12 +157,10 @@ func (r *Reconciler) Reconcile(
 		LastUpdateTime: time.Now(),
 	}
 
-	// ------------------------------------------------
 	// Emit terminal events on the owning Deployment.
 	//
 	// Events are best-effort — a nil Recorder is safe and results in a no-op.
 	// Reconciling phase produces no event; we only emit on terminal outcomes.
-	// ------------------------------------------------
 	if r.Recorder != nil {
 		switch phase {
 		case domain.DeploymentPhase("Ready"):
@@ -195,12 +181,10 @@ func (r *Reconciler) Reconcile(
 		}
 	}
 
-	// ------------------------------------------------
 	// Write final Deployment status.
 	//
 	// Single authoritative write per observation cycle. The StatusWriter
 	// owns the patch strategy and condition merging.
-	// ------------------------------------------------
 	return ctrl.Result{}, r.Status.WriteDeploymentResult(
 		ctx,
 		&deployment,
@@ -216,7 +200,7 @@ func (r *Reconciler) Reconcile(
 // signals whether GitOps delivery succeeded or failed. Watching the Deployment
 // CR itself would give us no signal about what Flux actually did on the cluster.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("deployment-observer"))
+	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("deployment-observer"))
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fluxkustomize.Kustomization{}).

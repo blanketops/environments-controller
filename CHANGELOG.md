@@ -1,3 +1,320 @@
+## [0.6.7] - 2026-11-08
+
+### 💼 Other
+
+- Merge release/v0.6.7 into main
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.6
+## [0.6.6] - 2026-11-08
+
+### 💼 Other
+
+- Update go.sum dependencies
+- Merge release/v0.6.6 into main
+
+### 📚 Documentation
+
+- Standardize workflow header comments
+- Auto-generate code documentation [skip ci] (#222)
+
+### 🧪 Testing
+
+- Dogfood the developer bot's open and resolve
+
+### ⚙️ Miscellaneous Tasks
+
+- *(finalize)* Continue when the release pull request is already merged
+- Run the releaser in the release workflows
+- *(ci)* Bump blanketops/environments-bots from 0.0.2 to 0.0.3
+- *(ci)* Update actions
+- *(ci)* Update actions
+- Sync develop with main after release/v0.6.5
+- Sync develop with main
+- *(developer)* Run the developer bot at v0.0.8
+- *(developer)* Sanitize resolve-issue input
+- *(ci)* Update actions
+- *(release)* Update changelog for v0.6.6 (#223)
+## [0.6.5] - 2026-10-21
+
+### 💼 Other
+
+- Merge release/v0.6.5 into main
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.4
+- *(release)* Update changelog for v0.6.5 (#194)
+## [0.6.4] - 2026-10-21
+
+### 🐛 Bug Fixes
+
+- Use the verbatim Apache-2.0 license text
+
+### 💼 Other
+
+- Merge release/v0.6.4 into main
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.3
+- *(ci)* Bump ko-build/setup-ko from 0.7 to 0.10
+- Do not fail a job when the artifact upload is refused
+- Drop the private-module setup
+- *(security)* Keep Trivy's vulnerability DB on the runners' cache volume
+- Lint with the runner image's golangci-lint and the volume cache
+- Use the runner image's baked tools instead of per-job installs
+- Sync develop with main
+- *(lint)* Keep explicit embedded-struct literals on Go 1.27
+- *(dependabot)* Open dependency PRs against main
+- Sync develop with main
+- Land bot writes to main through pull requests
+- Sync develop with main
+- *(release)* Update changelog for v0.6.4 (#190)
+## [0.6.3] - 2026-10-20
+
+### 🚀 Features
+
+- *(serviceunit)* Run the image a Build pushes, from push to rollout
+
+### 🐛 Bug Fixes
+
+- Make ServiceUnit and Deployment reconcile at all
+- *(deployment)* Keep the outcome the deployment service wrote, and say when it failed
+- *(deployment)* Tear the workload down when a Deployment is deleted
+- *(build)* Remove the Shipwright Build and BuildRuns when a Build is deleted
+- *(environment)* Write an Environment's status when it has a ServiceUnit
+- *(build)* Finish mediating a Build's secrets before it is dispatched
+- *(packages)* Wait for the kapp App before removing a Package's prerequisites
+
+### 💼 Other
+
+- Merge release/v0.6.3 into main
+
+### 📚 Documentation
+
+- Auto-generate code documentation [skip ci]
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.6.2
+- Sync develop with main after release/v0.6.2
+- *(ko)* Sign the image index, not one platform's manifest
+- Stop setup-go uploading the Go cache after every job
+- *(release)* Make the workflows' commits verified
+- *(release)* Update changelog for v0.6.3
+## [0.6.2] - 2026-10-09
+
+### 🚀 Features
+
+- *(buildrun)* Record the pushed image and its digest on the Build
+- *(packages)* Gate Package deletion on a finalizer and tear it down
+- *(packages)* Observe the kapp App and report its outcome on the Package
+- *(packages)* Provision the package repository credentials as an SSH secret
+- *(packages)* Provision the service account the kapp App deploys as
+- *(packages)* Bind the Package service account to the deployer ClusterRole
+
+### 🐛 Bug Fixes
+
+- *(githubevent)* Grant the RBAC the GitHubEvent provider needs
+- *(githubevent)* Find the Environment across namespaces
+- *(build)* Stop the Build reconciler overwriting status it did not write
+- *(build)* Do not crash the build-observer on a Build without a policy
+- *(buildrun)* Keep only the latest run's outcome on the Build
+- *(packages)* Requeue after adding the finalizer without the deprecated field
+
+### 💼 Other
+
+- Merge release/v0.6.2 into main
+
+### 📚 Documentation
+
+- Auto-generate code documentation [skip ci]
+- Auto-generate code documentation [skip ci]
+
+### 🧪 Testing
+
+- *(build)* Cover a new push payload re-triggering the Build
+- *(build)* Build trigger policies through one helper
+- *(packages)* Use new(true) for the owner reference flag
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.1
+- *(ci)* Bump imjasonh/setup-crane from 0.4 to 0.7
+- *(ci)* Bump actions/setup-go from 5 to 7
+- *(ci)* Bump golangci/golangci-lint-action from 7 to 9
+- *(ci)* Bump docker/login-action from 3 to 4
+- *(ci)* Bump oras-project/setup-oras from 1 to 2
+- Run workflows on zenith self-hosted runners
+## [0.6.1] - 2026-08-22
+
+### 🐛 Bug Fixes
+
+- Close the release.yml changelog race too
+
+### 💼 Other
+
+- Merge release/v0.6.1 into main
+
+### 📚 Documentation
+
+- Auto-generate code documentation [skip ci]
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.0
+- *(release)* Update changelog for v0.6.0
+- Sync develop with main after release/v0.6.0
+## [0.6.0] - 2026-08-22
+
+### 🚀 Features
+
+- Wire Domain CR through the CQRS engine
+
+### 🐛 Bug Fixes
+
+- Regenerate docs synchronously in Finalize Release
+
+### 💼 Other
+
+- Merge release/v0.6.0 into main
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.5.0
+- *(release)* Update changelog for v0.5.0
+- Sync develop with main after v0.5.0 changelog update
+- Bump environments to v0.8.1
+## [0.5.0] - 2026-08-22
+
+### 🚀 Features
+
+- Wire Route CR through the CQRS engine
+
+### 🐛 Bug Fixes
+
+- Call DeploymentService.Teardown on Deployment CmdDelete
+- Goconst lint failure -- extract su-sample to a constant
+
+### 💼 Other
+
+- Merge release/v0.5.0 into main
+
+### 📚 Documentation
+
+- Auto-generate code documentation [skip ci]
+- Fill in missing GoDoc comments, regenerate docs/code
+- Fix code-docs gaps and strip banner-style comment dividers
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.4.3
+- Sync develop with main after release/v0.4.3
+- Bump environments to v0.7.9
+- Bump environments to v0.8.0
+## [0.4.3] - 2026-08-20
+
+### 🐛 Bug Fixes
+
+- *(lint)* Replace deprecated Result.Requeue with RequeueAfter
+- *(templates)* Move issue templates to the path GitHub actually reads
+- *(templates)* Remove Contract Change issue type -- doesn't belong here
+- *(lint)* Replace deprecated Result.Requeue with RequeueAfter (deployment.go)
+
+### 💼 Other
+
+- Merge release/v0.4.3 into main
+
+### 📚 Documentation
+
+- Refresh generated code docs via gomarkdoc
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.4.2
+- Drop unnecessary App-token auth from read-only build/scan jobs
+- *(ci)* Bump actions/upload-artifact from 4 to 7
+- *(ci)* Bump softprops/action-gh-release from 2 to 3
+- *(ci)* Bump actions/create-github-app-token from 2 to 3
+- *(ci)* Bump actions/checkout from 4 to 7
+- *(ci)* Bump sigstore/cosign-installer from 3.7.0 to 4.1.2
+- Bring lint fix + template fixes into main
+- Bring deployment.go lint fix into main
+## [0.4.2] - 2026-08-20
+
+### 🚀 Features
+
+- *(networks)* Register Route and Domain reconcilers
+
+### 🐛 Bug Fixes
+
+- Gofmt import ordering, rewrite README negatives as positives
+
+### 📚 Documentation
+
+- Fix stale "migrating to" phrasing in README
+- Auto-generate code documentation [skip ci]
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.4.1
+- Sync develop with main after release/v0.4.1
+- Add dependabot.yml (gomod, github-actions)
+- Bring dependabot.yml into main (Dependabot reads config from default branch)
+- Bring gofmt fix + README rewrite into main
+## [0.4.1] - 2026-08-19
+
+### 💼 Other
+
+- Merge release/v0.4.1 into main
+
+### 📚 Documentation
+
+- Auto-generate code documentation [skip ci]
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.4.0
+- *(release)* Update changelog for v0.4.0
+- Add code docs generation and richer coverage reporting
+- Sync develop with main (code docs + coverage workflows)
+- Sync develop with main (dependency bump)
+## [0.4.0] - 2026-07-19
+
+### 🐛 Bug Fixes
+
+- Update imports for environments v0.7.5's package reorg
+
+### 💼 Other
+
+- Fix golangci-lint findings surfaced now that CI auth actually works
+- Fix golangci-lint findings surfaced now that CI auth actually works
+- Merge release/v0.4.0 into main
+
+### 🧪 Testing
+
+- Add domain layer coverage, fix .gitignore and two nil-pointer bugs found along the way
+- Add mediator and cache layer coverage
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.3.9
+- Migrate all workflows off the retired GH_PAT secret, consolidate security scans
+- *(release)* Update changelog for v0.3.9
+- Migrate all workflows off the retired GH_PAT secret, consolidate security scans
+- Sync develop with main before cutting release v0.4.0
+## [0.3.9] - 2026-07-16
+
+### 🐛 Bug Fixes
+
+- Register readyz health check
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.3.8
+- Sync develop with main after release/v0.3.8
 ## [0.3.8] - 2026-07-15
 
 ### ⚙️ Miscellaneous Tasks

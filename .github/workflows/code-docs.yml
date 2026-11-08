@@ -1,0 +1,106 @@
+# =============================================================================
+# code-docs.yml — Generated Go Package Docs
+#
+# Runs on every push to main. Generates Go package docs via gomarkdoc and
+# commits them back to docs/code/, plus uploads a retained artifact copy.
+# Mirrors the environments library's own code-docs.yml.
+#
+# Auth:
+#   Uses the BlanketOps-Environments GitHub App instead of a personal-account
+#   PAT for checkout and for the API commit below.
+#
+#   The generated-docs commit is made through GitHub's API
+#   (hack/api-commit.sh), not with `git commit`. A commit made with git in a
+#   workflow is never verified on GitHub; one GitHub makes itself through the
+#   API is signed by GitHub. No GPG key is involved.
+#
+# Secrets required:
+#   APP_ID, APP_PRIVATE_KEY — GitHub App credentials
+# =============================================================================
+
+name: Code Docs
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+concurrency:
+  group: code-docs
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  godoc:
+    name: Generate Code Docs
+    runs-on: self-hosted
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_ID_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: environments-controller
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Install gomarkdoc
+        run: go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
+
+      - name: Generate docs
+        run: |
+          mkdir -p docs/code
+          gomarkdoc \
+            --output 'docs/code/{{.Dir}}.md' \
+            ./internal/... \
+            ./pkg/...
+
+      - name: Commit docs
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          hack/api-pr.sh main "docs/code-${GITHUB_SHA::7}" \
+            "docs: auto-generate code documentation [skip ci]" docs/code
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v7
+        continue-on-error: true
+        with:
+          name: godoc-${{ github.sha }}
+          path: docs/code/
+          retention-days: 30
+
+      - name: Build summary
+        run: |
+          echo "## 📚 Code Documentation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Generated from commit \`${{ github.sha }}\` on branch \`${{ github.ref_name }}\`." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for group in internal pkg; do
+            files=$(find docs/code -name "*.md" | grep "/${group}" | sort)
+            if [ -n "$files" ]; then
+              echo "### \`${group}/\`" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              for f in $files; do
+                pkg=$(basename "$f" .md)
+                echo "- \`${pkg}\`" >> $GITHUB_STEP_SUMMARY
+              done
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          echo "> 📦 Download artifact \`godoc-${{ github.sha }}\` from the [Actions run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) to browse all generated docs." >> $GITHUB_STEP_SUMMARY

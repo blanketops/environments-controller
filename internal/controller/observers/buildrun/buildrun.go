@@ -14,6 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+Package buildrun observes Shipwright BuildRun objects and reflects their
+terminal Succeeded condition back onto the owning Build CR's status.
+
+This exists because the Build domain's own Ensure() can only report that
+build infrastructure was successfully dispatched (Triggered=true) — it
+does not wait for the BuildRun to actually finish. This observer is the
+other half: it watches BuildRun directly (not Build), skips non-terminal
+runs, resolves the owner via the build.blanketops.dev/name label, and
+writes the real success/failure outcome the Build CR's contract status
+needed all along.
+*/
 package buildrun
 
 import (
@@ -22,7 +34,7 @@ import (
 	"time"
 
 	buildv1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/events"
 	"github.com/blanketops/environments/pkg/apis/build/application"
 	"github.com/blanketops/environments/pkg/apis/build/domain"
 	"github.com/go-logr/logr"
@@ -34,12 +46,25 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Outcome conditions this observer owns on a Build. Exactly one of them is
+// present once a BuildRun has finished.
+const (
+	conditionBuildSuccess = "BuildSuccess"
+	conditionBuildFailed  = "BuildFailed"
+)
+
+// Reconciler observes Shipwright BuildRun resources and feeds their
+// terminal Succeeded condition back to the owning Build CR's contract
+// status and conditions.
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
-	Recorder *core.EventRecorder
+	Recorder *events.EventRecorder
 }
 
+// Reconcile exits immediately for non-terminal BuildRuns, resolves the
+// owning Build via the build.blanketops.dev/name label, and writes the
+// outcome to its status.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "buildrun-observer", "buildRun", req.String())
 	log.Info("reconcile start")
@@ -72,6 +97,21 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	log = log.WithValues("build", build.Name, "namespace", build.Namespace)
+
+	// Only the most recent BuildRun speaks for the Build. Every terminal
+	// BuildRun is reconciled again when the controller restarts, in no
+	// particular order; without this an older run would overwrite the
+	// outcome and the image of a newer one.
+	superseded, err := r.superseded(ctx, &br, buildName)
+	if err != nil {
+		log.Error(err, "failed to list buildruns for the build")
+		return ctrl.Result{}, err
+	}
+	if superseded {
+		log.Info("skipping: a newer buildrun exists for this build")
+		return ctrl.Result{}, nil
+	}
+
 	log.Info("buildrun completed")
 
 	if r.Recorder != nil {
@@ -84,7 +124,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	conditions := r.buildContractAndConditions(&build, &br, success, cond.Message, log)
 
-	return ctrl.Result{}, r.Status.Write(ctx, &build, conditions...)
+	// The two outcome conditions describe the same thing, the latest run,
+	// so writing one removes the other. Otherwise a Build whose run failed
+	// and later succeeded would carry both.
+	replaced := conditionBuildSuccess
+	if success {
+		replaced = conditionBuildFailed
+	}
+
+	return ctrl.Result{}, r.Status.WriteReplacing(ctx, &build, []string{replaced}, conditions...)
 }
 
 func (r *Reconciler) buildContractAndConditions(
@@ -103,12 +151,25 @@ func (r *Reconciler) buildContractAndConditions(
 
 	buildHash := br.Labels["build-hash"]
 
+	// The image is the last one this Build pushed. A successful run replaces
+	// it; a failed run leaves the previous image in place, because that
+	// artifact still exists and is what consumers can deploy.
+	image := currentStatus.Image
+	if success {
+		if pushed := pushedImage(br); pushed != "" {
+			image = pushed
+		} else {
+			log.Info("buildrun succeeded without reporting an output image")
+		}
+	}
+
 	contractStatus := domain.BuildStatus{
 		Success:      success,
 		Message:      message,
 		ExecutionRef: br.Name,
 		BuildHash:    buildHash,
 		Triggered:    true,
+		Image:        image,
 	}
 
 	raw, err := json.Marshal(contractStatus)
@@ -121,7 +182,7 @@ func (r *Reconciler) buildContractAndConditions(
 	var condition metav1.Condition
 	if success {
 		condition = metav1.Condition{
-			Type:               "BuildSuccess",
+			Type:               conditionBuildSuccess,
 			Status:             metav1.ConditionTrue,
 			Reason:             "BuildSucceeded",
 			Message:            message,
@@ -129,7 +190,7 @@ func (r *Reconciler) buildContractAndConditions(
 		}
 	} else {
 		condition = metav1.Condition{
-			Type:               "BuildFailed",
+			Type:               conditionBuildFailed,
 			Status:             metav1.ConditionFalse,
 			Reason:             "BuildFailed",
 			Message:            message,
@@ -140,8 +201,45 @@ func (r *Reconciler) buildContractAndConditions(
 	return []metav1.Condition{condition}
 }
 
+// pushedImage returns the reference of the image a BuildRun pushed, pinned
+// to the digest the registry reported. The image name comes from the
+// BuildRun's own snapshot of the build spec, not from the Shipwright Build,
+// which may already describe a newer commit. Returns "" when the BuildRun
+// carries no snapshot.
+func pushedImage(br *shipwrightv1alpha1.BuildRun) string {
+	if br.Status.BuildSpec == nil {
+		return ""
+	}
+	digest := ""
+	if br.Status.Output != nil {
+		digest = br.Status.Output.Digest
+	}
+	return domain.ImageWithDigest(br.Status.BuildSpec.Output.Image, digest)
+}
+
+// superseded reports whether a BuildRun created after br exists for the
+// same Build.
+func (r *Reconciler) superseded(ctx context.Context, br *shipwrightv1alpha1.BuildRun, buildName string) (bool, error) {
+	var runs shipwrightv1alpha1.BuildRunList
+	if err := r.List(ctx, &runs,
+		client.InNamespace(br.Namespace),
+		client.MatchingLabels{"build.blanketops.dev/name": buildName},
+	); err != nil {
+		return false, err
+	}
+	for i := range runs.Items {
+		if runs.Items[i].CreationTimestamp.After(br.CreationTimestamp.Time) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// SetupWithManager registers the BuildRun observer with the controller
+// manager, watching Shipwright BuildRun resources rather than Build CRs —
+// the BuildRun is what signals whether the build actually succeeded.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("buildrun-observer"))
+	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("buildrun-observer"))
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&shipwrightv1alpha1.BuildRun{}).
 		Complete(r)

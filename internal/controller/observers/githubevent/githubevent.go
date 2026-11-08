@@ -56,10 +56,10 @@ import (
 
 	argoeventsv1alpha1 "github.com/argoproj/argo-events/pkg/apis/events/v1alpha1"
 	eventsv1alpha1 "github.com/blanketops/environments-api/api/events/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/events"
 	"github.com/blanketops/environments/pkg/apis/githubevent/application"
 	"github.com/blanketops/environments/pkg/apis/githubevent/domain"
-	githubeventresolution "github.com/blanketops/environments/resolution/githubevent"
+	githubeventresolution "github.com/blanketops/environments/resolution/githubevent/resolve"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -74,12 +74,18 @@ const (
 	conditionGitHubEventReady = "GitHubEventReady"
 )
 
+// Reconciler observes GitHubEvent CRs and the Argo Events Sensor created
+// for each, deriving and writing the event's accepted/triggered/success
+// status and conditions.
 type Reconciler struct {
 	client.Client
 	Status   *application.StatusWriter
-	Recorder *core.EventRecorder
+	Recorder *events.EventRecorder
 }
 
+// Reconcile resolves the GitHubEvent's contract, checks whether a payload
+// has been received and whether its Sensor reports success, and writes the
+// resulting status via buildContractAndConditions.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	n := req.NamespacedName
 	log := ctrl.LoggerFrom(ctx).WithValues("controller", "githubevent-observer", "githubevent", n.String())
@@ -97,8 +103,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	contract := resolved.Spec.ToGitHubEventContract()
-	payloadReceived := contract.GetEventId() != "" && contract.GetEventType() != nil
+	payloadReceived := resolved.Spec.EventID != "" && resolved.Spec.EventType != ""
 	log = log.WithValues("payloadReceived", payloadReceived)
 	log.Info("githubevent resolved")
 
@@ -216,8 +221,10 @@ func (r *Reconciler) buildContractAndConditions(
 	return []metav1.Condition{condition}
 }
 
+// SetupWithManager registers the GitHubEvent observer with the controller
+// manager, watching GitHubEvent CRs.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = core.NewEventRecorder(mgr.GetEventRecorder("githubevent-observer"))
+	r.Recorder = events.NewEventRecorder(mgr.GetEventRecorder("githubevent-observer"))
 	r.Status = application.NewStatusWriter(mgr.GetClient(), ctrl.Log.WithName("githubevent-status-writer"))
 
 	return ctrl.NewControllerManagedBy(mgr).

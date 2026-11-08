@@ -34,8 +34,9 @@ import (
 
 	"github.com/blanketops/environments/pkg/apis/environment/query"
 	providerconfig "github.com/blanketops/environments/pkg/providerconfig"
-	"github.com/blanketops/environments/pkg/secrets/github"
-	gitrepoResolution "github.com/blanketops/environments/resolution/gitrepository"
+	githubCrossplane "github.com/blanketops/environments/pkg/secrets/github/crossplane"
+	githubHookurl "github.com/blanketops/environments/pkg/secrets/github/hookurl"
+	gitrepoResolution "github.com/blanketops/environments/resolution/gitrepository/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -84,33 +85,25 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *gitrepoRes
 		return fmt.Errorf("nil ResolvedGitRepository provided to mediator")
 	}
 	repo := resolved.Repository
-	// ------------------------------------------------
 	// Step 0: Environment lookup
 	// Environment must pre-exist — it is the root of the delivery chain and
 	// the sole authority for the ClusterSecretStore binding.
-	// ------------------------------------------------
 	envCtx, err := query.Lookup(ctx, m.Client, repo.Namespace, repo.Labels)
 	if err != nil {
 		return fmt.Errorf("environment lookup: %w", err)
 	}
 	m.Log.Info("environment context resolved", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 1: GitHub provider credentials (store-dependent, shared)
-	// ------------------------------------------------------------------------------------------------------------
-	providerSecret := github.NewGitHubProviderSecretReconciler(m.Client, m.Log, envCtx.StoreName)
+	providerSecret := githubCrossplane.NewGitHubProviderSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
 	if err := providerSecret.Reconcile(ctx); err != nil {
 		return fmt.Errorf("github provider credentials: %w", err)
 	}
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 2: GitHub ProviderConfig (no store dependency, shared)
-	// ------------------------------------------------------------------------------------------------------------
 	if err := m.GitHubProviderConfigReconciler.Reconcile(ctx); err != nil {
 		return fmt.Errorf("github providerconfig: %w", err)
 	}
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 3: Webhook URL secret (CR-sourced, per GitRepository)
-	// ------------------------------------------------------------------------------------------------------------
-	hookURL := github.NewHookURLSecretReconciler(m.Client, m.Scheme, m.Log)
+	hookURL := githubHookurl.NewHookURLSecretReconciler(m.Client, m.Scheme, m.Log)
 	if err := hookURL.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("hookurl secret: %w", err)
 	}
@@ -135,21 +128,17 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *gitrepoRe
 		return fmt.Errorf("nil ResolvedGitRepository provided to mediator")
 	}
 	repo := resolved.Repository
-	// ------------------------------------------------
 	// Step 0: Environment lookup
 	// Same store binding used at creation time — needed so the reconcilers
 	// target the correct ClusterSecretStore-scoped resources on teardown.
-	// ------------------------------------------------
 	envCtx, err := query.Lookup(ctx, m.Client, repo.Namespace, repo.Labels)
 	if err != nil {
 		return fmt.Errorf("environment lookup: %w", err)
 	}
 	m.Log.Info("environment context resolved for teardown", "environment", envCtx.Name, "type", envCtx.EnvironmentType, "store", envCtx.StoreName)
 	var errs []error
-	// ------------------------------------------------------------------------------------------------------------
 	// Stage 3: Webhook URL secret
-	// ------------------------------------------------------------------------------------------------------------
-	hookURL := github.NewHookURLSecretReconciler(m.Client, m.Scheme, m.Log)
+	hookURL := githubHookurl.NewHookURLSecretReconciler(m.Client, m.Scheme, m.Log)
 	if err := hookURL.Delete(ctx, resolved); err != nil {
 		errs = append(errs, fmt.Errorf("delete hookurl secret: %w", err))
 	}

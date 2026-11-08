@@ -23,15 +23,20 @@ import (
 	"context"
 
 	serviceunitv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	"github.com/blanketops/environments/core"
+	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/predicates"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 
+	serviceunitdomain "github.com/blanketops/environments-controller/internal/domains/serviceunit"
+	serviceunitmediator "github.com/blanketops/environments-controller/internal/mediators/serviceunit"
 	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
 
@@ -64,9 +69,7 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	ctx = logr.NewContext(ctx, log)
 	log.Info("reconcile start")
 
-	// ------------------------------------------------
 	// Fetch ServiceUnit
-	// ------------------------------------------------
 	var serviceunit serviceunitv1alpha1.ServiceUnit
 	if err := r.Get(ctx, req.NamespacedName, &serviceunit); err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -80,20 +83,16 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	log.Info("serviceunit fetched", "generation", serviceunit.Generation, "resourceVersion", serviceunit.ResourceVersion)
 
-	// ------------------------------------------------
 	// Construct core command
-	// ------------------------------------------------
-	cmd := core.Command{
+	cmd := command.Command{
 		GVK:  serviceunitv1alpha1.GroupVersion.WithKind("ServiceUnit"),
-		Type: core.CmdUpdate,
+		Type: command.CmdUpdate,
 		Obj:  &serviceunit,
 	}
 
 	log.Info("routing serviceunit to core engine", "gvk", cmd.GVK.String(), "command", cmd.Type)
 
-	// ------------------------------------------------
 	// Execute domain logic via engine
-	// ------------------------------------------------
 	if err := r.Runtime.Engine.Execute(ctx, cmd); err != nil {
 
 		log.Error(err, "engine execution failed")
@@ -105,9 +104,7 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	log.Info("engine execution completed")
 
-	// ------------------------------------------------
 	// Persist status (retry-on-conflict)
-	// ------------------------------------------------
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var latest serviceunitv1alpha1.ServiceUnit
 		if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
@@ -128,29 +125,33 @@ func (r *ServiceUnitReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{}, nil
 }
 
-// -----------------------------------------------------------------
 // SetupWithManager sets up the controller with the Manager.
-// -----------------------------------------------------------------
 func (r *ServiceUnitReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// ---------------------------------------------------------------------
 	// Logging & events
-	// ---------------------------------------------------------------------
 	r.Log = ctrl.Log.WithName("controllers").WithName("ServiceUnit")
 	r.Recorder = mgr.GetEventRecorder("serviceunit-controller")
 
-	// ---------------------------------------------------------------------
 	// Runtime Infrastructure
-	// ---------------------------------------------------------------------
-	// cache := r.Runtime.Cache
-	// events := r.Runtime.Events
-	// registry := r.Runtime.Registry
+	cache := r.Runtime.Cache
+	eventsRecorder := r.Runtime.Events
+	registry := r.Runtime.Registry
 
-	// ---------------------------------------------------------------------
+	// Domain wiring. Without it the engine has nothing to route a
+	// ServiceUnit to.
+	mediator := serviceunitmediator.New(mgr.GetClient(), mgr.GetScheme(), r.Log.WithName("mediator.serviceunit"))
+	domain := serviceunitdomain.New(mediator, cache, eventsRecorder, r.Log.WithName("domain.serviceunit"))
+	registry.RegisterDomain(serviceunitv1alpha1.GroupVersion.WithKind("ServiceUnit"), domain)
+
 	// Controller registration
-	// ---------------------------------------------------------------------
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&serviceunitv1alpha1.ServiceUnit{}).
+		For(&serviceunitv1alpha1.ServiceUnit{}, builder.WithPredicates(predicates.MeaningfulChangePredicate())).
+		// A ServiceUnit of type BUILD runs what its Build last pushed, so a
+		// Build that pushes a new image re-triggers the units that name it.
+		Watches(
+			&serviceunitv1alpha1.Build{},
+			handler.EnqueueRequestsFromMapFunc(r.mapBuildToServiceUnits),
+			builder.WithPredicates(buildImageChanged()),
+		).
 		Named("environments-serviceunit").
-		WithEventFilter(core.MeaningfulChangePredicate()).
 		Complete(r)
 }
