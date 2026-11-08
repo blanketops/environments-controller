@@ -12,7 +12,7 @@ on:
             - "v*"
 permissions:
     contents: write
-    packages: read
+    packages: write     # <--- Change from 'read' to 'write'
     id-token: write     # Required for OIDC signing / identity tokens
     attestations: write # Required for GitHub native build provenance attestations
 env:
