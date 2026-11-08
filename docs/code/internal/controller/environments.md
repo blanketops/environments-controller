@@ -10,6 +10,10 @@ build.go reconciles the Build CR: routes create/update/delete through the core C
 
 The finalizer \(buildFinalizer\) gates deletion until the engine's CmdDelete path — mediator CleanupPrerequisites plus domain teardown — completes.
 
+This file holds what the ServiceUnit and Deployment controllers share to follow a Build's image.
+
+A ServiceUnit of type BUILD names a Build and runs the image that Build last pushed. The buildrun observer records that image on the Build's status when a BuildRun succeeds. Nothing in the ServiceUnit or the Deployment changes when it does, so both controllers watch Builds and re\-reconcile the objects that depend on the one whose image changed.
+
 deployment.go reconciles the Deployment CR: routes create/update/delete through the core CQRS engine and, on setup, wires the Deployment domain's mediator, runtime provider, Kustomize reconciliation executor, and service into the domain registry.
 
 The finalizer \(deploymentFinalizer\) gates deletion until the engine's CmdDelete path completes, mirroring build.go.

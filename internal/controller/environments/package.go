@@ -21,6 +21,7 @@ package environments
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	packagev1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
@@ -28,6 +29,7 @@ import (
 	"github.com/blanketops/environments/core/predicates"
 	pkgProvider "github.com/blanketops/environments/pkg/apis/packages/api"
 	pkgApp "github.com/blanketops/environments/pkg/apis/packages/application"
+	pkgDomainModel "github.com/blanketops/environments/pkg/apis/packages/domain"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -49,6 +51,10 @@ import (
 // packageFinalizer gates deletion of a Package CR until the kapp App and the
 // prerequisites it provisioned have been torn down.
 const packageFinalizer = "environments.blanketops.dev/package-finalizer"
+
+// teardownPollInterval is how often a Package being deleted is looked at
+// again while kapp-controller removes what its App deployed.
+const teardownPollInterval = 5 * time.Second
 
 // PackageReconciler reconciles a Package object
 type PackageReconciler struct {
@@ -131,7 +137,15 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Execute domain logic via engine
 	execErr := r.Runtime.Engine.Execute(ctx, cmd)
-	if execErr != nil {
+
+	// Waiting for kapp-controller to remove what the App deployed is not a
+	// failure. The finalizer stays, the condition saying so is persisted
+	// below, and the Package is looked at again shortly.
+	tearingDown := cmdType == command.CmdDelete && errors.Is(execErr, pkgDomainModel.ErrTeardownInProgress)
+
+	if tearingDown {
+		log.Info("teardown in progress", "reason", execErr.Error())
+	} else if execErr != nil {
 		log.Error(execErr, "engine execution failed")
 		r.Recorder.Eventf(&packages, nil, corev1.EventTypeWarning, "EngineFailure", "Execute", "%v", execErr)
 	} else {
@@ -174,6 +188,11 @@ func (r *PackageReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if execErr == nil {
 			return ctrl.Result{}, err
 		}
+	}
+
+	if tearingDown {
+		log.Info("reconcile exit: waiting for teardown")
+		return ctrl.Result{RequeueAfter: teardownPollInterval}, nil
 	}
 
 	if execErr != nil {

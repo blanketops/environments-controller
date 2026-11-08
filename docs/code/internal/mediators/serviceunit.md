@@ -8,7 +8,7 @@ import "github.com/blanketops/environments-controller/internal/mediators/service
 
 Package serviceunit implements the ServiceUnit prerequisite mediator.
 
-Currently a stub relative to its siblings \(build, deployment, packages\): EnsurePrerequisites validates that resolved and its Spec are non\-nil and logs the resolved contract, but provisions nothing — ServiceUnit has no cross\-cutting prerequisites of its own today \(its workload is applied directly by the owning Deployment's reconciliation, not by this mediator\).
+Currently a stub relative to its siblings \(build, deployment, packages\): EnsurePrerequisites validates that resolved and its Spec are non\-nil and provisions nothing: a ServiceUnit's workload is applied by the owning Deployment's reconciliation, not by this mediator. Its one prerequisite is read, not created — a ServiceUnit of type BUILD runs the image its Build last pushed, and that image is injected into the resolved contract here.
 
 ## Index
 

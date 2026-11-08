@@ -1,32 +1,8 @@
 # =============================================================================
 # security.yml — Security & Vulnerability Scanning
 #
-# Three jobs (merges the former gosec.yml and vulnscan.yml), each keeping its
-# original trigger scope via a job-level `if:` gate against the combined
-# top-level trigger:
-#
-#   gosec        — Go static analysis (hardcoded creds, SQL injection, unsafe
-#                  crypto, etc.). Was: push to main + pull_request.
-#   govulncheck  — Go module + stdlib reachable-vulnerability scan. Was: push
-#                  to main + pull_request + weekly Monday 06:00 UTC.
-#   trivy-image  — OS + library CVE scan of the published GHCR image. Only
-#                  meaningful once an image exists, so it runs on tag push
-#                  (same trigger as ko.yml) + the weekly schedule, scanning
-#                  :latest on the scheduled run.
-#
-# All three are report-only — none fail the build. Findings render into
-# each job's summary rather than the Security tab; gosec/govulncheck could
-# be wired up for SARIF upload now that the repo is public, for free
-# Security-tab integration.
-#
-# gosec and govulncheck need no secrets — environments, environments-api,
-# and environments-contract are public modules, resolved via the public
-# module proxy with no git auth. This also means they run on Dependabot PRs.
-#
-# trivy-image's GHCR login uses GITHUB_TOKEN — an App installation token was
-# denied package pulls against this org-scoped package regardless of what
-# permission was granted; GITHUB_TOKEN is scoped to this repo, which is
-# exactly what a same-repo pull needs.
+# Three jobs (gosec, govulncheck, trivy-image), each keeping its original
+# trigger scope via a job-level `if:` gate against the combined top-level trigger.
 # =============================================================================
 
 name: Security
@@ -50,19 +26,22 @@ env:
   IMAGE_REPO: ghcr.io/blanketops/environments-controller
 
 jobs:
-
-  # ───────────────────────────────────────────────────────────────────────────
-  # Job 1: gosec (from gosec.yml)
-  # Original scope: push to main, pull_request (any).
-  # ───────────────────────────────────────────────────────────────────────────
   gosec:
     name: Gosec
-    # Zenith self-hosted pool.
     runs-on: self-hosted
     if: >
       github.event_name == 'pull_request' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_ID_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: environments-controller
+          
       - name: Checkout
         uses: actions/checkout@v7
 
@@ -70,7 +49,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
-          cache: true
+          cache: false
 
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
@@ -84,12 +63,11 @@ jobs:
         if: always()
         run: |
           {
-            echo "# 🔒 Gosec Static Analysis"
-            echo
-            echo "**Branch:** \`${{ github.ref_name }}\`"
-            echo "**Trigger:** \`${{ github.event_name }}\`"
-            echo
-            echo "Report-only — this job does not fail the build."
+            echo "> ### 🔒 **Gosec Static Analysis**"
+            echo "> "
+            echo "> * **Branch:** \`${{ github.ref_name }}\`"
+            echo "> * **Trigger:** \`${{ github.event_name }}\`"
+            echo "> * **Status:** Report-only (non-blocking)"
             echo
             if jq -e '.Issues and (.Issues | length > 0)' gosec-report.json >/dev/null 2>&1; then
               echo "| Severity | Confidence | Rule | Location | Details |"
@@ -107,13 +85,8 @@ jobs:
             echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ───────────────────────────────────────────────────────────────────────────
-  # Job 2: govulncheck (from vulnscan.yml)
-  # Original scope: push to main, pull_request (any), weekly Monday 06:00 UTC.
-  # ───────────────────────────────────────────────────────────────────────────
   govulncheck:
     name: govulncheck
-    # Zenith self-hosted pool.
     runs-on: self-hosted
     if: >
       github.event_name == 'pull_request' ||
@@ -127,7 +100,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
-          cache: true
+          cache: false
 
       - name: Run govulncheck
         id: govulncheck
@@ -139,12 +112,11 @@ jobs:
         if: always()
         run: |
           {
-            echo "# 🛡️ govulncheck"
-            echo
-            echo "**Branch:** \`${{ github.ref_name }}\`"
-            echo "**Trigger:** \`${{ github.event_name }}\`"
-            echo
-            echo "Report-only — this job does not fail the build."
+            echo "> ### 🛡️ **govulncheck Scan**"
+            echo "> "
+            echo "> * **Branch:** \`${{ github.ref_name }}\`"
+            echo "> * **Trigger:** \`${{ github.event_name }}\`"
+            echo "> * **Status:** Report-only (non-blocking)"
             echo
             COUNT=$(jq -s '[.[] | select(.finding != null)] | length' govulncheck-report.json 2>/dev/null || echo 0)
             if [[ "$COUNT" -gt 0 ]]; then
@@ -171,13 +143,8 @@ jobs:
             echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ───────────────────────────────────────────────────────────────────────────
-  # Job 3: trivy-image (from vulnscan.yml)
-  # Original scope: weekly schedule (scanning :latest), or tag push.
-  # ───────────────────────────────────────────────────────────────────────────
   trivy-image:
     name: Trivy Image Scan
-    # Zenith self-hosted pool.
     runs-on: self-hosted
     if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')
     steps:
@@ -211,17 +178,19 @@ jobs:
           severity: CRITICAL,HIGH,MEDIUM
           exit-code: "0"
           output: trivy-report.md
+          cache: "false"
+          cache-dir: /var/cache/zenith/trivy
+          skip-setup-trivy: "true"
 
       - name: Trivy Summary
         if: always()
         run: |
           {
-            echo "# 🐳 Trivy Image Scan"
-            echo
-            echo "**Image:** \`${{ steps.image.outputs.ref }}\`"
-            echo "**Trigger:** \`${{ github.event_name }}\`"
-            echo
-            echo "Report-only — this job does not fail the build."
+            echo "> ### 🐳 **Trivy Image Scan**"
+            echo "> "
+            echo "> * **Image:** \`${{ steps.image.outputs.ref }}\`"
+            echo "> * **Trigger:** \`${{ github.event_name }}\`"
+            echo "> * **Status:** Report-only (non-blocking)"
             echo
             if [[ -s trivy-report.md ]]; then
               head -c 100000 trivy-report.md

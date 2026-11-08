@@ -195,14 +195,10 @@ func (d *DeployDomain) Handle(ctx context.Context, cmd command.Command) error {
 		// mediator's job below, which deletes the whole per-Deployment repo
 		// via the Git host's API; nothing here needs to touch its contents.
 		if d.deployService != nil {
-			serviceUnits, err := d.resolveServiceUnits(ctx, resolved)
-			if err != nil {
-				log.Error(err, "resolve serviceunits failed during teardown")
-				d.events.FromError(deploymentCR, "ServiceUnitResolutionFailed", err)
-				conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", conditions.ConditionFalse, "ServiceUnitResolveFailed", err.Error())
-				return err
-			}
-			if err := d.deployService.Teardown(ctx, resolved, serviceUnits, d.log); err != nil {
+			// Teardown needs the Deployment only. The ServiceUnits it lists
+			// may already be gone, as when a Package removes them together,
+			// and that must not leave the workload running.
+			if err := d.deployService.Teardown(ctx, resolved, nil, d.log); err != nil {
 				log.Error(err, "deployment teardown failed")
 				d.events.FromError(deploymentCR, "DeploymentTeardownFailed", err)
 				conditions.SetCondition(&deploymentCR.Status.Conditions, "DeploymentDeleted", conditions.ConditionFalse, "DeploymentTeardownFailed", err.Error())

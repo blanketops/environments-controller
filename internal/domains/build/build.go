@@ -26,6 +26,7 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -124,7 +125,13 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd command.Command) error {
 
 		// Stage 2: Ensure prerequisites
 		log.Info("creating build prerequisites")
-		if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); err != nil {
+		if err := d.buildMediator.EnsurePrerequisites(ctx, resolved); errors.Is(err, build.ErrPrerequisitesPending) {
+			// Not a failure: the secrets have been requested and are not
+			// there yet. Nothing is dispatched; the Build is retried.
+			log.Info("build prerequisites pending", "reason", err.Error())
+			conditions.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreated", conditions.ConditionFalse, "BuildPrerequisitesPending", err.Error())
+			return err
+		} else if err != nil {
 			log.Error(err, "build prerequisites failed")
 			d.events.FromError(buildCR, "BuildPrerequisitesCreateFailed", err)
 			conditions.SetCondition(&buildCR.Status.Conditions, "BuildPrerequisitesCreateFailed", conditions.ConditionFalse, "build prerequisites failed, internal error", err.Error())
@@ -167,6 +174,19 @@ func (d *BuildDomain) Handle(ctx context.Context, cmd command.Command) error {
 		}
 
 		// Tear down prerequisites the mediator created (secrets, SAs, RBAC).
+		// Remove what the provider created: the Shipwright Build and every
+		// BuildRun started for this Build. Nothing else removes the
+		// BuildRuns — Shipwright clears their owner references, so they are
+		// not garbage-collected with the Build — and one left behind is
+		// found again, already finished, by a Build re-created under the
+		// same name, which then never gets an image.
+		if err := d.buildService.Teardown(ctx, resolved); err != nil {
+			log.Error(err, "build teardown failed")
+			d.events.FromError(buildCR, "BuildTeardownFailed", err)
+			conditions.SetCondition(&buildCR.Status.Conditions, "BuildDeleted", conditions.ConditionFalse, "BuildTeardownFailed", err.Error())
+			return err
+		}
+
 		if err := d.buildMediator.CleanupPrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "prerequisites cleanup failed")
 			d.events.FromError(buildCR, "BuildPrerequisitesCleanupFailed", err)

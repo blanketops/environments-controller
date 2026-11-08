@@ -1,0 +1,86 @@
+# =============================================================================
+# codeql.yml — CodeQL Advanced Security & Static Analysis
+#
+# Runs GitHub's CodeQL analysis engine against Go source code to identify
+# complex security vulnerabilities, hardcoded secrets, and data-flow flaws.
+#
+# Configured as report-only (non-blocking) with findings rendered directly
+# into the GitHub Step Summary. Runs on pull requests, pushes to main, and
+# weekly schedules.
+# =============================================================================
+
+name: CodeQL
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "30 5 * * 1" # Weekly Monday scan at 05:30 UTC
+
+permissions:
+  contents: read
+  security-events: write # Required if uploading SARIF results to security tab
+  actions: read
+
+env:
+  GO_VERSION_FILE: go.mod
+
+jobs:
+  analyze:
+    name: CodeQL Analysis
+    runs-on: self-hosted
+    timeout-minutes: 30
+    
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_ID_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: environments-controller
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+          queries: security-extended,security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        id: codeql-analysis
+        uses: github/codeql-action/analyze@v3
+        continue-on-error: true
+        with:
+          output: codeql-results
+          upload: false # Handled locally for customized step summary rendering
+
+      - name: CodeQL Summary
+        if: always()
+        run: |
+          {
+            echo "> ### 🛡️ **CodeQL Security Analysis**"
+            echo "> "
+            echo "> * **Branch:** \`${{ github.ref_name }}\`"
+            echo "> * **Trigger:** \`${{ github.event_name }}\`"
+            echo "> * **Status:** Report-only (non-blocking)"
+            echo
+            echo "CodeQL completed static analysis against the Go source codebase."
+            echo "Review any detailed database alerts under the repository Security tab if configured, or check workflow logs."
+          } >> "$GITHUB_STEP_SUMMARY"

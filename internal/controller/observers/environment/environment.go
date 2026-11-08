@@ -183,7 +183,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				contractChanged = true
 				log.Info("patching package ref into spec.contract", "package", pkg.Name)
 			}
-			ready, msg := checkReady(pkg.Status.Conditions)
+			ready, msg := checkCondition(pkg.Status.Conditions, condPackageSucceeded)
 			conditions = append(conditions, makeCondition(
 				fmt.Sprintf("Package.%s.Ready", pkg.Name), ready, "Package", msg, now,
 			))
@@ -210,9 +210,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				contractChanged = true
 				log.Info("patching serviceUnit ref into spec.contract", "serviceUnit", su.Name)
 			}
-			ready, msg := checkReady(su.Status.Conditions)
+			ready, msg := checkCondition(su.Status.Conditions, condServiceUnitReady)
 			conditions = append(conditions, makeCondition(
-				fmt.Sprintf("ServiceUnit.%s.Ready", su.Name), ready, su.Name, msg, now,
+				fmt.Sprintf("ServiceUnit.%s.Ready", su.Name), ready, "ServiceUnit", msg, now,
 			))
 		}
 	}
@@ -271,15 +271,37 @@ func checkBuildReady(conditions []metav1.Condition) (bool, string) {
 	return false, "no BuildSuccess condition"
 }
 
+// The condition each Kind reports its outcome under, where that is not Ready.
+const (
+	condServiceUnitReady = "ServiceUnitReady"
+	condPackageSucceeded = "Succeeded"
+)
+
 // checkReady returns true when Ready=True is present.
-// Used for all non-Build composed CR types.
+// Used for the composed CR types that report readiness as Ready.
 func checkReady(conditions []metav1.Condition) (bool, string) {
+	return checkCondition(conditions, "Ready")
+}
+
+// checkCondition returns true when the named condition is True, with its
+// message. A Kind reports that it is done under its own condition type —
+// ServiceUnitReady for a ServiceUnit, Succeeded for a Package — so the type
+// to look for is the Kind's, not a shared one. When the condition is present
+// but not True its message is returned, so the Environment says why.
+func checkCondition(conditions []metav1.Condition, condType string) (bool, string) {
 	for _, c := range conditions {
-		if c.Type == "Ready" && c.Status == metav1.ConditionTrue {
+		if c.Type != condType {
+			continue
+		}
+		if c.Status == metav1.ConditionTrue {
 			return true, c.Message
 		}
+		if c.Message != "" {
+			return false, c.Message
+		}
+		return false, condType + " is not True"
 	}
-	return false, "no Ready condition"
+	return false, "no " + condType + " condition"
 }
 
 // makeCondition builds a standard environment component condition.

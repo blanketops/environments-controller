@@ -11,11 +11,10 @@
 #   - go-version-file: go.mod instead of hardcoded version
 #   - Removed Force Remote Dependency step — replace directives must not be
 #     committed to go.mod; local replace is development-only
-#   - Removed -mod=vendor — controller fetches deps via HTTPS + GOPRIVATE at
-#     build time; vendor directory is not committed in this repo
+#   - Removed -mod=vendor — controller fetches deps from the public module
+#     proxy at build time; vendor directory is not committed in this repo
 #   - golangci-lint replaces staticcheck — consistent with library CI
 #   - go vet added before lint
-#   - GONOSUMDB + GOPRIVATE + GOPROXY=direct set consistently
 #   - Added gofmt check, go test + coverage, and a gocov-html report
 #
 # No secrets required — environments, environments-api, and
@@ -40,7 +39,6 @@ env:
 
 jobs:
   build:
-    # Zenith self-hosted pool.
     runs-on: self-hosted
     steps:
       - name: Checkout
@@ -50,7 +48,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
-          cache: true
+          cache: false
 
       - name: Build
         run: go build ./...
@@ -71,7 +69,8 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          install-mode: none
+          skip-cache: true
           args: --timeout=5m
 
       - name: Test
@@ -83,11 +82,6 @@ jobs:
       - name: Generate coverage HTML
         run: go tool cover -html=coverage.out -o coverage.html
 
-      # gocov's tagged releases (and current master) pin golang.org/x/tools
-      # at a version that fails to compile under this repo's Go toolchain —
-      # confirmed the same way the environments library's own CI documents
-      # it. Building from source with a forced newer x/tools is the only
-      # way to get a working gocov binary here.
       - name: Build gocov (patched for this Go toolchain)
         run: |
           git clone --depth 1 --branch v1.2.1 https://github.com/axw/gocov.git /tmp/gocov-src
@@ -102,16 +96,16 @@ jobs:
       - name: Generate beauty coverage report
         run: gocov convert coverage.out | gocov-html > beauty-report.html
 
-      - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v7
-        continue-on-error: true
-        with:
-          name: coverage-report-${{ github.sha }}
-          path: |
-            coverage.out
-            coverage.html
-            beauty-report.html
-          retention-days: 14
+      # - name: Upload coverage artifacts
+      #   uses: actions/upload-artifact@v7
+      #   continue-on-error: true
+      #   with:
+      #     name: coverage-report-${{ github.sha }}
+      #     path: |
+      #       coverage.out
+      #       coverage.html
+      #       beauty-report.html
+      #     retention-days: 14
 
       - name: Coverage summary
         if: always()
