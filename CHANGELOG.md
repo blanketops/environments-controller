@@ -1,3 +1,12 @@
+## [0.6.7] - 2026-11-08
+
+### 💼 Other
+
+- Merge release/v0.6.7 into main
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.6
 ## [0.6.6] - 2026-11-08
 
 ### 💼 Other
@@ -26,6 +35,7 @@
 - *(developer)* Run the developer bot at v0.0.8
 - *(developer)* Sanitize resolve-issue input
 - *(ci)* Update actions
+- *(release)* Update changelog for v0.6.6 (#223)
 ## [0.6.5] - 2026-10-21
 
 ### 💼 Other
