@@ -1,5 +1,5 @@
 # =============================================================================
-# ko.yml — Ko Image Build → GHCR
+# ko.yml — Ko Image Build → GHCR & OCI Artifacts
 #
 # Builds the BlanketOps Environments Controller image via ko and pushes to
 # GHCR. Fires on tag push and manual dispatch only — not on branch pushes.
@@ -21,19 +21,15 @@
 #   manual    → {ref_name} only
 #
 # Auth:
-#   Private-module git config uses the BlanketOps-Environments GitHub App
-#   (via actions/create-github-app-token) instead of a personal-account PAT
-#   — installation tokens are minted fresh per job and expire in an hour,
-#   instead of a PAT's expiry silently lapsing.
+#   Every blanketops Go module is public, so the build needs no git
+#   credentials.
 #
 #   GHCR login uses GITHUB_TOKEN, not the App token — the App installation
 #   token was denied "Write organization package" against this GHCR package
 #   regardless of what permission was granted. GITHUB_TOKEN is scoped to
 #   this repo only, which is exactly what a same-repo package push needs.
 #
-# Secrets required:
-#   APP_ID, APP_PRIVATE_KEY — GitHub App credentials, exchanged for a
-#   short-lived installation token per job (private-module access only)
+# Secrets required: none.
 # =============================================================================
 
 name: Ko Image
@@ -61,45 +57,30 @@ env:
 
 jobs:
   build-and-publish:
-    # Zenith self-hosted pool.
     runs-on: self-hosted
     steps:
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_ID_PRIVATE_KEY }}
           owner: blanketops
-          repositories: environments,environments-api,environments-contract
-
+          repositories: environments-controller
+          
       - uses: actions/checkout@v7
 
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
-          cache: true
+          cache: false
 
-      - name: Configure git for private modules
+      - name: Check baked tools
         run: |
-          git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
-          go env -w GOPRIVATE=github.com/blanketops/*
-          go env -w GONOSUMDB=github.com/blanketops/*
-          go env -w GOPROXY=direct
-
-      - name: Setup ko
-        uses: ko-build/setup-ko@v0.7
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v4.1.2
-        with:
-          cosign-release: 'v2.4.1'
-
-      - name: Install ORAS
-        uses: oras-project/setup-oras@v2
-        with:
-          version: 1.2.0
+          ko version
+          cosign version
+          oras version
 
       - name: Login to GHCR
         run: |
@@ -110,7 +91,6 @@ jobs:
             --username "${{ github.actor }}" \
             --password-stdin
 
-      # tag push → {version} + latest; manual dispatch → ref_name only
       - name: Compute image tags
         id: tags
         run: |
@@ -145,57 +125,59 @@ jobs:
           cosign sign --yes --recursive \
             ${{ env.IMAGE_REPO }}@${{ steps.ko-build.outputs.digest }}
 
-      # - name: Attest image provenance
-      #   if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
-      #   uses: actions/attest-build-provenance@v2
-      #   with:
-      #     subject-name: ${{ env.IMAGE_REPO }}
-      #     subject-digest: ${{ steps.ko-build.outputs.digest }}
-      #     push-to-registry: true
+      - name: Attest image provenance
+        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE_REPO }}
+          subject-digest: ${{ steps.ko-build.outputs.digest }}
+          push-to-registry: true
 
-      # Generate CRDs from controller-gen markers — mage removed.
-      # - name: Generate CRD manifests
-      #   run: |
-      #     go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest \
-      #       rbac:roleName=manager-role crd webhook \
-      #       paths="./..." \
-      #       output:crd:artifacts:config=config/crd/bases \
-      #       output:rbac:artifacts:config=config/rbac \
-      #       output:webhook:artifacts:config=config/webhook
+      - name: Generate CRD manifests
+        run: |
+          go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest \
+            rbac:roleName=manager-role crd webhook \
+            paths="./..." \
+            output:crd:artifacts:config=config/crd/bases \
+            output:rbac:artifacts:config=config/rbac \
+            output:webhook:artifacts:config=config/webhook
 
-      # - name: Publish CRD artifact (ORAS)
-      #   id: publish
-      #   env:
-      #     ARTIFACT_REF: ghcr.io/blanketops/environments-controller-crds:${{ github.ref_name }}
-      #   run: |
-      #     FILE_ARGS=()
-      #     for f in config/crd/bases/*.yaml; do
-      #       [[ -f "$f" ]] || { echo "::error::No CRD manifests found in config/crd/bases/"; exit 1; }
-      #       FILE_ARGS+=("${f}:application/vnd.blanketops.crd.v1+yaml")
-      #     done
-      #     oras push "$ARTIFACT_REF" \
-      #       --annotation "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
-      #       --annotation "org.opencontainers.image.revision=${{ github.sha }}" \
-      #       "${FILE_ARGS[@]}"
-      #     echo "ref=${ARTIFACT_REF}" >> "$GITHUB_OUTPUT"
+      - name: Publish CRD artifact (ORAS)
+        id: publish
+        env:
+          ARTIFACT_REF: ghcr.io/blanketops/environments-controller-crds:${{ github.ref_name }}
+        run: |
+          FILE_ARGS=()
+          for f in config/crd/bases/*.yaml; do
+            [[ -f "$f" ]] || { echo "::error::No CRD manifests found in config/crd/bases/"; exit 1; }
+            FILE_ARGS+=("${f}:application/vnd.blanketops.crd.v1+yaml")
+          done
+          oras push "$ARTIFACT_REF" \
+            --annotation "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --annotation "org.opencontainers.image.revision=✨${{ github.sha }}" \
+            "${FILE_ARGS[@]}"
+          echo "ref=${ARTIFACT_REF}" >> "$GITHUB_OUTPUT"
 
       - name: CI Summary
         if: always()
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
-          # 🐹 Ko Image Build
+          > ### 📦 **Ko Build & Publish**
+          > 
+          > * **Tool:** `ko` (Fast Go Containerizing)
+          > * **Registry:** `ghcr.io/blanketops/environments-controller`
+          > * **Status:** $\text{Success}$
           EOF
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
 
-          **Image:** \`${{ env.IMAGE_REPO }}\`
-          **Tags:** \`${{ steps.tags.outputs.tags }}\`
-          **Digest:** \`${{ steps.ko-build.outputs.digest }}\`
+          ```yaml
+          Image:     ${{ env.IMAGE_REPO }}
+          Tags:      ${{ steps.tags.outputs.tags }}
+          Digest:    ${{ steps.ko-build.outputs.digest }}
+          CRD Ref:   ${{ steps.publish.outputs.ref }}
+          ```
 
-          ## CRD Artifact
-          - **Status:** ${{ steps.publish.outcome == 'success' && '✅ Published' || '❌ Failed' }}
-          - **Ref:** \`${{ steps.publish.outputs.ref }}\`
-
-          ## Pull CRDs
+          ## Pull & Deploy CRDs
           \`\`\`bash
           oras pull ${{ steps.publish.outputs.ref }}
           kubectl apply -f .

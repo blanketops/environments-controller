@@ -1,3 +1,109 @@
+## [0.6.7] - 2026-11-08
+
+### 💼 Other
+
+- Merge release/v0.6.7 into main
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.6
+## [0.6.6] - 2026-11-08
+
+### 💼 Other
+
+- Update go.sum dependencies
+- Merge release/v0.6.6 into main
+
+### 📚 Documentation
+
+- Standardize workflow header comments
+- Auto-generate code documentation [skip ci] (#222)
+
+### 🧪 Testing
+
+- Dogfood the developer bot's open and resolve
+
+### ⚙️ Miscellaneous Tasks
+
+- *(finalize)* Continue when the release pull request is already merged
+- Run the releaser in the release workflows
+- *(ci)* Bump blanketops/environments-bots from 0.0.2 to 0.0.3
+- *(ci)* Update actions
+- *(ci)* Update actions
+- Sync develop with main after release/v0.6.5
+- Sync develop with main
+- *(developer)* Run the developer bot at v0.0.8
+- *(developer)* Sanitize resolve-issue input
+- *(ci)* Update actions
+- *(release)* Update changelog for v0.6.6 (#223)
+## [0.6.5] - 2026-10-21
+
+### 💼 Other
+
+- Merge release/v0.6.5 into main
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.4
+- *(release)* Update changelog for v0.6.5 (#194)
+## [0.6.4] - 2026-10-21
+
+### 🐛 Bug Fixes
+
+- Use the verbatim Apache-2.0 license text
+
+### 💼 Other
+
+- Merge release/v0.6.4 into main
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.3
+- *(ci)* Bump ko-build/setup-ko from 0.7 to 0.10
+- Do not fail a job when the artifact upload is refused
+- Drop the private-module setup
+- *(security)* Keep Trivy's vulnerability DB on the runners' cache volume
+- Lint with the runner image's golangci-lint and the volume cache
+- Use the runner image's baked tools instead of per-job installs
+- Sync develop with main
+- *(lint)* Keep explicit embedded-struct literals on Go 1.27
+- *(dependabot)* Open dependency PRs against main
+- Sync develop with main
+- Land bot writes to main through pull requests
+- Sync develop with main
+- *(release)* Update changelog for v0.6.4 (#190)
+## [0.6.3] - 2026-10-20
+
+### 🚀 Features
+
+- *(serviceunit)* Run the image a Build pushes, from push to rollout
+
+### 🐛 Bug Fixes
+
+- Make ServiceUnit and Deployment reconcile at all
+- *(deployment)* Keep the outcome the deployment service wrote, and say when it failed
+- *(deployment)* Tear the workload down when a Deployment is deleted
+- *(build)* Remove the Shipwright Build and BuildRuns when a Build is deleted
+- *(environment)* Write an Environment's status when it has a ServiceUnit
+- *(build)* Finish mediating a Build's secrets before it is dispatched
+- *(packages)* Wait for the kapp App before removing a Package's prerequisites
+
+### 💼 Other
+
+- Merge release/v0.6.3 into main
+
+### 📚 Documentation
+
+- Auto-generate code documentation [skip ci]
+
+### ⚙️ Miscellaneous Tasks
+
+- *(release)* Update changelog for v0.6.2
+- Sync develop with main after release/v0.6.2
+- *(ko)* Sign the image index, not one platform's manifest
+- Stop setup-go uploading the Go cache after every job
+- *(release)* Make the workflows' commits verified
+- *(release)* Update changelog for v0.6.3
 ## [0.6.2] - 2026-10-09
 
 ### 🚀 Features

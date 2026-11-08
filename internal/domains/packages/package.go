@@ -26,6 +26,7 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -175,7 +176,15 @@ func (d *PackageDomain) Handle(ctx context.Context, cmd command.Command) error {
 		// Remove what the provider created. This needs only the Package's
 		// identity, so it runs even when the contract no longer resolves.
 		id := pkgDomainModel.PackageID{Namespace: packageCR.Namespace, Name: packageCR.Name}
-		if err := d.packageService.Teardown(ctx, id); err != nil {
+		if err := d.packageService.Teardown(ctx, id); errors.Is(err, pkgDomainModel.ErrTeardownInProgress) {
+			// Not a failure: kapp-controller is still removing what the
+			// App deployed, and it does that as the Package's service
+			// account. Keep the finalizer and the prerequisites, and come
+			// back when the App is gone.
+			log.Info("package teardown in progress, prerequisites kept", "reason", err.Error())
+			conditions.SetCondition(&packageCR.Status.Conditions, "PackageDeleted", conditions.ConditionFalse, "PackageTeardownInProgress", err.Error())
+			return err
+		} else if err != nil {
 			log.Error(err, "package teardown failed")
 			d.events.FromError(packageCR, "PackageTeardownFailed", err)
 			conditions.SetCondition(&packageCR.Status.Conditions, "PackageDeleted", conditions.ConditionFalse, "PackageTeardownFailed", err.Error())

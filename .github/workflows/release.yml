@@ -1,3 +1,10 @@
+# =============================================================================
+# release.yml — Publish GitHub Release & Container Image Attestations
+#
+# Fires on push of a v* tag (finalize-release.yml creates it). Reads the
+# already-current CHANGELOG.md for release notes, resolves the container image
+# digest from GHCR, generates native build attestations, and publishes a release.
+# =============================================================================
 name: Release
 on:
     push:
@@ -5,14 +12,24 @@ on:
             - "v*"
 permissions:
     contents: write
-    packages: read
+    packages: write     # <--- Change from 'read' to 'write'
+    id-token: write     # Required for OIDC signing / identity tokens
+    attestations: write # Required for GitHub native build provenance attestations
 env:
     IMAGE_REPO: ghcr.io/blanketops/environments-controller
 jobs:
     release:
-      # Zenith self-hosted pool.
       runs-on: self-hosted
       steps:
+        - name: Generate GitHub App token
+          id: app-token
+          uses: actions/create-github-app-token@v3
+          with:
+            app-id: ${{ vars.APP_CLIENT_ID }}
+            private-key: ${{ secrets.APP_ID_PRIVATE_KEY }}
+            owner: blanketops
+            repositories: environments-controller
+
         - name: Checkout tag
           uses: actions/checkout@v7
           with:
@@ -27,13 +44,6 @@ jobs:
               rm -rf git-cliff.tar.gz "git-cliff-${GITCLIFF_VERSION}"
               git-cliff --version
 
-        # CHANGELOG.md is generated and committed by finalize-release.yml,
-        # synchronously, before it merges main back into develop -- doing it
-        # there instead of here closes a race where this workflow (triggered
-        # asynchronously by the tag push) used to commit the changelog to
-        # main after finalize-release.yml had already synced develop,
-        # leaving develop permanently missing that commit. Checking out main
-        # here just gets onto the tip finalize-release.yml already updated.
         - name: Checkout main
           run: |
               git checkout main
@@ -42,8 +52,8 @@ jobs:
         - name: Generate release notes
           run: git-cliff --config .cliff.toml --latest --output RELEASE_NOTES.md
 
-        - name: Setup crane
-          uses: imjasonh/setup-crane@v0.7
+        - name: Check crane
+          run: crane version
 
         - name: Login to GHCR
           uses: docker/login-action@v4
@@ -52,8 +62,6 @@ jobs:
             username: ${{ github.actor }}
             password: ${{ secrets.GITHUB_TOKEN }}
 
-        # ko.yml builds and pushes this same tag concurrently (both fire on
-        # the same tag push) — poll rather than assume it's already there.
         - name: Resolve container image digest
           id: image
           run: |
@@ -65,24 +73,34 @@ jobs:
                 sleep 10
               done
               if [[ -z "$DIGEST" ]]; then
-                echo "::warning::Could not resolve digest for $IMAGE_TAG within timeout — image link will be omitted from release notes"
+                echo "::error::Could not resolve digest for $IMAGE_TAG within timeout."
+                exit 1
               fi
               echo "tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
               echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+        - name: Generate GitHub Native Container Attestation
+          if: steps.image.outputs.digest != ''
+          uses: actions/attest-build-provenance@v2
+          with:
+            subject-name: ${{ env.IMAGE_REPO }}
+            subject-digest: ${{ steps.image.outputs.digest }}
+            push-to-registry: true
 
         - name: Append container image section to release notes
           if: steps.image.outputs.digest != ''
           run: |
               cat >> RELEASE_NOTES.md <<EOF
 
-              ## Container Image
+              ## Container Image & Supply Chain
 
               \`\`\`
               docker pull ${{ steps.image.outputs.tag }}
               \`\`\`
 
-              - Digest: \`${{ env.IMAGE_REPO }}@${{ steps.image.outputs.digest }}\`
-              - Package: https://github.com/blanketops/environments-controller/pkgs/container/environments-controller
+              - **Digest:** \`${{ env.IMAGE_REPO }}@${{ steps.image.outputs.digest }}\`
+              - **Package:** https://github.com/blanketops/environments-controller/pkgs/container/environments-controller
+              - **Attestation:** Verified via GitHub Native Build Provenance
               EOF
 
         - name: Create GitHub Release
@@ -104,9 +122,10 @@ jobs:
               - Generated CHANGELOG.md using git-cliff
               - Committed changelog updates to main
               - Generated release notes
+              - Generated GitHub build provenance attestation for container image
               - Published GitHub Release
 
-              ## Artifacts
+               ## Artifacts
 
               - CHANGELOG.md
               - RELEASE_NOTES.md
@@ -116,9 +135,19 @@ jobs:
 
                \`${{ github.ref_name }}\`
 
-              ## Container Image
+              ## Container Image & Attestation
 
               **Image:** \`${{ steps.image.outputs.tag }}\`
               **Digest:** \`${{ steps.image.outputs.digest }}\`
+              **Attestation:** Attached to OCI Registry
 
               EOF
+
+        - name: Releaser complete
+          if: always()
+          uses: blanketops/environments-bots/.github/actions/releaser@v0.1.0
+          with:
+            command: complete
+            release: ${{ github.ref_name }}
+            app-id: ${{ secrets.RELEASER_APP_ID }}
+            private-key: ${{ secrets.RELEASER_APP_PRIVATE_KEY }}

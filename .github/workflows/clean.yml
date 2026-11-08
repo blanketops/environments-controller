@@ -1,0 +1,85 @@
+# =============================================================================
+# clean.yml — Prune old workflow runs with the Cleaner bot
+#
+# Runs hourly (and on demand) to delete completed workflow runs
+# beyond the newest N per workflow, which otherwise fill the self-hosted runner
+# node's disk. The cleaner, as the BlanketOps Environments Cleaner App, is built
+# and signed in environments-bots and downloaded here, verified with cosign
+# before it runs.
+#
+# NOTE: scheduled workflows only fire from the default branch, so this file must
+# be on the default branch to run periodically. workflow_dispatch runs it on
+# demand.
+#
+# Trigger scope:
+#   schedule: hourly (top of each hour); workflow_dispatch (keep, dry-run inputs)
+#
+# Secrets/vars required:
+#   vars.CLEANER_CLIENT_ID, secrets.CLEANER_APP_PRIVATE_KEY — the Cleaner App
+# =============================================================================
+
+name: Clean
+
+on:
+  schedule:
+    - cron: "0 * * * *" # top of every hour
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "Newest runs to keep per workflow"
+        required: false
+        default: "5"
+      dry-run:
+        description: "Read only: show what would be deleted"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: clean
+  cancel-in-progress: false
+
+jobs:
+  clean:
+    name: Clean
+    runs-on: self-hosted
+
+    steps:
+      - name: Generate Cleaner App token
+        id: cleaner-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.CLEANER_CLIENT_ID }}
+          private-key: ${{ secrets.CLEANER_APP_PRIVATE_KEY }}
+
+      - name: Download and verify the cleaner binary
+        env:
+          GH_TOKEN: ${{ steps.cleaner-token.outputs.token }}
+          VERSION: v0.1.0
+        run: |
+          set -euo pipefail
+          gh release download "${VERSION}" -R blanketops/environments-bots \
+            -p cleaner-linux-amd64 -p cleaner-linux-amd64.sigstore.json \
+            -D "${RUNNER_TEMP}"
+          cosign verify-blob \
+            --bundle "${RUNNER_TEMP}/cleaner-linux-amd64.sigstore.json" \
+            --certificate-identity "https://github.com/blanketops/environments-bots/.github/workflows/release.yml@refs/tags/${VERSION}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "${RUNNER_TEMP}/cleaner-linux-amd64"
+          chmod +x "${RUNNER_TEMP}/cleaner-linux-amd64"
+
+      - name: Prune workflow runs
+        env:
+          GH_TOKEN: ${{ steps.cleaner-token.outputs.token }}
+          KEEP: ${{ github.event.inputs.keep || '5' }}
+          DRY_RUN: ${{ github.event.inputs.dry-run || 'false' }}
+        run: |
+          args=(runs -keep "${KEEP}")
+          if [ "${DRY_RUN}" = "true" ]; then
+            args+=(-dry-run)
+          fi
+          "${RUNNER_TEMP}/cleaner-linux-amd64" "${args[@]}"
