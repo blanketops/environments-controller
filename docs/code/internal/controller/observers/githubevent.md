@@ -6,9 +6,16 @@
 import "github.com/blanketops/environments-controller/internal/controller/observers/githubevent"
 ```
 
-Package githubevent observes GitHubEvent CRs and the Argo Events Sensor provisioned for each, deriving and writing the event's accepted/triggered/ success status and conditions.
+Package githubevent \(githubevent\-observer\) is the status rollup reconciler for GitHubEvent CRs.
 
-The GitHubEvent domain's Ensure\(\) can only report that ingress infrastructure was provisioned \(Triggered=true\) — whether a webhook payload has actually arrived, and whether the Sensor delivered it successfully, can only be known by watching the CR \(for a populated spec.contract.eventId/eventType\) and the Sensor's own Succeeded condition directly, which is this observer's job.
+It reflects two independent signals onto GitHubEvent.Status:
+
+- Payload receipt: whether the Argo Events Sensor has delivered a webhook payload with a non\-empty event id and event type. This is the primary, always\-available signal — it comes straight from the GitHubEvent spec the Sensor already wrote.
+- Sensor health: the Succeeded condition on the Sensor object the mediator provisioned \(named "github\-sensor\-\<event\-name\>"\). This is best\-effort — see the Sensor\-lookup note below.
+
+Environment prerequisite: unlike build\-observer, this reconciler itself never looks up the owning Environment. That gate lives one layer down, in the GitHubEvent mediator's EnsurePrerequisites \(internal/mediators/githubevent\), which is invoked from the domain's CmdCreate/CmdUpdate handling before this observer ever runs. If environments.blanketops.dev/name resolves to an Environment that doesn't exist yet, the domain reconcile fails there with "environment %q not found — must pre\-exist" — the same fail\-fast gate build's mediator enforces \(see internal/mediators/build package doc\). This observer's job starts after that gate has already passed once.
+
+Sensor\-lookup note: fetching the Sensor is deliberately non\-fatal. The Sensor is provisioned by the mediator asynchronously and may not exist yet on the very first reconcile after payload receipt, or may be transiently unreachable. Rather than fail the whole reconcile over a supplementary health signal, a fetch error is logged and the reconcile falls back to whatever success value was already persisted in status — payload receipt remains the authoritative "is this event real" signal regardless of Sensor lookup outcome.
 
 ## Index
 
