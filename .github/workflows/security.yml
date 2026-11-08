@@ -1,32 +1,8 @@
 # =============================================================================
 # security.yml — Security & Vulnerability Scanning
 #
-# Three jobs (merges the former gosec.yml and vulnscan.yml), each keeping its
-# original trigger scope via a job-level `if:` gate against the combined
-# top-level trigger:
-#
-#   gosec        — Go static analysis (hardcoded creds, SQL injection, unsafe
-#                  crypto, etc.). Was: push to main + pull_request.
-#   govulncheck  — Go module + stdlib reachable-vulnerability scan. Was: push
-#                  to main + pull_request + weekly Monday 06:00 UTC.
-#   trivy-image  — OS + library CVE scan of the published GHCR image. Only
-#                  meaningful once an image exists, so it runs on tag push
-#                  (same trigger as ko.yml) + the weekly schedule, scanning
-#                  :latest on the scheduled run.
-#
-# All three are report-only — none fail the build. Findings render into
-# each job's summary rather than the Security tab; gosec/govulncheck could
-# be wired up for SARIF upload now that the repo is public, for free
-# Security-tab integration.
-#
-# gosec and govulncheck need no secrets — environments, environments-api,
-# and environments-contract are public modules, resolved via the public
-# module proxy with no git auth. This also means they run on Dependabot PRs.
-#
-# trivy-image's GHCR login uses GITHUB_TOKEN — an App installation token was
-# denied package pulls against this org-scoped package regardless of what
-# permission was granted; GITHUB_TOKEN is scoped to this repo, which is
-# exactly what a same-repo pull needs.
+# Three jobs (gosec, govulncheck, trivy-image), each keeping its original
+# trigger scope via a job-level `if:` gate against the combined top-level trigger.
 # =============================================================================
 
 name: Security
@@ -87,12 +63,11 @@ jobs:
         if: always()
         run: |
           {
-            echo "# 🔒 Gosec Static Analysis"
-            echo
-            echo "**Branch:** \`${{ github.ref_name }}\`"
-            echo "**Trigger:** \`${{ github.event_name }}\`"
-            echo
-            echo "Report-only — this job does not fail the build."
+            echo "> ### 🔒 **Gosec Static Analysis**"
+            echo "> "
+            echo "> * **Branch:** \`${{ github.ref_name }}\`"
+            echo "> * **Trigger:** \`${{ github.event_name }}\`"
+            echo "> * **Status:** Report-only (non-blocking)"
             echo
             if jq -e '.Issues and (.Issues | length > 0)' gosec-report.json >/dev/null 2>&1; then
               echo "| Severity | Confidence | Rule | Location | Details |"
@@ -137,12 +112,11 @@ jobs:
         if: always()
         run: |
           {
-            echo "# 🛡️ govulncheck"
-            echo
-            echo "**Branch:** \`${{ github.ref_name }}\`"
-            echo "**Trigger:** \`${{ github.event_name }}\`"
-            echo
-            echo "Report-only — this job does not fail the build."
+            echo "> ### 🛡️ **govulncheck Scan**"
+            echo "> "
+            echo "> * **Branch:** \`${{ github.ref_name }}\`"
+            echo "> * **Trigger:** \`${{ github.event_name }}\`"
+            echo "> * **Status:** Report-only (non-blocking)"
             echo
             COUNT=$(jq -s '[.[] | select(.finding != null)] | length' govulncheck-report.json 2>/dev/null || echo 0)
             if [[ "$COUNT" -gt 0 ]]; then
@@ -212,12 +186,11 @@ jobs:
         if: always()
         run: |
           {
-            echo "# 🐳 Trivy Image Scan"
-            echo
-            echo "**Image:** \`${{ steps.image.outputs.ref }}\`"
-            echo "**Trigger:** \`${{ github.event_name }}\`"
-            echo
-            echo "Report-only — this job does not fail the build."
+            echo "> ### 🐳 **Trivy Image Scan**"
+            echo "> "
+            echo "> * **Image:** \`${{ steps.image.outputs.ref }}\`"
+            echo "> * **Trigger:** \`${{ github.event_name }}\`"
+            echo "> * **Status:** Report-only (non-blocking)"
             echo
             if [[ -s trivy-report.md ]]; then
               head -c 100000 trivy-report.md

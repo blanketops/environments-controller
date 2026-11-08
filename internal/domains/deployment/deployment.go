@@ -284,9 +284,8 @@ func (d *DeployDomain) resolveServiceUnits(
 			return nil, fmt.Errorf("resolving service unit %q: %w", name, err)
 		}
 		// A ServiceUnit of type BUILD runs the image its Build last
-		// pushed, pulled with the registry secret that Build declared.
-		// An empty image means the Build has pushed nothing yet, which
-		// the deployment service reports as the build not being ready.
+		// pushed. Empty means the Build has pushed nothing yet, which the
+		// deployment service reports as the build not being ready.
 		if err := serviceunitquery.InjectBuildImage(ctx, d.reader, su); err != nil {
 			return nil, fmt.Errorf("resolving service unit %q: %w", name, err)
 		}

@@ -44,7 +44,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	deploydomain "github.com/blanketops/environments-controller/internal/domains/deployment"
 	deployment "github.com/blanketops/environments-controller/internal/mediators/deployment"
@@ -256,13 +255,7 @@ func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	// Controller registration
 	return ctrl.NewControllerManagedBy(mgr).
-		// Marking a Deployment for deletion does not change its spec, so the
-		// spec predicate alone would never let the delete path run. The
-		// predicates are set on the Deployment only: as a filter on the whole
-		// controller they would also drop the Build updates watched below.
-		For(&environmentsv1alpha1.Deployment{}, builder.WithPredicates(
-			predicate.Or(predicates.MeaningfulChangePredicate(), deletionRequested()),
-		)).
+		For(&environmentsv1alpha1.Deployment{}, builder.WithPredicates(predicates.MeaningfulChangePredicate())).
 		// A Deployment rolls out the image of each ServiceUnit it lists. For
 		// a unit of type BUILD that image is what its Build last pushed, so
 		// a new image re-triggers the Deployments that roll it out.
