@@ -1,16 +1,9 @@
 # =============================================================================
-# release.yml — Publish GitHub Release
+# release.yml — Publish GitHub Release & Container Image Attestations
 #
 # Fires on push of a v* tag (finalize-release.yml creates it). Reads the
-# already-current CHANGELOG.md for release notes and publishes a GitHub
-# Release. CHANGELOG.md itself is generated and committed by
-# finalize-release.yml before it tags; this workflow only reads it.
-#
-# Trigger scope:
-#   push tags matching v*
-#
-# Secrets required:
-#   GITHUB_TOKEN — via actions/create-github-app-token for checkout/release
+# already-current CHANGELOG.md for release notes, resolves the container image
+# digest from GHCR, generates native build attestations, and publishes a release.
 # =============================================================================
 name: Release
 on:
@@ -20,6 +13,8 @@ on:
 permissions:
     contents: write
     packages: read
+    id-token: write     # Required for OIDC signing / identity tokens
+    attestations: write # Required for GitHub native build provenance attestations
 env:
     IMAGE_REPO: ghcr.io/blanketops/environments-controller
 jobs:
@@ -78,24 +73,34 @@ jobs:
                 sleep 10
               done
               if [[ -z "$DIGEST" ]]; then
-                echo "::warning::Could not resolve digest for $IMAGE_TAG within timeout — image link will be omitted from release notes"
+                echo "::error::Could not resolve digest for $IMAGE_TAG within timeout."
+                exit 1
               fi
               echo "tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
               echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+        - name: Generate GitHub Native Container Attestation
+          if: steps.image.outputs.digest != ''
+          uses: actions/attest-build-provenance@v2
+          with:
+            subject-name: ${{ env.IMAGE_REPO }}
+            subject-digest: ${{ steps.image.outputs.digest }}
+            push-to-registry: true
 
         - name: Append container image section to release notes
           if: steps.image.outputs.digest != ''
           run: |
               cat >> RELEASE_NOTES.md <<EOF
 
-              ## Container Image
+              ## Container Image & Supply Chain
 
               \`\`\`
               docker pull ${{ steps.image.outputs.tag }}
               \`\`\`
 
-              - Digest: \`${{ env.IMAGE_REPO }}@${{ steps.image.outputs.digest }}\`
-              - Package: https://github.com/blanketops/environments-controller/pkgs/container/environments-controller
+              - **Digest:** \`${{ env.IMAGE_REPO }}@${{ steps.image.outputs.digest }}\`
+              - **Package:** https://github.com/blanketops/environments-controller/pkgs/container/environments-controller
+              - **Attestation:** Verified via GitHub Native Build Provenance
               EOF
 
         - name: Create GitHub Release
@@ -117,9 +122,10 @@ jobs:
               - Generated CHANGELOG.md using git-cliff
               - Committed changelog updates to main
               - Generated release notes
+              - Generated GitHub build provenance attestation for container image
               - Published GitHub Release
 
-              ## Artifacts
+               ## Artifacts
 
               - CHANGELOG.md
               - RELEASE_NOTES.md
@@ -129,10 +135,11 @@ jobs:
 
                \`${{ github.ref_name }}\`
 
-              ## Container Image
+              ## Container Image & Attestation
 
               **Image:** \`${{ steps.image.outputs.tag }}\`
               **Digest:** \`${{ steps.image.outputs.digest }}\`
+              **Attestation:** Attached to OCI Registry
 
               EOF
 
