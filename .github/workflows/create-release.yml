@@ -1,23 +1,29 @@
 # =============================================================================
-# create-release.yml — Cut a Release Branch and Open Its PR into Main
+# create-release.yml — Cut a Release Branch
 #
-# The releaser (blanketops/environments-bots, as the BlanketOps Environments
-# Releaser App) checks the release and, when every check passes, creates
-# release/{version} at develop's head and opens its pull request into main.
-# It records each check on the Release issue ("Release: {version}", on
-# project 1 as Release), opening it if Plan Release has not.
+# Manually triggered. The releaser (cmd/releaser cut), as the BlanketOps
+# Environments Releaser App, checks the release and, when every check
+# passes, creates release/{version} at develop's head and opens its pull
+# request into main. It records each check on the Release issue
+# ("Release: {version}", on project 1 as Release), opening the issue if
+# Plan Release has not already.
 #
 # The version input is optional: empty releases the planned Release issue,
-# else the version the commits since the latest tag need. Once the branch
-# is ready, run Finalize Release; the Release workflow then attaches the
-# published release to the issue and closes it.
+# or else the version the commits since the latest tag need. Fix PRs land
+# on the release branch; once ready, run the Finalize Release workflow,
+# which merges and tags. The Release workflow then attaches the published
+# release to the issue and closes it.
 #
-# Trigger scope:
-#   workflow_dispatch with optional `version` input
+# The branch is created through the API at an existing develop commit, so
+# no commit is made and none has to be signed. A rerun leaves an existing
+# branch and pull request as they are.
 #
 # Secrets required:
-#   RELEASER_APP_ID, RELEASER_APP_PRIVATE_KEY — the Releaser App
+#   DEVELOPER_APP_ID, DEVELOPER_APP_PRIVATE_KEY — the BlanketOps Environments
+#   Developer App (Contents and Pull requests write, Issues and organization
+#   Projects write)
 # =============================================================================
+
 name: Create Release
 
 on:
@@ -38,10 +44,36 @@ jobs:
   create:
     name: releaser cut
     runs-on: self-hosted
+
     steps:
-      - uses: blanketops/environments-bots/.github/actions/releaser@v0.0.7
+      - name: Generate Releaser App token
+        id: releaser-token
+        uses: actions/create-github-app-token@v3
         with:
-          command: cut
-          release: ${{ github.event.inputs.version }}
-          client-id: ${{ secrets.RELEASER_APP_ID }}
-          private-key: ${{ secrets.RELEASER_APP_PRIVATE_KEY }}
+          client-id: ${{ vars.DEVELOPER_CLIENT_ID }}
+          private-key: ${{ secrets.DEVELOPER_APP_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Download and verify the releaser binary
+        env:
+          GH_TOKEN: ${{ steps.releaser-token.outputs.token }}
+          RELEASER_VERSION: v0.1.0
+        run: |
+          set -euo pipefail
+          gh release download "${RELEASER_VERSION}" -R blanketops/environments-bots \
+            -p releaser-linux-amd64 -p releaser-linux-amd64.sigstore.json \
+            -D "${RUNNER_TEMP}"
+          cosign verify-blob \
+            --bundle "${RUNNER_TEMP}/releaser-linux-amd64.sigstore.json" \
+            --certificate-identity "https://github.com/blanketops/environments-bots/.github/workflows/release.yml@refs/tags/${RELEASER_VERSION}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "${RUNNER_TEMP}/releaser-linux-amd64"
+          chmod +x "${RUNNER_TEMP}/releaser-linux-amd64"
+
+      - name: Releaser cut
+        env:
+          GH_TOKEN: ${{ steps.releaser-token.outputs.token }}
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          "${RUNNER_TEMP}/releaser-linux-amd64" cut -ref develop -project blanketops/1 ${VERSION:+-release "$VERSION"}

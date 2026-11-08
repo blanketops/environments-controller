@@ -1,3 +1,41 @@
+## [0.6.7] - 2026-11-08
+
+### 💼 Other
+
+- Merge release/v0.6.7 into main
+
+### ⚙️ Miscellaneous Tasks
+
+- Sync develop with main after release/v0.6.6
+## [0.6.6] - 2026-11-08
+
+### 💼 Other
+
+- Update go.sum dependencies
+- Merge release/v0.6.6 into main
+
+### 📚 Documentation
+
+- Standardize workflow header comments
+- Auto-generate code documentation [skip ci] (#222)
+
+### 🧪 Testing
+
+- Dogfood the developer bot's open and resolve
+
+### ⚙️ Miscellaneous Tasks
+
+- *(finalize)* Continue when the release pull request is already merged
+- Run the releaser in the release workflows
+- *(ci)* Bump blanketops/environments-bots from 0.0.2 to 0.0.3
+- *(ci)* Update actions
+- *(ci)* Update actions
+- Sync develop with main after release/v0.6.5
+- Sync develop with main
+- *(developer)* Run the developer bot at v0.0.8
+- *(developer)* Sanitize resolve-issue input
+- *(ci)* Update actions
+- *(release)* Update changelog for v0.6.6 (#223)
 ## [0.6.5] - 2026-10-21
 
 ### 💼 Other
@@ -7,6 +45,7 @@
 ### ⚙️ Miscellaneous Tasks
 
 - Sync develop with main after release/v0.6.4
+- *(release)* Update changelog for v0.6.5 (#194)
 ## [0.6.4] - 2026-10-21
 
 ### 🐛 Bug Fixes

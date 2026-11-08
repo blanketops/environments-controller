@@ -1,5 +1,5 @@
 # =============================================================================
-# ko.yml — Ko Image Build → GHCR
+# ko.yml — Ko Image Build → GHCR & OCI Artifacts
 #
 # Builds the BlanketOps Environments Controller image via ko and pushes to
 # GHCR. Fires on tag push and manual dispatch only — not on branch pushes.
@@ -57,24 +57,25 @@ env:
 
 jobs:
   build-and-publish:
-    # Zenith self-hosted pool.
     runs-on: self-hosted
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_ID_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: environments-controller
+          
       - uses: actions/checkout@v7
 
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
-          # The self-hosted runners keep Go's module and build caches on a
-          # persistent volume. setup-go's own cache would upload them again
-          # after every job, which on these runners hangs "Post Setup Go" for
-          # up to an hour and holds the runner.
           cache: false
 
-      # ko, cosign (2.4.1) and oras are baked into the runner image
-      # (zenith-runner-toolchain 1.0.11+); installing them per job meant
-      # fresh downloads over a slow link. GHCR login is the step below.
       - name: Check baked tools
         run: |
           ko version
@@ -90,7 +91,6 @@ jobs:
             --username "${{ github.actor }}" \
             --password-stdin
 
-      # tag push → {version} + latest; manual dispatch → ref_name only
       - name: Compute image tags
         id: tags
         run: |
@@ -125,57 +125,59 @@ jobs:
           cosign sign --yes --recursive \
             ${{ env.IMAGE_REPO }}@${{ steps.ko-build.outputs.digest }}
 
-      # - name: Attest image provenance
-      #   if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
-      #   uses: actions/attest-build-provenance@v2
-      #   with:
-      #     subject-name: ${{ env.IMAGE_REPO }}
-      #     subject-digest: ${{ steps.ko-build.outputs.digest }}
-      #     push-to-registry: true
+      - name: Attest image provenance
+        if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE_REPO }}
+          subject-digest: ${{ steps.ko-build.outputs.digest }}
+          push-to-registry: true
 
-      # Generate CRDs from controller-gen markers — mage removed.
-      # - name: Generate CRD manifests
-      #   run: |
-      #     go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest \
-      #       rbac:roleName=manager-role crd webhook \
-      #       paths="./..." \
-      #       output:crd:artifacts:config=config/crd/bases \
-      #       output:rbac:artifacts:config=config/rbac \
-      #       output:webhook:artifacts:config=config/webhook
+      - name: Generate CRD manifests
+        run: |
+          go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest \
+            rbac:roleName=manager-role crd webhook \
+            paths="./..." \
+            output:crd:artifacts:config=config/crd/bases \
+            output:rbac:artifacts:config=config/rbac \
+            output:webhook:artifacts:config=config/webhook
 
-      # - name: Publish CRD artifact (ORAS)
-      #   id: publish
-      #   env:
-      #     ARTIFACT_REF: ghcr.io/blanketops/environments-controller-crds:${{ github.ref_name }}
-      #   run: |
-      #     FILE_ARGS=()
-      #     for f in config/crd/bases/*.yaml; do
-      #       [[ -f "$f" ]] || { echo "::error::No CRD manifests found in config/crd/bases/"; exit 1; }
-      #       FILE_ARGS+=("${f}:application/vnd.blanketops.crd.v1+yaml")
-      #     done
-      #     oras push "$ARTIFACT_REF" \
-      #       --annotation "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
-      #       --annotation "org.opencontainers.image.revision=${{ github.sha }}" \
-      #       "${FILE_ARGS[@]}"
-      #     echo "ref=${ARTIFACT_REF}" >> "$GITHUB_OUTPUT"
+      - name: Publish CRD artifact (ORAS)
+        id: publish
+        env:
+          ARTIFACT_REF: ghcr.io/blanketops/environments-controller-crds:${{ github.ref_name }}
+        run: |
+          FILE_ARGS=()
+          for f in config/crd/bases/*.yaml; do
+            [[ -f "$f" ]] || { echo "::error::No CRD manifests found in config/crd/bases/"; exit 1; }
+            FILE_ARGS+=("${f}:application/vnd.blanketops.crd.v1+yaml")
+          done
+          oras push "$ARTIFACT_REF" \
+            --annotation "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --annotation "org.opencontainers.image.revision=✨${{ github.sha }}" \
+            "${FILE_ARGS[@]}"
+          echo "ref=${ARTIFACT_REF}" >> "$GITHUB_OUTPUT"
 
       - name: CI Summary
         if: always()
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
-          # 🐹 Ko Image Build
+          > ### 📦 **Ko Build & Publish**
+          > 
+          > * **Tool:** `ko` (Fast Go Containerizing)
+          > * **Registry:** `ghcr.io/blanketops/environments-controller`
+          > * **Status:** $\text{Success}$
           EOF
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
 
-          **Image:** \`${{ env.IMAGE_REPO }}\`
-          **Tags:** \`${{ steps.tags.outputs.tags }}\`
-          **Digest:** \`${{ steps.ko-build.outputs.digest }}\`
+          ```yaml
+          Image:     ${{ env.IMAGE_REPO }}
+          Tags:      ${{ steps.tags.outputs.tags }}
+          Digest:    ${{ steps.ko-build.outputs.digest }}
+          CRD Ref:   ${{ steps.publish.outputs.ref }}
+          ```
 
-          ## CRD Artifact
-          - **Status:** ${{ steps.publish.outcome == 'success' && '✅ Published' || '❌ Failed' }}
-          - **Ref:** \`${{ steps.publish.outputs.ref }}\`
-
-          ## Pull CRDs
+          ## Pull & Deploy CRDs
           \`\`\`bash
           oras pull ${{ steps.publish.outputs.ref }}
           kubectl apply -f .

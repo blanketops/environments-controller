@@ -38,7 +38,7 @@ jobs:
         id: app
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ secrets.DEVELOPER_APP_ID }}
+          client-id: ${{ vars.DEVELOPER_CLIENT_ID }}
           private-key: ${{ secrets.DEVELOPER_APP_PRIVATE_KEY }}
           owner: blanketops
           repositories: ${{ github.event.repository.name }}
@@ -62,4 +62,5 @@ jobs:
       - name: Open
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-        run: "${RUNNER_TEMP}/developer-linux-amd64" open -base develop
+        run: |
+          "${RUNNER_TEMP}/developer-linux-amd64" open -base develop
