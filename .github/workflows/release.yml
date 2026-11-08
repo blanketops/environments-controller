@@ -145,7 +145,7 @@ jobs:
 
         - name: Releaser complete
           if: always()
-          uses: blanketops/environments-bots/.github/actions/releaser@v0.0.3
+          uses: blanketops/environments-bots/.github/actions/releaser@v0.1.0
           with:
             command: complete
             release: ${{ github.ref_name }}
