@@ -2,7 +2,7 @@
 # create-release.yml — Cut a Release Branch
 #
 # Manually triggered. The releaser (cmd/releaser cut), as the BlanketOps
-# Environments Releaser App, checks the release and, when every check
+# Environments Developer App, checks the release and, when every check
 # passes, creates release/{version} at develop's head and opens its pull
 # request into main. It records each check on the Release issue
 # ("Release: {version}", on project 1 as Release), opening the issue if
@@ -46,7 +46,7 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Generate Releaser App token
+      - name: Generate Developer App token
         id: releaser-token
         uses: actions/create-github-app-token@v3
         with:
@@ -55,25 +55,9 @@ jobs:
           owner: blanketops
           repositories: ${{ github.event.repository.name }}
 
-      - name: Download and verify the releaser binary
-        env:
-          GH_TOKEN: ${{ steps.releaser-token.outputs.token }}
-          RELEASER_VERSION: v0.1.0
-        run: |
-          set -euo pipefail
-          gh release download "${RELEASER_VERSION}" -R blanketops/environments-bots \
-            -p releaser-linux-amd64 -p releaser-linux-amd64.sigstore.json \
-            -D "${RUNNER_TEMP}"
-          cosign verify-blob \
-            --bundle "${RUNNER_TEMP}/releaser-linux-amd64.sigstore.json" \
-            --certificate-identity "https://github.com/blanketops/environments-bots/.github/workflows/release.yml@refs/tags/${RELEASER_VERSION}" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            "${RUNNER_TEMP}/releaser-linux-amd64"
-          chmod +x "${RUNNER_TEMP}/releaser-linux-amd64"
-
       - name: Releaser cut
         env:
           GH_TOKEN: ${{ steps.releaser-token.outputs.token }}
           VERSION: ${{ github.event.inputs.version }}
         run: |
-          "${RUNNER_TEMP}/releaser-linux-amd64" cut -ref develop -project blanketops/1 ${VERSION:+-release "$VERSION"}
+          releaser cut -ref develop -project blanketops/1 ${VERSION:+-release "$VERSION"}
