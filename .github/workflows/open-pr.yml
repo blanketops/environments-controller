@@ -46,4 +46,5 @@ jobs:
       - name: Open
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-        run: developer open -base develop
+        run: |
+          developer open -base develop

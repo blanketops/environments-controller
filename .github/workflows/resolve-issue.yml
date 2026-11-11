@@ -38,4 +38,5 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: developer resolve -pull "$PR_NUMBER"
+        run: |
+          developer resolve -pull "$PR_NUMBER"

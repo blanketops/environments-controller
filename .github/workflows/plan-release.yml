@@ -49,4 +49,4 @@ jobs:
       - name: Releaser plan
         env:
           GH_TOKEN: ${{ steps.releaser-token.outputs.token }}
-        run: releaser plan -ref develop -project blanketops/1
+        run: 'releaser plan -ref develop -project blanketops/1'

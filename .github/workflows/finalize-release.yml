@@ -102,7 +102,7 @@ jobs:
       - name: Releaser verify
         env:
           GH_TOKEN: ${{ steps.releaser-token.outputs.token }}
-        run: releaser verify -release "${VERSION}"
+        run: 'releaser verify -release "${VERSION}"'
 
       - name: Merge release into main
         env:
