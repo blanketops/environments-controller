@@ -49,31 +49,11 @@ jobs:
           owner: blanketops
           repositories: ${{ github.event.repository.name }}
 
-      - name: Download and verify the pr-reviewer binary
-        env:
-          GH_TOKEN: ${{ steps.pr-reviewer-token.outputs.token }}
-          VERSION: v0.1.0
-        run: |
-          set -euo pipefail
-          gh release download "${VERSION}" -R blanketops/environments-bots \
-            -p pr-reviewer-linux-amd64 -p pr-reviewer-linux-amd64.sigstore.json \
-            -D "${RUNNER_TEMP}"
-          cosign verify-blob \
-            --bundle "${RUNNER_TEMP}/pr-reviewer-linux-amd64.sigstore.json" \
-            --certificate-identity "https://github.com/blanketops/environments-bots/.github/workflows/release.yml@refs/tags/${VERSION}" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            "${RUNNER_TEMP}/pr-reviewer-linux-amd64"
-          chmod +x "${RUNNER_TEMP}/pr-reviewer-linux-amd64"
-
       - name: Review pull request
         env:
           GH_TOKEN: ${{ steps.pr-reviewer-token.outputs.token }}
           PR: ${{ github.event.pull_request.number }}
-          # Optional advisory LLM pass. When LLM_API_KEY is unset the reviewer
-          # stays fully deterministic. Base URL and model are repo variables so
-          # the model can be swapped without code changes.
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
           LLM_MODEL: ${{ vars.LLM_MODEL }}
-        run: |
-          "${RUNNER_TEMP}/pr-reviewer-linux-amd64" review -pr "${PR}"
+        run: pr-reviewer review -pr "${PR}"
