@@ -2,7 +2,7 @@
 # create-release.yml — Cut a Release Branch
 #
 # Manually triggered. The releaser (cmd/releaser cut), as the BlanketOps
-# Environments Releaser App, checks the release and, when every check
+# Environments Developer App, checks the release and, when every check
 # passes, creates release/{version} at develop's head and opens its pull
 # request into main. It records each check on the Release issue
 # ("Release: {version}", on project 1 as Release), opening the issue if
@@ -46,7 +46,7 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Generate Releaser App token
+      - name: Generate Developer App token
         id: releaser-token
         uses: actions/create-github-app-token@v3
         with:

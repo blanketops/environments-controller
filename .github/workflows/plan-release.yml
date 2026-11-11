@@ -2,7 +2,7 @@
 # plan-release.yml — Plan the Next Release
 #
 # Runs on every push to develop. The releaser (cmd/releaser plan), as the
-# BlanketOps Environments Releaser App, notices when develop has commits
+# BlanketOps Environments Developer App, notices when develop has commits
 # that no release carries yet and keeps one Release issue planned for them
 # ("Release: {version}", on project 1 as Release), with the version their
 # Conventional Commits need. It renames the planned issue when a later
@@ -37,7 +37,7 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Generate Releaser App token
+      - name: Generate Developer App token
         id: releaser-token
         uses: actions/create-github-app-token@v3
         with:
