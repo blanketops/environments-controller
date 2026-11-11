@@ -20,7 +20,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	k8s.io/api v0.37.2
 	k8s.io/apimachinery v0.37.2
-	k8s.io/client-go v0.37.1
+	k8s.io/client-go v0.37.2
 	knative.dev/networking v0.0.0-20261026130131-cfc431598730
 	knative.dev/serving v0.51.0
 	sigs.k8s.io/controller-runtime v0.25.2
