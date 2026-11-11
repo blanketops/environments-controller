@@ -25,7 +25,7 @@ jobs:
           id: app-token
           uses: actions/create-github-app-token@v3
           with:
-            app-id: ${{ vars.APP_CLIENT_ID }}
+            client-id: ${{ vars.APP_CLIENT_ID }}
             private-key: ${{ secrets.APP_ID_PRIVATE_KEY }}
             owner: blanketops
             repositories: environments-controller
@@ -34,15 +34,6 @@ jobs:
           uses: actions/checkout@v7
           with:
             fetch-depth: 0
-
-        - name: Install git-cliff
-          run: |
-              GITCLIFF_VERSION="2.13.0"
-              curl -L "https://github.com/orhun/git-cliff/releases/download/v${GITCLIFF_VERSION}/git-cliff-${GITCLIFF_VERSION}-x86_64-unknown-linux-gnu.tar.gz" -o git-cliff.tar.gz
-              tar xzf git-cliff.tar.gz
-              sudo mv "git-cliff-${GITCLIFF_VERSION}/git-cliff" /usr/local/bin/git-cliff
-              rm -rf git-cliff.tar.gz "git-cliff-${GITCLIFF_VERSION}"
-              git-cliff --version
 
         - name: Checkout main
           run: |
@@ -143,11 +134,16 @@ jobs:
 
               EOF
 
-        - name: Releaser complete
-          if: always()
-          uses: blanketops/environments-bots/.github/actions/releaser@v0.1.0
+        - name: Generate Releaser App token
+          id: releaser-token
+          uses: actions/create-github-app-token@v3
           with:
-            command: complete
-            release: ${{ github.ref_name }}
-            client-id: ${{ secrets.RELEASER_APP_ID }}
+            client-id: ${{ vars.RELEASER_APP_CLIENT_ID }}
             private-key: ${{ secrets.RELEASER_APP_PRIVATE_KEY }}
+            owner: blanketops
+            repositories: environments-controller
+
+        - name: Releaser complete
+          env:
+            GH_TOKEN: ${{ steps.releaser-token.outputs.token }}
+          run: releaser complete -release "${{ github.ref_name }}" -project blanketops/1
