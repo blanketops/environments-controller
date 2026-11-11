@@ -56,22 +56,6 @@ jobs:
           client-id: ${{ vars.CLEANER_CLIENT_ID }}
           private-key: ${{ secrets.CLEANER_APP_PRIVATE_KEY }}
 
-      - name: Download and verify the cleaner binary
-        env:
-          GH_TOKEN: ${{ steps.cleaner-token.outputs.token }}
-          VERSION: v0.1.0
-        run: |
-          set -euo pipefail
-          gh release download "${VERSION}" -R blanketops/environments-bots \
-            -p cleaner-linux-amd64 -p cleaner-linux-amd64.sigstore.json \
-            -D "${RUNNER_TEMP}"
-          cosign verify-blob \
-            --bundle "${RUNNER_TEMP}/cleaner-linux-amd64.sigstore.json" \
-            --certificate-identity "https://github.com/blanketops/environments-bots/.github/workflows/release.yml@refs/tags/${VERSION}" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            "${RUNNER_TEMP}/cleaner-linux-amd64"
-          chmod +x "${RUNNER_TEMP}/cleaner-linux-amd64"
-
       - name: Prune workflow runs
         env:
           GH_TOKEN: ${{ steps.cleaner-token.outputs.token }}
@@ -82,4 +66,4 @@ jobs:
           if [ "${DRY_RUN}" = "true" ]; then
             args+=(-dry-run)
           fi
-          "${RUNNER_TEMP}/cleaner-linux-amd64" "${args[@]}"
+          cleaner "${args[@]}"
