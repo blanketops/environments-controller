@@ -51,7 +51,7 @@ const (
 	deplEnv       = "site-env"
 	deplEnvType   = "development"
 	unitStatic    = "static"
-	keyUnitImage  = "images"
+	keyUnitImage  = "image"
 )
 
 var deplKey = client.ObjectKey{Namespace: deplNamespace, Name: deplName}
