@@ -24,15 +24,16 @@
 # =============================================================================
 
 name: CI
-
 on:
   pull_request:
   push:
     branches:
       - main
+      - develop
 
 permissions:
   contents: read
+  issues: write
 
 env:
   GO_VERSION_FILE: go.mod
@@ -41,6 +42,14 @@ jobs:
   build:
     runs-on: self-hosted
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_ID_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: environments-controller
       - name: Checkout
         uses: actions/checkout@v7
 
