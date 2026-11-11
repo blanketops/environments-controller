@@ -74,7 +74,7 @@ jobs:
           client-id: ${{ vars.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_ID_PRIVATE_KEY }}
           owner: blanketops
-          repositories: environments-controller
+          repositories: environments
 
       - name: Checkout
         uses: actions/checkout@v7
@@ -90,7 +90,7 @@ jobs:
             chmod +x "${RUNNER_TEMP}/${script}"
           done
 
-      - name: Generate Releaser App token
+      - name: Generate Developer App token
         id: releaser-token
         uses: actions/create-github-app-token@v3
         with:

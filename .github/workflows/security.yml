@@ -148,6 +148,15 @@ jobs:
     runs-on: self-hosted
     if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_ID_PRIVATE_KEY }}
+          owner: blanketops
+          repositories: environments-controller
+          
       - name: Checkout
         uses: actions/checkout@v7
 
