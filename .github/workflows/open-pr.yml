@@ -43,24 +43,7 @@ jobs:
           owner: blanketops
           repositories: ${{ github.event.repository.name }}
 
-      - name: Download and verify the developer binary
-        env:
-          GH_TOKEN: ${{ steps.app.outputs.token }}
-          VERSION: v0.1.0
-        run: |
-          set -euo pipefail
-          gh release download "${VERSION}" -R blanketops/environments-bots \
-            -p developer-linux-amd64 -p developer-linux-amd64.sigstore.json \
-            -D "${RUNNER_TEMP}"
-          cosign verify-blob \
-            --bundle "${RUNNER_TEMP}/developer-linux-amd64.sigstore.json" \
-            --certificate-identity "https://github.com/blanketops/environments-bots/.github/workflows/release.yml@refs/tags/${VERSION}" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            "${RUNNER_TEMP}/developer-linux-amd64"
-          chmod +x "${RUNNER_TEMP}/developer-linux-amd64"
-
       - name: Open
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
-        run: |
-          "${RUNNER_TEMP}/developer-linux-amd64" open -base develop
+        run: developer open -base develop
