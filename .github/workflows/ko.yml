@@ -127,7 +127,7 @@ jobs:
 
       - name: Attest image provenance
         if: github.event_name != 'workflow_dispatch' || inputs.sign_and_attest
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ env.IMAGE_REPO }}
           subject-digest: ${{ steps.ko-build.outputs.digest }}
