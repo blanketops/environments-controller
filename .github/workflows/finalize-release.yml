@@ -74,7 +74,7 @@ jobs:
           client-id: ${{ vars.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_ID_PRIVATE_KEY }}
           owner: blanketops
-          repositories: environments-controller
+          repositories: environments
 
       - name: Checkout
         uses: actions/checkout@v7
@@ -90,7 +90,7 @@ jobs:
             chmod +x "${RUNNER_TEMP}/${script}"
           done
 
-      - name: Generate Releaser App token
+      - name: Generate Developer App token
         id: releaser-token
         uses: actions/create-github-app-token@v3
         with:
@@ -99,26 +99,10 @@ jobs:
           owner: blanketops
           repositories: ${{ github.event.repository.name }}
 
-      - name: Download and verify the releaser binary
-        env:
-          GH_TOKEN: ${{ steps.releaser-token.outputs.token }}
-          RELEASER_VERSION: v0.1.0
-        run: |
-          set -euo pipefail
-          gh release download "${RELEASER_VERSION}" -R blanketops/environments-bots \
-            -p releaser-linux-amd64 -p releaser-linux-amd64.sigstore.json \
-            -D "${RUNNER_TEMP}"
-          cosign verify-blob \
-            --bundle "${RUNNER_TEMP}/releaser-linux-amd64.sigstore.json" \
-            --certificate-identity "https://github.com/blanketops/environments-bots/.github/workflows/release.yml@refs/tags/${RELEASER_VERSION}" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            "${RUNNER_TEMP}/releaser-linux-amd64"
-          chmod +x "${RUNNER_TEMP}/releaser-linux-amd64"
-
       - name: Releaser verify
         env:
           GH_TOKEN: ${{ steps.releaser-token.outputs.token }}
-        run: '"${RUNNER_TEMP}/releaser-linux-amd64" verify -release "${VERSION}"'
+        run: releaser verify -release "${VERSION}"
 
       - name: Merge release into main
         env:
