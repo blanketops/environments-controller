@@ -2,7 +2,7 @@
 # plan-release.yml — Plan the Next Release
 #
 # Runs on every push to develop. The releaser (cmd/releaser plan), as the
-# BlanketOps Environments Releaser App, notices when develop has commits
+# BlanketOps Environments Developer App, notices when develop has commits
 # that no release carries yet and keeps one Release issue planned for them
 # ("Release: {version}", on project 1 as Release), with the version their
 # Conventional Commits need. It renames the planned issue when a later
@@ -37,7 +37,7 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Generate Releaser App token
+      - name: Generate Developer App token
         id: releaser-token
         uses: actions/create-github-app-token@v3
         with:
@@ -46,23 +46,7 @@ jobs:
           owner: blanketops
           repositories: ${{ github.event.repository.name }}
 
-      - name: Download and verify the releaser binary
-        env:
-          GH_TOKEN: ${{ steps.releaser-token.outputs.token }}
-          RELEASER_VERSION: v0.1.0
-        run: |
-          set -euo pipefail
-          gh release download "${RELEASER_VERSION}" -R blanketops/environments-bots \
-            -p releaser-linux-amd64 -p releaser-linux-amd64.sigstore.json \
-            -D "${RUNNER_TEMP}"
-          cosign verify-blob \
-            --bundle "${RUNNER_TEMP}/releaser-linux-amd64.sigstore.json" \
-            --certificate-identity "https://github.com/blanketops/environments-bots/.github/workflows/release.yml@refs/tags/${RELEASER_VERSION}" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            "${RUNNER_TEMP}/releaser-linux-amd64"
-          chmod +x "${RUNNER_TEMP}/releaser-linux-amd64"
-
       - name: Releaser plan
         env:
           GH_TOKEN: ${{ steps.releaser-token.outputs.token }}
-        run: '"${RUNNER_TEMP}/releaser-linux-amd64" plan -ref develop -project blanketops/1'
+        run: releaser plan -ref develop -project blanketops/1
