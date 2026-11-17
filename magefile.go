@@ -142,19 +142,62 @@ func Help() error {
 
 // Code generation
 
-// Manifests generates the ClusterRole from kubebuilder RBAC markers
-// into config/rbac. The install repo syncs role.yaml from here —
-// this path is a cross-repo contract; do not move it.
+// Manifests generates the ClusterRoles from kubebuilder RBAC markers into
+// config/rbac. The install repo syncs every file here through the admin
+// bot — this path is a cross-repo contract; do not move it.
+//
+//   - role.yaml: manager-role, the union of every marker in the module. It
+//     stays until install binds the per-controller roles below instead.
+//   - <group>_manager_role.yaml: <group>-manager-role, one per controller
+//     package under internal/controller (environments, events, ...), from
+//     that package's markers only, so each controller's permissions are
+//     readable and bindable on their own. The bindings are the committed
+//     <group>_manager_role_binding.yaml files next to them.
 func Manifests() error {
 	cgen, err := controllerGenBin()
 	if err != nil {
 		return err
 	}
-	return sh.Run(cgen,
+	if err := sh.Run(cgen,
 		"rbac:roleName=manager-role",
 		"paths=./...",
 		"output:rbac:artifacts:config=config/rbac",
-	)
+	); err != nil {
+		return err
+	}
+	groups, err := controllerGroups()
+	if err != nil {
+		return err
+	}
+	for _, g := range groups {
+		if err := sh.Run(cgen,
+			fmt.Sprintf("rbac:roleName=%s-manager-role,fileName=%s_manager_role.yaml", g, g),
+			"paths=./internal/controller/"+g+"/...",
+			"output:rbac:artifacts:config=config/rbac",
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// controllerGroups lists the controller packages under internal/controller,
+// one directory per API group, in directory order.
+func controllerGroups() ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join("internal", "controller"))
+	if err != nil {
+		return nil, err
+	}
+	var groups []string
+	for _, e := range entries {
+		if e.IsDir() {
+			groups = append(groups, e.Name())
+		}
+	}
+	if len(groups) == 0 {
+		return nil, fmt.Errorf("no controller packages under internal/controller")
+	}
+	return groups, nil
 }
 
 // Generate generates DeepCopy, DeepCopyInto, and DeepCopyObject implementations.
