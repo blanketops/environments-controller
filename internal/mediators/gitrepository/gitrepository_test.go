@@ -55,6 +55,9 @@ func newEnvironment() *environmentsv1alpha1.Environment {
 				"gitOwner":        "blanketops",
 				"environmentType": "dev",
 				"version":         "v1",
+				// Required since environments v0.9.1; "fake" resolves to
+				// the local kind store, blanketops-environments-fake.
+				"secretStore": map[string]any{"provider": "fake"},
 			}),
 		},
 	}

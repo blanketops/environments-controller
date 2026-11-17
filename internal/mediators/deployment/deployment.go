@@ -33,6 +33,7 @@ import (
 	gitDeployment "github.com/blanketops/environments/pkg/secrets/git/deployment"
 	gitFluxcd "github.com/blanketops/environments/pkg/secrets/git/fluxcd"
 	deploymentResolution "github.com/blanketops/environments/resolution/deployment/resolve"
+	environmentResolution "github.com/blanketops/environments/resolution/environment/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -98,8 +99,8 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *deployment
 	// without this check, the reconciler dereferences the nil
 	// ManifestsRepo.CloneSecret unconditionally.
 	if resolved.Spec.ManifestsRepo != nil {
-		gitSSH := gitDeployment.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
-		if err := gitSSH.Reconcile(ctx, resolved); err != nil {
+		gitSSH := gitDeployment.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log)
+		if err := gitSSH.Reconcile(ctx, resolved, environmentResolution.ResolvedSecretStore{StoreName: envCtx.StoreName}); err != nil {
 			return fmt.Errorf("reconcile git ssh secret: %w", err)
 		}
 	}
@@ -158,7 +159,7 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *deploymen
 	// Stage 1: Git SSH secret — same ManifestsRepo gate as EnsurePrerequisites;
 	// Delete() dereferences ManifestsRepo.CloneSecret unconditionally.
 	if resolved.Spec.ManifestsRepo != nil {
-		gitSSH := gitDeployment.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+		gitSSH := gitDeployment.NewDeploymentGitSSHSecretReconciler(m.Client, m.Log)
 		if err := gitSSH.Delete(ctx, resolved); err != nil {
 			errs = append(errs, fmt.Errorf("delete git ssh secret: %w", err))
 		}
