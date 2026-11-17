@@ -60,7 +60,7 @@ func newPackageEnvironment() *environmentsv1alpha1.Environment {
 	return &environmentsv1alpha1.Environment{
 		ObjectMeta: metav1.ObjectMeta{Name: pkgTestApp, Namespace: pkgNamespace, Labels: pkgLabels},
 		Spec: environmentsv1alpha1.EnvironmentSpec{Contract: testsupport.RawContract(map[string]any{
-			"applicationName": pkgTestApp, "branch": "main", "gitOwner": "blanketops", "environmentType": "dev", keyVersion: "v1",
+			"applicationName": pkgTestApp, "branch": "main", "gitOwner": "blanketops", "environmentType": "dev", keyVersion: "v1", "secretStore": map[string]any{"provider": "fake"},
 		})},
 	}
 }
