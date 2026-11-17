@@ -51,7 +51,7 @@ const (
 	deplEnv       = "site-env"
 	deplEnvType   = "development"
 	unitStatic    = "static"
-	keyUnitImage  = "images"
+	keyUnitImage  = "image"
 )
 
 var deplKey = client.ObjectKey{Namespace: deplNamespace, Name: deplName}
@@ -66,7 +66,7 @@ func deplLabels() map[string]string {
 func newDeploymentFixtures() []client.Object {
 	env := &environmentsv1alpha1.Environment{ObjectMeta: metav1.ObjectMeta{Name: deplEnv, Namespace: deplNamespace, Labels: deplLabels()}}
 	env.Spec.Contract = testsupport.RawContract(map[string]any{
-		"applicationName": deplName, "branch": "main", "gitOwner": "example-org", "environmentType": deplEnvType, "version": "v1",
+		"applicationName": deplName, "branch": "main", "gitOwner": "example-org", "environmentType": deplEnvType, "version": "v1", "secretStore": map[string]any{"provider": "fake"},
 	})
 	su := &environmentsv1alpha1.ServiceUnit{ObjectMeta: metav1.ObjectMeta{Name: deplUnit, Namespace: deplNamespace, Labels: deplLabels()}}
 	su.Spec.Contract = testsupport.RawContract(map[string]any{keyUnitType: unitStatic, keyUnitImage: "ghcr.io/example-org/web:v1", "containerPort": 8080, "size": 1})

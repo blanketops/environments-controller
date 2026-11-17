@@ -33,6 +33,7 @@ import (
 	packagerepo "github.com/blanketops/environments/pkg/secrets/git/packagerepo"
 	git "github.com/blanketops/environments/pkg/secrets/git/staterepo"
 	serviceaccounts "github.com/blanketops/environments/pkg/serviceaccounts"
+	environmentResolution "github.com/blanketops/environments/resolution/environment/resolve"
 	packageResolution "github.com/blanketops/environments/resolution/packages/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -119,8 +120,8 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *packageRes
 	// Stage 2: Git credentials (package repo, store-dependent) — the SSH
 	// secret kapp-controller fetches the package repository with.
 	if resolved.Spec.PackageRepository.CredentialsSecret != "" {
-		repo := packagerepo.NewPackageRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
-		if err := repo.Reconcile(ctx, resolved); err != nil {
+		repo := packagerepo.NewPackageRepositorySecretReconciler(m.Client, m.Log)
+		if err := repo.Reconcile(ctx, resolved, environmentResolution.ResolvedSecretStore{StoreName: envCtx.StoreName}); err != nil {
 			return fmt.Errorf("reconcile package repository credentials: %w", err)
 		}
 	}
@@ -169,7 +170,7 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *packageRe
 	}
 	// Stage 2: Git credentials (package repo)
 	if resolved.Spec.PackageRepository.CredentialsSecret != "" {
-		repo := packagerepo.NewPackageRepositorySecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+		repo := packagerepo.NewPackageRepositorySecretReconciler(m.Client, m.Log)
 		if err := repo.Delete(ctx, resolved); err != nil {
 			errs = append(errs, fmt.Errorf("delete package repository credentials: %w", err))
 		}
