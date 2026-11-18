@@ -166,6 +166,17 @@ func (d *GitRepositoryDomain) Handle(ctx context.Context, cmd command.Command) e
 			return err
 		}
 
+		// Tear down the provider-managed external resources (Crossplane
+		// Repository + RepositoryWebhook). These are linked to the CR by
+		// label only, never ownerReference, so Kubernetes GC cannot reclaim
+		// them — the provider MUST be told to delete them explicitly.
+		if err := d.gitRepositoryService.Teardown(ctx, resolved); err != nil {
+			log.Error(err, "provider teardown failed")
+			d.events.FromError(gitrepositoryCR, "GitRepositoryTeardownFailed", err)
+			conditions.SetCondition(&gitrepositoryCR.Status.Conditions, "GitRepositoryDeleted", conditions.ConditionFalse, "GitRepositoryTeardownFailed", err.Error())
+			return err
+		}
+
 		// Tear down prerequisites the mediator created (secrets, SAs, RBAC).
 		if err := d.gitRepositoryMediator.CleanupPrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "prerequisites cleanup failed")
