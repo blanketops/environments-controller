@@ -17,6 +17,7 @@ go.work.sum
 # ── Kubernetes generated files ───────────────────────────
 # skip generated files, except for vendored files
 !vendor/**/zz_generated.*
+vendor
 
 # ── ko build artifacts ───────────────────────────────────
 .ko.yaml.local

@@ -21,15 +21,11 @@ Environment resources. It receives commands from the Engine, resolves
 resource specifications into validated contracts, and records reconciliation
 outcomes through conditions and events.
 
-Current stage — intentionally minimal:
+Current stage:
   - Resolves the environment contract (secretStore.provider required)
   - Publishes resolved projection to cache
   - Sets standard conditions
-
-Deferred:
-  - Secret store connection validation (pkg/environment/api providers)
-  - Observer ref-patching (environment-observer)
-  - Mediator prerequisites
+  - On delete: tears down the ClusterSecretStore and ExternalSecrets
 */
 package environment
 
@@ -38,14 +34,16 @@ import (
 	"fmt"
 	"reflect"
 
-	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
-	libenvironment "github.com/blanketops/environments/cache/environment"
+	envv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
+	"github.com/blanketops/environments/cache/environment"
 	"github.com/blanketops/environments/core/cache"
 	"github.com/blanketops/environments/core/command"
 	"github.com/blanketops/environments/core/conditions"
 	"github.com/blanketops/environments/core/events"
 	environmentResolution "github.com/blanketops/environments/resolution/environment/resolve"
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -60,7 +58,7 @@ type EnvironmentDomain struct {
 	// environmentCache provides generation-scoped, field-level caching for
 	// Environment resources. Advisory only — misses fall through to full
 	// computation; correctness never depends on a hit.
-	environmentCache *libenvironment.EnvironmentCache
+	environmentCache *environment.EnvironmentCache
 	// events handles logging of Kubernetes events.
 	events *events.EventRecorder
 	// log is the logger instance for this domain.
@@ -78,7 +76,7 @@ func New(
 	return &EnvironmentDomain{
 		client:           c,
 		scheme:           scheme,
-		environmentCache: libenvironment.NewEnvironmentCache(domainCache),
+		environmentCache: environment.NewEnvironmentCache(domainCache),
 		events:           eventRecorder,
 		log:              log,
 	}
@@ -86,12 +84,12 @@ func New(
 
 // GVK tells the engine which CRD this domain handles.
 func (d *EnvironmentDomain) GVK() schema.GroupVersionKind {
-	return environmentsv1alpha1.GroupVersion.WithKind("Environment")
+	return envv1alpha1.GroupVersion.WithKind("Environment")
 }
 
 // Handle executes command.Command operations routed by the Engine.
 func (d *EnvironmentDomain) Handle(ctx context.Context, cmd command.Command) error {
-	environmentCR, ok := cmd.Obj.(*environmentsv1alpha1.Environment)
+	environmentCR, ok := cmd.Obj.(*envv1alpha1.Environment)
 	if !ok || environmentCR == nil {
 		return fmt.Errorf("invalid object passed to EnvironmentDomain: %T", cmd.Obj)
 	}
@@ -144,6 +142,75 @@ func (d *EnvironmentDomain) Handle(ctx context.Context, cmd command.Command) err
 		log.Info("environment domain handling complete")
 
 	case command.CmdDelete:
+		// ── Teardown: delete ClusterSecretStore and ExternalSecrets ─────────
+		log.Info("tearing down environment secret store and external secrets")
+
+		// Resolve to get the provider and store name
+		resolved, err := environmentResolution.ResolveEnvironment(environmentCR)
+		if err != nil {
+			log.Error(err, "environment resolution failed during teardown")
+		} else if resolved != nil && resolved.Spec != nil && resolved.Spec.Contract != nil {
+			contract := resolved.Spec.Contract
+			provider := contract.SecretStore.Provider
+			storeName := contract.SecretStore.StoreName
+
+			// Default store names if not overridden
+			if storeName == "" {
+				switch provider {
+				case "vault", "SECRET_STORE_PROVIDER_VAULT":
+					storeName = "blanketops-environments-vault"
+				case "aws", "SECRET_STORE_PROVIDER_AWS":
+					storeName = "blanketops-environments-aws"
+				case "azure", "SECRET_STORE_PROVIDER_AZURE":
+					storeName = "blanketops-environments-azure"
+				case "gcp", "SECRET_STORE_PROVIDER_GCP":
+					storeName = "blanketops-environments-gcp"
+				}
+			}
+
+			if storeName != "" {
+				// Delete ClusterSecretStore (cluster-scoped, not owned by Environment)
+				clusterStore := &unstructured.Unstructured{}
+				clusterStore.SetAPIVersion("external-secrets.io/v1")
+				clusterStore.SetKind("ClusterSecretStore")
+				clusterStore.SetName(storeName)
+				if err := d.client.Delete(ctx, clusterStore); err != nil && !errors.IsNotFound(err) {
+					log.Error(err, "failed to delete ClusterSecretStore", "store", storeName)
+				} else {
+					log.Info("deleted ClusterSecretStore", "store", storeName)
+				}
+
+				// Delete namespaced SecretStore (owned by Environment, will be GC'd but explicit is better)
+				nsStore := &unstructured.Unstructured{}
+				nsStore.SetAPIVersion("external-secrets.io/v1")
+				nsStore.SetKind("SecretStore")
+				nsStore.SetName(storeName)
+				nsStore.SetNamespace(environmentCR.Namespace)
+				if err := d.client.Delete(ctx, nsStore); err != nil && !errors.IsNotFound(err) {
+					log.Error(err, "failed to delete SecretStore", "store", storeName)
+				} else {
+					log.Info("deleted SecretStore", "store", storeName)
+				}
+
+				// Delete ExternalSecrets in the environment namespace that belong to this environment
+				esList := &unstructured.UnstructuredList{}
+				esList.SetAPIVersion("external-secrets.io/v1")
+				esList.SetKind("ExternalSecret")
+				if err := d.client.List(ctx, esList, client.InNamespace(environmentCR.Namespace)); err == nil {
+					for _, es := range esList.Items {
+						if es.GetLabels()["blanketops.dev/domain"] == "environment" {
+							if err := d.client.Delete(ctx, &es); err != nil && !errors.IsNotFound(err) {
+								log.Error(err, "failed to delete ExternalSecret", "name", es.GetName())
+							} else {
+								log.Info("deleted ExternalSecret", "name", es.GetName())
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// ── Invalidate cache projection ─────────────────────────────────────
 		if cerr := d.environmentCache.Invalidate(ctx, nn); cerr != nil {
 			log.V(1).Info("projection invalidation failed", "error", cerr.Error())
 		}
@@ -160,15 +227,15 @@ func (d *EnvironmentDomain) Handle(ctx context.Context, cmd command.Command) err
 
 // CanCreate reports whether obj is an Environment.
 func (d *EnvironmentDomain) CanCreate(obj client.Object) bool {
-	_, ok := obj.(*environmentsv1alpha1.Environment)
+	_, ok := obj.(*envv1alpha1.Environment)
 	return ok
 }
 
 // CanUpdate reports whether oldObj and newObj are both Environments whose
 // specs differ.
 func (d *EnvironmentDomain) CanUpdate(oldObj, newObj client.Object) bool {
-	oldE, okOld := oldObj.(*environmentsv1alpha1.Environment)
-	newE, okNew := newObj.(*environmentsv1alpha1.Environment)
+	oldE, okOld := oldObj.(*envv1alpha1.Environment)
+	newE, okNew := newObj.(*envv1alpha1.Environment)
 	if !okOld || !okNew {
 		return false
 	}
@@ -177,6 +244,6 @@ func (d *EnvironmentDomain) CanUpdate(oldObj, newObj client.Object) bool {
 
 // CanDelete reports whether obj is an Environment.
 func (d *EnvironmentDomain) CanDelete(obj client.Object) bool {
-	_, ok := obj.(*environmentsv1alpha1.Environment)
+	_, ok := obj.(*envv1alpha1.Environment)
 	return ok
 }

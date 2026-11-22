@@ -35,6 +35,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	bootstrap "github.com/blanketops/environments-controller/internal/bootstrap"
 	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
@@ -63,11 +64,13 @@ type Runtime interface {
 func main() {
 	var enableLeaderElection bool
 	var probeAddr string
+	var metricsAddr string
 	var acmeServer string
 	var acmeEmail string
 	var acmePrivateKeySecretName string
 
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Probe bind address")
+	flag.StringVar(&probeAddr, "health-probe-bind-address", "127.0.0.1:8081", "Probe bind address")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", "127.0.0.1:8082", "Metrics bind address")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false, "Enable leader election")
 	flag.StringVar(&acmeServer, "acme-server",
 		"https://acme-v02.api.letsencrypt.org/directory",
@@ -82,6 +85,7 @@ func main() {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
+		Metrics:                server.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "ed9f0ef9.blanketops.dev",
