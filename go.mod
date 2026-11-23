@@ -8,7 +8,7 @@ require (
 	github.com/blanketops/environments v0.9.1
 	github.com/blanketops/environments-api v0.4.4
 	github.com/cert-manager/cert-manager v1.21.3
-	github.com/fluxcd/kustomize-controller/api v1.10.1
+	github.com/fluxcd/kustomize-controller/api v1.10.2
 	github.com/fluxcd/source-controller/api v1.10.1
 	github.com/go-logr/logr v1.4.4
 	github.com/go-logr/zapr v1.3.0
