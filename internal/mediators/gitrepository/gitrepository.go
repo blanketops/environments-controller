@@ -36,6 +36,7 @@ import (
 	providerconfig "github.com/blanketops/environments/pkg/providerconfig"
 	githubCrossplane "github.com/blanketops/environments/pkg/secrets/github/crossplane"
 	githubHookurl "github.com/blanketops/environments/pkg/secrets/github/hookurl"
+	githubWebhookSecret "github.com/blanketops/environments/pkg/secrets/github/webhooksecret"
 	gitrepoResolution "github.com/blanketops/environments/resolution/gitrepository/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -107,6 +108,14 @@ func (m *Mediator) EnsurePrerequisites(ctx context.Context, resolved *gitrepoRes
 	if err := hookURL.Reconcile(ctx, resolved); err != nil {
 		return fmt.Errorf("hookurl secret: %w", err)
 	}
+	// Stage 4: Webhook HMAC secret (store-sourced, per GitRepository). Sourced
+	// from the same store key the Argo Events eventsource validates against, so
+	// GitHub-signed deliveries verify. The RepositoryWebhook references it via
+	// configuration.secretSecretRef.
+	hmac := githubWebhookSecret.NewWebhookSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+	if err := hmac.Reconcile(ctx, resolved); err != nil {
+		return fmt.Errorf("webhook hmac secret: %w", err)
+	}
 	return nil
 }
 
@@ -141,6 +150,11 @@ func (m *Mediator) CleanupPrerequisites(ctx context.Context, resolved *gitrepoRe
 	hookURL := githubHookurl.NewHookURLSecretReconciler(m.Client, m.Scheme, m.Log)
 	if err := hookURL.Delete(ctx, resolved); err != nil {
 		errs = append(errs, fmt.Errorf("delete hookurl secret: %w", err))
+	}
+	// Stage 4: Webhook HMAC secret
+	hmac := githubWebhookSecret.NewWebhookSecretReconciler(m.Client, m.Log, envCtx.StoreName, envCtx.StoreKind)
+	if err := hmac.Delete(ctx, resolved); err != nil {
+		errs = append(errs, fmt.Errorf("delete webhook hmac secret: %w", err))
 	}
 	if len(errs) > 0 {
 		return utilerrors.NewAggregate(errs)

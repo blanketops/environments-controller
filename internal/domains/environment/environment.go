@@ -43,6 +43,7 @@ import (
 	environmentResolution "github.com/blanketops/environments/resolution/environment/resolve"
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -142,7 +143,32 @@ func (d *EnvironmentDomain) Handle(ctx context.Context, cmd command.Command) err
 		log.Info("environment domain handling complete")
 
 	case command.CmdDelete:
+		// ── Cascade: delete child CRs first (top-down ownership) ────────────
+		// Children are linked to this Environment by the
+		// environments.blanketops.dev/name label, NOT by ownerReference (the
+		// GitHubEvent lives in a different namespace, which ownerReferences
+		// cannot cross). Delete them and HOLD the Environment finalizer until
+		// every child is gone, so each child's own finalizer runs its teardown
+		// (GitHub repos, webhooks, Flux, kapp) while the Environment — which
+		// those child teardowns resolve — still exists.
+		remaining, cerr := d.cascadeDeleteChildren(ctx, environmentCR)
+		if cerr != nil {
+			log.Error(cerr, "cascade child deletion failed")
+			d.events.FromError(environmentCR, "EnvironmentCascadeFailed", cerr)
+			conditions.SetCondition(&environmentCR.Status.Conditions, "EnvironmentDeleted", conditions.ConditionFalse, "EnvironmentCascadeFailed", cerr.Error())
+			return cerr
+		}
+		if remaining > 0 {
+			msg := fmt.Sprintf("waiting for %d child resource(s) to finish deleting", remaining)
+			log.Info("cascade in progress; environment finalizer retained", "remaining", remaining)
+			conditions.SetCondition(&environmentCR.Status.Conditions, "EnvironmentDeleted", conditions.ConditionFalse, "EnvironmentCascadePending", msg)
+			return fmt.Errorf("%s", msg)
+		}
+
 		// ── Teardown: delete ClusterSecretStore and ExternalSecrets ─────────
+		// Only reached once every child is gone, so the secret store the
+		// children needed during their own teardown is still present while
+		// they run.
 		log.Info("tearing down environment secret store and external secrets")
 
 		// Resolve to get the provider and store name
@@ -169,18 +195,16 @@ func (d *EnvironmentDomain) Handle(ctx context.Context, cmd command.Command) err
 			}
 
 			if storeName != "" {
-				// Delete ClusterSecretStore (cluster-scoped, not owned by Environment)
-				clusterStore := &unstructured.Unstructured{}
-				clusterStore.SetAPIVersion("external-secrets.io/v1")
-				clusterStore.SetKind("ClusterSecretStore")
-				clusterStore.SetName(storeName)
-				if err := d.client.Delete(ctx, clusterStore); err != nil && !errors.IsNotFound(err) {
-					log.Error(err, "failed to delete ClusterSecretStore", "store", storeName)
-				} else {
-					log.Info("deleted ClusterSecretStore", "store", storeName)
-				}
+				// NOTE: the ClusterSecretStore (blanketops-environments-aws
+				// etc.) is cluster-shared, install-managed infrastructure — it
+				// is referenced by every Environment AND by other consumers
+				// (e.g. the Crossplane github-upjet provider credentials). The
+				// Environment does NOT own it and MUST NOT delete it on
+				// teardown: doing so breaks every other Environment and the
+				// provider. Only resources this Environment actually created
+				// are teared down below.
 
-				// Delete namespaced SecretStore (owned by Environment, will be GC'd but explicit is better)
+				// Delete namespaced SecretStore (owned by Environment)
 				nsStore := &unstructured.Unstructured{}
 				nsStore.SetAPIVersion("external-secrets.io/v1")
 				nsStore.SetKind("SecretStore")
@@ -246,4 +270,47 @@ func (d *EnvironmentDomain) CanUpdate(oldObj, newObj client.Object) bool {
 func (d *EnvironmentDomain) CanDelete(obj client.Object) bool {
 	_, ok := obj.(*envv1alpha1.Environment)
 	return ok
+}
+
+// childListGVKs are the composed CR kinds an Environment owns top-down.
+// They are correlated to their Environment by the
+// environments.blanketops.dev/name label (not ownerReferences — GitHubEvent
+// lives in a different namespace than the Environment).
+var childListGVKs = []schema.GroupVersionKind{
+	{Group: "environments.blanketops.dev", Version: "v1alpha1", Kind: "BuildList"},
+	{Group: "environments.blanketops.dev", Version: "v1alpha1", Kind: "ServiceUnitList"},
+	{Group: "environments.blanketops.dev", Version: "v1alpha1", Kind: "DeploymentList"},
+	{Group: "environments.blanketops.dev", Version: "v1alpha1", Kind: "PackageList"},
+	{Group: "sources.blanketops.dev", Version: "v1alpha1", Kind: "GitRepositoryList"},
+	{Group: "events.blanketops.dev", Version: "v1alpha1", Kind: "GitHubEventList"},
+}
+
+// cascadeDeleteChildren deletes every composed CR labelled for env across all
+// namespaces and returns how many still exist. A non-zero count means teardown
+// is still in progress — the children are running their own finalizers — and
+// the caller must retain the Environment finalizer and retry. Kinds whose CRD
+// is not installed are skipped. Delete is idempotent: children already marked
+// for deletion are counted but not re-deleted.
+func (d *EnvironmentDomain) cascadeDeleteChildren(ctx context.Context, env *envv1alpha1.Environment) (int, error) {
+	remaining := 0
+	for _, gvk := range childListGVKs {
+		list := &unstructured.UnstructuredList{}
+		list.SetGroupVersionKind(gvk)
+		if err := d.client.List(ctx, list, client.MatchingLabels{"environments.blanketops.dev/name": env.Name}); err != nil {
+			if meta.IsNoMatchError(err) {
+				continue // CRD not installed in this cluster
+			}
+			return 0, fmt.Errorf("list %s: %w", gvk.Kind, err)
+		}
+		for i := range list.Items {
+			item := &list.Items[i]
+			remaining++
+			if item.GetDeletionTimestamp().IsZero() {
+				if err := d.client.Delete(ctx, item); err != nil && !errors.IsNotFound(err) {
+					return 0, fmt.Errorf("delete %s %s/%s: %w", gvk.Kind, item.GetNamespace(), item.GetName(), err)
+				}
+			}
+		}
+	}
+	return remaining, nil
 }

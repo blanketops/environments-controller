@@ -161,6 +161,17 @@ func (d *GitHubEventDomain) Handle(ctx context.Context, cmd command.Command) err
 			return err
 		}
 
+		// Tear down the per-CR Argo Events infrastructure the provider
+		// created (the Sensor). Without this the Sensor is orphaned: the CR
+		// disappears but its sensor pod keeps running. Shared infra
+		// (EventBus/EventSource/SA/RBAC) is intentionally left intact.
+		if err := d.githubEventService.Teardown(ctx, resolved); err != nil {
+			log.Error(err, "provider teardown failed")
+			d.events.FromError(githubeventCR, "GitHubEventTeardownFailed", err)
+			conditions.SetCondition(&githubeventCR.Status.Conditions, "GitHubEventDeleted", conditions.ConditionFalse, "GitHubEventTeardownFailed", err.Error())
+			return err
+		}
+
 		// Tear down prerequisites the mediator created (secrets, SAs, RBAC).
 		if err := d.githubEventMediator.CleanupPrerequisites(ctx, resolved); err != nil {
 			log.Error(err, "prerequisites cleanup failed")

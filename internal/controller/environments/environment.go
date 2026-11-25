@@ -36,10 +36,18 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	environmentdomain "github.com/blanketops/environments-controller/internal/domains/environment"
 	runtimeinfra "github.com/blanketops/environments-controller/internal/runtime"
 )
+
+// EnvironmentFinalizer gates Environment deletion on top-down teardown: the
+// domain's CmdDelete cascades deletion to every composed child CR (Build,
+// ServiceUnit, GitRepository, Deployment, Package, GitHubEvent) and only
+// completes once they are gone, then tears down the secret store. The
+// finalizer is removed only after that teardown returns nil.
+const EnvironmentFinalizer = "environments.blanketops.dev/environment-finalizer"
 
 // EnvironmentReconciler reconciles an Environment object.
 type EnvironmentReconciler struct {
@@ -83,6 +91,70 @@ func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		"generation", environment.Generation,
 		"resourceVersion", environment.ResourceVersion,
 	)
+
+	// ── Deletion: route CmdDelete, then release finalizer ─────────────────────
+	// The domain's CmdDelete cascades deletion to the composed child CRs and
+	// tears down the secret store; it returns an error (finalizer retained,
+	// retry) until every child is gone, so this reconcile may run several
+	// times before the finalizer is removed.
+	if !environment.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(&environment, EnvironmentFinalizer) {
+			log.Info("reconcile exit: deleting without finalizer")
+			return ctrl.Result{}, nil
+		}
+		log.Info("environment deletion requested; routing cascade teardown")
+		delCmd := coreCommand.Command{
+			GVK:  environmentv1alpha1.GroupVersion.WithKind("Environment"),
+			Type: coreCommand.CmdDelete,
+			Obj:  &environment,
+		}
+		if err := r.Runtime.Engine.Execute(ctx, delCmd); err != nil {
+			// Teardown incomplete (children still terminating, or a failure) —
+			// keep the finalizer and retry on the next reconcile.
+			log.Info("environment teardown incomplete; finalizer retained", "reason", err.Error())
+			r.Recorder.Eventf(&environment, nil, corev1.EventTypeWarning, "TeardownInProgress", "Execute", "%v", err)
+			return ctrl.Result{}, err
+		}
+		log.Info("environment teardown complete; removing finalizer")
+		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			var latest environmentv1alpha1.Environment
+			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+				return client.IgnoreNotFound(err)
+			}
+			if !controllerutil.ContainsFinalizer(&latest, EnvironmentFinalizer) {
+				return nil
+			}
+			controllerutil.RemoveFinalizer(&latest, EnvironmentFinalizer)
+			return r.Update(ctx, &latest)
+		}); err != nil {
+			log.Error(err, "failed to remove finalizer")
+			return ctrl.Result{}, err
+		}
+		log.Info("reconcile done: environment released for deletion")
+		return ctrl.Result{}, nil
+	}
+
+	// ── Live object: ensure finalizer before any domain work ──────────────────
+	// Adding the finalizer is a metadata-only change the spec-diff predicate
+	// suppresses, so requeue explicitly rather than rely on the watch.
+	if !controllerutil.ContainsFinalizer(&environment, EnvironmentFinalizer) {
+		log.Info("adding finalizer")
+		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			var latest environmentv1alpha1.Environment
+			if err := r.Get(ctx, req.NamespacedName, &latest); err != nil {
+				return err
+			}
+			if controllerutil.ContainsFinalizer(&latest, EnvironmentFinalizer) {
+				return nil
+			}
+			controllerutil.AddFinalizer(&latest, EnvironmentFinalizer)
+			return r.Update(ctx, &latest)
+		}); err != nil {
+			log.Error(err, "failed to add finalizer")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
+	}
 
 	// ── Route to engine ───────────────────────────────────────────────────────
 	cmd := coreCommand.Command{

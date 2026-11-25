@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	carvel.dev/kapp-controller v0.60.10
 	github.com/argoproj/argo-events v1.9.11
-	github.com/blanketops/environments v0.9.2
+	github.com/blanketops/environments v0.9.4-0.20261125001635-3e8fca6e6d20
 	github.com/blanketops/environments-api v0.4.4
 	github.com/cert-manager/cert-manager v1.21.3
 	github.com/fluxcd/kustomize-controller/api v1.10.1

@@ -27,9 +27,11 @@ import (
 
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
 	"github.com/blanketops/environments/core/command"
+	"github.com/blanketops/environments/core/predicates"
 	buildapi "github.com/blanketops/environments/pkg/apis/build/api"
 	buildapp "github.com/blanketops/environments/pkg/apis/build/application"
 	"github.com/go-logr/logr"
+	shipwrightv1alpha1 "github.com/shipwright-io/build/pkg/apis/build/v1alpha1"
 	buildclientset "github.com/shipwright-io/build/pkg/client/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -41,6 +43,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	builddomain "github.com/blanketops/environments-controller/internal/domains/build"
 	"github.com/blanketops/environments-controller/internal/mediators/build"
@@ -253,15 +256,15 @@ func (r *BuildReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&environmentsv1alpha1.Build{}).
-		// Watches(
-		// 	&shipwrightv1alpha1.BuildRun{},
-		// 	handler.EnqueueRequestForOwner(
-		// 		mgr.GetScheme(),
-		// 		mgr.GetRESTMapper(),
-		// 		&shipwrightv1alpha1.BuildRun{},
-		// 	),
-		// ).
-		// WithEventFilter(predicates.MeaningfulChangePredicate()).
+		Watches(
+			&shipwrightv1alpha1.BuildRun{},
+			handler.EnqueueRequestForOwner(
+				mgr.GetScheme(),
+				mgr.GetRESTMapper(),
+				&shipwrightv1alpha1.BuildRun{},
+			),
+		).
+		WithEventFilter(predicates.MeaningfulChangePredicate()).
 		Named("environments-build").
 		Complete(r)
 }
