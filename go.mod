@@ -1,9 +1,9 @@
 module github.com/blanketops/environments-controller
 
-go 1.27.3
+go 1.27.4
 
 require (
-	carvel.dev/kapp-controller v0.60.10
+	carvel.dev/kapp-controller v0.61.0
 	github.com/argoproj/argo-events v1.9.11
 	github.com/blanketops/environments v0.9.5
 	github.com/blanketops/environments-api v0.4.4

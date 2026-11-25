@@ -1,5 +1,5 @@
-carvel.dev/kapp-controller v0.60.10 h1:rpcsvo0w2FJbfSbT8DfUHDQU1ngYgbBPMwTXkRSryXI=
-carvel.dev/kapp-controller v0.60.10/go.mod h1:whRy9NPEycz1wPIkmNWuCkZqUze47+IlPAIck0iYYTY=
+carvel.dev/kapp-controller v0.61.0 h1:Gw3khr5t6oT1kP15pn9nOMxvtxhg48LYqyITRI69pmc=
+carvel.dev/kapp-controller v0.61.0/go.mod h1:z51sxRlcOUlzACGD9r2mf8hD7giwg05imRd+YBqN5II=
 carvel.dev/vendir v0.46.2 h1:nAzLEJ6aCAPYLtG8pifI3CMshfImsME8XIpcG2J0JLw=
 carvel.dev/vendir v0.46.2/go.mod h1:CgF41YRwJcvCBbiMoppsrA/Jw3TUssH4b/ZKWX3t7kY=
 cel.dev/cel-go v0.32.0 h1:irvpFKr5EuGPyxeME03ERh0rii1TX+BDAnB9eL3IvNk=
