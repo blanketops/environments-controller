@@ -151,11 +151,13 @@ func (r *GitRepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "failed to add finalizer")
 			return ctrl.Result{}, err
 		}
-		// The Update bumps resourceVersion and triggers a fresh reconcile;
-		// exit here and let that reconcile run the domain against the
-		// finalized object.
-		log.Info("reconcile done: finalizer added, requeue via watch")
-		return ctrl.Result{}, nil
+		// The finalizer-add is a metadata-only update. The watch is filtered
+		// by MeaningfulChangePredicate, which passes GitRepository updates
+		// only when spec changes — so this self-update will NOT re-trigger a
+		// reconcile via the watch. Requeue explicitly so the next reconcile
+		// runs the domain against the finalized object.
+		log.Info("reconcile done: finalizer added, requeuing")
+		return ctrl.Result{Requeue: true}, nil
 	}
 	// Construct core command
 	cmd := command.Command{
