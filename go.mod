@@ -5,11 +5,11 @@ go 1.27.3
 require (
 	carvel.dev/kapp-controller v0.60.10
 	github.com/argoproj/argo-events v1.9.11
-	github.com/blanketops/environments v0.9.4-0.20261125072631-2795345507eb
+	github.com/blanketops/environments v0.9.5
 	github.com/blanketops/environments-api v0.4.4
 	github.com/cert-manager/cert-manager v1.21.3
-	github.com/fluxcd/kustomize-controller/api v1.10.1
-	github.com/fluxcd/source-controller/api v1.10.1
+	github.com/fluxcd/kustomize-controller/api v1.10.2
+	github.com/fluxcd/source-controller/api v1.10.2
 	github.com/go-logr/logr v1.4.4
 	github.com/go-logr/zapr v1.3.0
 	github.com/magefile/mage v1.17.2
@@ -23,7 +23,7 @@ require (
 	k8s.io/client-go v0.37.2
 	knative.dev/networking v0.0.0-20261026130131-cfc431598730
 	knative.dev/serving v0.51.0
-	sigs.k8s.io/controller-runtime v0.25.2
+	sigs.k8s.io/controller-runtime v0.25.3
 )
 
 require (
@@ -33,7 +33,7 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blanketops/environments-contract v0.6.6 // indirect
+	github.com/blanketops/environments-contract v0.6.8 // indirect
 	github.com/blendle/zapdriver v1.3.1 // indirect
 	github.com/bradfitz/gomemcache v0.0.0-20260422231931-4d751bb6e37c // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -43,7 +43,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.12.0 // indirect
 	github.com/fluxcd/pkg/apis/kustomize v1.23.0 // indirect
-	github.com/fluxcd/pkg/apis/meta v1.38.0 // indirect
+	github.com/fluxcd/pkg/apis/meta v1.39.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
