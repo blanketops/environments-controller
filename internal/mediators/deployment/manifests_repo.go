@@ -53,7 +53,15 @@ func (m *Mediator) ensureManifestsRepo(
 	repo := fmt.Sprintf("%s-manifests", deploy.Name)
 	sshURL := fmt.Sprintf("ssh://git@github.com/%s/%s.git", owner, repo)
 	localPath := filepath.Join(os.TempDir(), repo)
-	branch := "main"
+	// Manifests repos never carry a `main` branch — environments map to
+	// branches (dev/int/qa/prd/...). The first branch pushed to a freshly
+	// created empty repo becomes its default, so pushing `dev` first makes
+	// `dev` the default and no `main` is ever created. Respect an explicit
+	// contract ref, otherwise default to the dev environment branch.
+	branch := resolved.Spec.ManifestsRepo.Ref
+	if branch == "" {
+		branch = "dev"
+	}
 	fmt.Printf("[bootstrap] starting manifests bootstrap for %s/%s\n", owner, repo)
 	// 1. Ensure remote private repo exists
 	if err := ensureGitHubRepoPrivate(owner, repo, token); err != nil {
@@ -190,7 +198,7 @@ func (m *Mediator) ensureManifestsRepo(
 	if out, err := utils.RunGitWithEnv(
 		localPath,
 		[]string{"GIT_SSH_COMMAND=" + gitSSHCmd},
-		"push", "-u", "origin", branch,
+		"push", "-u", "origin", "HEAD:"+branch,
 	); err != nil {
 		return fmt.Errorf("git push failed: %s", out)
 	}
