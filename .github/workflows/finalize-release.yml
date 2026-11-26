@@ -63,7 +63,7 @@ permissions:
   contents: read
 jobs:
   finalize:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     env:
       VERSION: ${{ github.event.inputs.version }}
     steps:

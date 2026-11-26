@@ -37,7 +37,7 @@ concurrency:
 jobs:
   review:
     name: PR Review
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Generate PR Reviewer App token

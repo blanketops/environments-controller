@@ -29,7 +29,7 @@ permissions:
 jobs:
   open:
     name: open the pull request and tracking issue
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Check out the pushed commit
         uses: actions/checkout@v7

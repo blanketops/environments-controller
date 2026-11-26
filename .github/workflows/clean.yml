@@ -46,7 +46,7 @@ concurrency:
 jobs:
   clean:
     name: Clean
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Generate Cleaner App token
