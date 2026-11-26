@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	utils "github.com/blanketops/environments/pkg/utils"
+	"github.com/blanketops/environments/pkg/gitops"
 	deploymentResolution "github.com/blanketops/environments/resolution/deployment/resolve"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
@@ -76,62 +76,32 @@ func (m *Mediator) ensureManifestsRepo(
 	if err := ensureDeployKey(owner, repo, publicKey, token); err != nil {
 		return fmt.Errorf("ensure deploy key: %w", err)
 	}
-	// 3. Write ephemeral SSH key to disk for git ops
-	sshKeyPath, cleanup, err := m.writeSSHKeyToDisk(ctx, resolved)
+	// 3. Build in-memory git SSH auth from the Flux secret (no key on disk,
+	//    so this works under readOnlyRootFilesystem and needs no git/ssh binary).
+	fluxSecretName := fmt.Sprintf("%s-flux-ssh", deploy.Name)
+	var fluxSecret corev1.Secret
+	if err := m.Client.Get(ctx, client.ObjectKey{Name: fluxSecretName, Namespace: deploy.Namespace}, &fluxSecret); err != nil {
+		return fmt.Errorf("get flux ssh secret: %w", err)
+	}
+	auth, err := gitops.Auth(fluxSecret.Data["identity"], fluxSecret.Data["known_hosts"])
 	if err != nil {
-		return fmt.Errorf("write ssh key: %w", err)
+		return fmt.Errorf("build git ssh auth: %w", err)
 	}
-	defer cleanup()
-	gitSSHCmd := fmt.Sprintf(
-		`ssh -i %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null`,
-		sshKeyPath,
-	)
-	// 4. Clone or initialize local repo
-	gitDir := filepath.Join(localPath, ".git")
-	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
-		fmt.Printf("[bootstrap] cloning remote repo %s -> %s\n", sshURL, localPath)
-		if _, err := utils.RunGitWithEnv(
-			"", []string{"GIT_SSH_COMMAND=" + gitSSHCmd},
-			"clone", sshURL, localPath,
-		); err != nil {
-			fmt.Printf("[bootstrap] remote empty, initializing new repo\n")
-			if err := os.MkdirAll(localPath, 0755); err != nil {
-				return fmt.Errorf("mkdir failed: %w", err)
-			}
-			_, err = utils.RunGit(localPath, "init")
-			if err != nil {
-				return err
-			}
-			_, err = utils.RunGit(localPath, "checkout", "-b", branch)
-			if err != nil {
-				return err
-			}
-			_, err = utils.RunGit(localPath, "remote", "add", "origin", sshURL)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		fmt.Printf("[bootstrap] local path exists, syncing remote\n")
-		_, err = utils.RunGitWithEnv(localPath,
-			[]string{"GIT_SSH_COMMAND=" + gitSSHCmd},
-			"fetch", "--all",
-		)
-		if err != nil {
-			return err
-		}
-		_, err = utils.RunGit(localPath, "checkout", branch)
-		if err != nil {
-			return err
-		}
-		_, err = utils.RunGitWithEnv(localPath,
-			[]string{"GIT_SSH_COMMAND=" + gitSSHCmd},
-			"pull", "--ff-only", "origin", branch,
-		)
-		if err != nil {
-			return err
-		}
+
+	// 4. Clone (go-git). An empty remote yields a repo with origin set; the
+	//    first commit + push below creates the branch. A populated remote is
+	//    fetched and the env branch checked out.
+	if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
+		return fmt.Errorf("mkdir failed: %w", err)
 	}
+	gitRepo, err := gitops.CloneOrOpen(localPath, sshURL, auth)
+	if err != nil {
+		return fmt.Errorf("clone/open manifests repo: %w", err)
+	}
+	// Best-effort: check out the env branch if the remote already has it. A
+	// brand-new repo has no branch yet, so an error here is expected and the
+	// first push creates the branch.
+	_ = gitops.FetchCheckout(gitRepo, branch, auth)
 	// 5. README
 	readme := filepath.Join(localPath, "README.md")
 	if _, err := os.Stat(readme); os.IsNotExist(err) {
@@ -176,31 +146,14 @@ func (m *Mediator) ensureManifestsRepo(
 			}
 		}
 	}
-	// 7. Commit & push
-	_, err = utils.RunGit(localPath, "add", ".")
-	if err != nil {
-		return err
-	}
-	if _, err := utils.RunGit(localPath, "diff", "--cached", "--quiet"); err != nil {
-		_, err = utils.RunGit(localPath, "config", "user.email", "ntlaletsi86@gmail.com")
-		if err != nil {
-			return err
-		}
-		_, err = utils.RunGit(localPath, "config", "user.name", "Neo Tlaletsi")
-		if err != nil {
-			return err
-		}
-		_, err = utils.RunGit(localPath, "commit", "-m", "bootstrap: ensure base and overlays")
-		if err != nil {
-			return err
-		}
-	}
-	if out, err := utils.RunGitWithEnv(
-		localPath,
-		[]string{"GIT_SSH_COMMAND=" + gitSSHCmd},
-		"push", "-u", "origin", "HEAD:"+branch,
+	// 7. Stage everything, commit (if changed) and push to the env branch.
+	//    go-git's HEAD:refs/heads/<branch> push creates the branch on a fresh
+	//    repo, so no `main` is ever created.
+	if _, err := gitops.StageCommitPush(
+		gitRepo, ".", "bootstrap: ensure base and overlays",
+		branch, auth, "Neo Tlaletsi", "ntlaletsi86@gmail.com",
 	); err != nil {
-		return fmt.Errorf("git push failed: %s", out)
+		return fmt.Errorf("bootstrap commit/push: %w", err)
 	}
 	fmt.Printf("[bootstrap] repository bootstrap complete: %s\n", sshURL)
 	return nil
@@ -263,56 +216,6 @@ func (m *Mediator) extractPublicKey(
 		return "", fmt.Errorf("parse private key: %w", err)
 	}
 	return string(ssh.MarshalAuthorizedKey(signer.PublicKey())), nil
-}
-
-// writeSSHKeyToDisk writes the private key to a temp file for git CLI use.
-// Returns the file path and a cleanup func.
-func (m *Mediator) writeSSHKeyToDisk(
-	ctx context.Context,
-	resolved *deploymentResolution.ResolvedDeployment,
-) (string, func(), error) {
-	secretName := fmt.Sprintf("%s-flux-ssh", resolved.Deployment.Name)
-	var secret corev1.Secret
-	if err := m.Client.Get(ctx, client.ObjectKey{
-		Name:      secretName,
-		Namespace: resolved.Deployment.Namespace,
-	}, &secret); err != nil {
-		return "", nil, fmt.Errorf("get flux ssh secret: %w", err)
-	}
-	f, err := os.CreateTemp("", "blanketops-ssh-*")
-	if nil != err {
-		return "", nil, err
-	}
-	if _, err := f.Write(secret.Data["identity"]); err != nil {
-		err = f.Close()
-		if err != nil {
-			return "", nil, err
-		}
-		err = os.Remove(f.Name())
-		if err != nil {
-			return "", nil, err
-		}
-		return "", nil, err
-	}
-	err = f.Close()
-	if err != nil {
-		return "", nil, err
-	}
-	// SSH requires 0600
-	if err := os.Chmod(f.Name(), 0600); err != nil {
-		err = os.Remove(f.Name())
-		if err != nil {
-			return "", nil, err
-		}
-		return "", nil, err
-	}
-	cleanup := func() {
-		err = os.Remove(f.Name())
-		if err != nil {
-			panic(err)
-		}
-	}
-	return f.Name(), cleanup, nil
 }
 
 // ensureDeployKey registers the public key on the GitHub repo if not already present.

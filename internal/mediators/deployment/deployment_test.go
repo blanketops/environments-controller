@@ -22,7 +22,6 @@ package deployment
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	environmentsv1alpha1 "github.com/blanketops/environments-api/api/environments/v1alpha1"
@@ -116,54 +115,5 @@ func TestExtractPublicKey_SecretNotFound(t *testing.T) {
 
 	if _, err := m.extractPublicKey(context.Background(), resolved); err == nil {
 		t.Fatal("extractPublicKey() with no flux-ssh secret = nil error, want error")
-	}
-}
-
-func TestWriteSSHKeyToDisk_WritesAndCleansUp(t *testing.T) {
-	resolved := newResolvedDeployment(&deploymentResolution.ResolvedManifestsRepo{URL: manifestsRepoURL})
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "deployment-sample-flux-ssh",
-			Namespace: testNamespace,
-		},
-		Data: map[string][]byte{
-			"identity": []byte("-----BEGIN OPENSSH PRIVATE KEY-----\nfake-key-material\n-----END OPENSSH PRIVATE KEY-----\n"),
-		},
-	}
-	m := New(testsupport.NewFakeClient(secret), testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
-
-	path, cleanup, err := m.writeSSHKeyToDisk(context.Background(), resolved)
-	if err != nil {
-		t.Fatalf("writeSSHKeyToDisk() = %v, want nil", err)
-	}
-
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("written key file not found: %v", err)
-	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("key file permissions = %o, want 0600 (SSH requires it)", perm)
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("reading written key: %v", err)
-	}
-	if string(content) != string(secret.Data["identity"]) {
-		t.Error("written key content does not match secret's identity data")
-	}
-
-	cleanup()
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Error("cleanup() did not remove the temp key file")
-	}
-}
-
-func TestWriteSSHKeyToDisk_SecretNotFound(t *testing.T) {
-	resolved := newResolvedDeployment(&deploymentResolution.ResolvedManifestsRepo{URL: manifestsRepoURL})
-	m := New(testsupport.NewFakeClient(), testsupport.NewScheme(), logr.Discard(), testsupport.NoopRawRecorder())
-
-	if _, _, err := m.writeSSHKeyToDisk(context.Background(), resolved); err == nil {
-		t.Fatal("writeSSHKeyToDisk() with no flux-ssh secret = nil error, want error")
 	}
 }
