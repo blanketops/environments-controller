@@ -28,7 +28,7 @@ env:
 jobs:
   gosec:
     name: Gosec
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: >
       github.event_name == 'pull_request' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
@@ -87,7 +87,7 @@ jobs:
 
   govulncheck:
     name: govulncheck
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: >
       github.event_name == 'pull_request' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
@@ -145,7 +145,7 @@ jobs:
 
   trivy-image:
     name: Trivy Image Scan
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Generate GitHub App token

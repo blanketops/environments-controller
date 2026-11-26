@@ -34,7 +34,7 @@ concurrency:
 jobs:
   plan:
     name: releaser plan
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Generate Developer App token

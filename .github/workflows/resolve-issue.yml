@@ -23,7 +23,7 @@ jobs:
   resolve:
     name: close the tracking issue
     if: github.event.pull_request.merged == true
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Generate Developer App token
         id: app

@@ -19,7 +19,7 @@ env:
     IMAGE_REPO: ghcr.io/blanketops/environments-controller
 jobs:
     release:
-      runs-on: self-hosted
+      runs-on: ubuntu-latest
       steps:
         - name: Generate GitHub App token
           id: app-token

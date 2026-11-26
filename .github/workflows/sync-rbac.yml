@@ -44,7 +44,7 @@ concurrency:
 jobs:
   sync-rbac:
     name: admin sync (RBAC)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7
